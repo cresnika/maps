@@ -784,10 +784,17 @@
   .segment-connector {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    margin-left: 11px;
-    padding: 4px 0 4px 20px;
-    border-left: 2px dashed var(--border);
+    margin: 2px 0;
+    padding: 3px 0;
+  }
+  .segment-connector::before,
+  .segment-connector::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
   }
   .segment-pref-buttons {
     display: flex;
@@ -820,6 +827,23 @@
     padding: 2px 5px;
     border-radius: 4px;
     min-width: 0;
+  }
+
+  .settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0 16px;
+  }
+  .backup-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  #routes-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 20px;
   }
 
   #sidebar-footer {
@@ -968,6 +992,7 @@
         </div>
         <button class="btn primary" id="btn-calc-route" style="width:100%;">Route berechnen</button>
         <div id="route-result"></div>
+        <button class="btn" id="btn-save-route" style="width:100%;">Route speichern</button>
       </div>
 
       <div class="btn-row">
@@ -980,10 +1005,22 @@
     </div>
 
     <div id="panel-saved-routes" class="tab-panel">
-      <p class="tab-placeholder">Kommt als Nächstes.</p>
+      <div class="btn-row">
+        <button class="btn primary" id="btn-import-route" style="flex:1;">Route importieren (GPX)</button>
+      </div>
+      <input type="file" id="input-import-route" accept=".gpx" style="display:none;">
+      <div id="routes-list">
+        <div class="empty-state">
+          <div>Noch keine gespeicherten Routen.<br>Im Planen-Tab eine Route berechnen<br>und dort "Route speichern" nutzen.</div>
+        </div>
+      </div>
     </div>
 
     <div id="panel-saved-pois" class="tab-panel">
+      <div class="btn-row">
+        <button class="btn" id="btn-import-pois" style="flex:1;">POIs importieren (GPX)</button>
+      </div>
+      <input type="file" id="input-import-pois" accept=".gpx" style="display:none;">
       <div class="search-row">
         <input type="text" id="poi-search" placeholder="Ort suchen…">
         <button class="btn small" id="btn-search-poi">Suchen</button>
@@ -1025,8 +1062,49 @@
         <a href="https://account.heigit.org/info/tos" target="_blank" rel="noopener">ORS-Nutzungsbedingungen</a>
       </p>
 
+      <div class="settings-divider"></div>
+
+      <label>Alle Daten (POIs, Routen, Einstellungen)</label>
+      <p class="shortcut-hint" style="padding:0 0 8px;">Läuft alles nur im Browser (localStorage) – im Inkognito-Modus oder auf einem anderen Gerät nicht automatisch verfügbar. Hier sichern und dort wieder einspielen.</p>
+      <div class="backup-row">
+        <button class="btn" id="btn-export-data" style="flex:1;">Daten exportieren</button>
+        <button class="btn" id="btn-import-data" style="flex:1;">Daten importieren</button>
+      </div>
+      <input type="file" id="input-import-data" accept=".json" style="display:none;">
+
       <div class="modal-actions">
         <button id="settings-modal-close" class="btn primary">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="route-modal-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+      <h3>Route speichern</h3>
+      <label>Name
+        <input type="text" id="route-name-input" placeholder="z.B. Alpenpässe Tour">
+      </label>
+      <label>Gruppe
+        <input type="text" id="route-group-input" list="route-group-options" placeholder="z.B. Italien/2026">
+        <datalist id="route-group-options"></datalist>
+      </label>
+      <div class="modal-actions">
+        <button id="route-modal-cancel" class="btn">Abbrechen</button>
+        <button id="route-modal-save" class="btn primary">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="poi-import-modal-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+      <h3>POIs importieren</h3>
+      <p class="shortcut-hint" style="padding:0 0 12px;">Alle Wegpunkte aus der GPX-Datei werden als POIs angelegt.</p>
+      <label>Gruppe für die importierten POIs
+        <input type="text" id="poi-import-group-input" list="poi-group-options" placeholder="z.B. Pässe/Import">
+      </label>
+      <div class="modal-actions">
+        <button id="poi-import-modal-cancel" class="btn">Abbrechen</button>
+        <button id="poi-import-modal-confirm" class="btn primary">Importieren</button>
       </div>
     </div>
   </div>
@@ -2696,6 +2774,536 @@
       }
     });
   }
+
+  // ============================================================
+  // Data backup / restore (for incognito mode or switching devices)
+  // ============================================================
+  document.getElementById('btn-export-data').addEventListener('click', () => {
+    const backup = {
+      app: "Alex's Routenplaner",
+      exported_at: new Date().toISOString(),
+      pois: JSON.parse(localStorage.getItem('gpxviewer_pois') || '[]'),
+      routes: JSON.parse(localStorage.getItem('gpxviewer_routes') || '[]'),
+      default_poi_color: localStorage.getItem('default_poi_color') || ''
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'routenplaner-backup.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  document.getElementById('btn-import-data').addEventListener('click', () => {
+    document.getElementById('input-import-data').click();
+  });
+  document.getElementById('input-import-data').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data.pois) localStorage.setItem('gpxviewer_pois', JSON.stringify(data.pois));
+      if (data.routes) localStorage.setItem('gpxviewer_routes', JSON.stringify(data.routes));
+      if (data.default_poi_color) localStorage.setItem('default_poi_color', data.default_poi_color);
+      alert('Daten importiert. Die Seite wird neu geladen.');
+      location.reload();
+    } catch (err){
+      alert('Fehler: Diese Datei ist keine gültige Sicherung.');
+    }
+  });
+
+  // ============================================================
+  // GPX parsing helpers (shared by route import and POI import)
+  // ============================================================
+  function parseGpxText(text){
+    const xml = new DOMParser().parseFromString(text, 'application/xml');
+    if (xml.querySelector('parsererror')) return null;
+    return xml;
+  }
+
+  function extractWaypointsFromGpxForRoute(xml){
+    let els = xml.querySelectorAll('rte > rtept');
+    if (!els.length) els = xml.querySelectorAll('wpt');
+    if (els.length){
+      return Array.from(els).map(el => ({
+        lat: parseFloat(el.getAttribute('lat')),
+        lng: parseFloat(el.getAttribute('lon')),
+        name: el.querySelector('name') ? el.querySelector('name').textContent.trim() : null
+      }));
+    }
+    const trkpts = xml.querySelectorAll('trk trkpt');
+    if (!trkpts.length) return [];
+    const all = Array.from(trkpts).map(el => ({ lat: parseFloat(el.getAttribute('lat')), lng: parseFloat(el.getAttribute('lon')), name: null }));
+    const maxPoints = 20;
+    if (all.length <= maxPoints) return all;
+    const step = all.length / maxPoints;
+    const sampled = [];
+    for (let i = 0; i < maxPoints; i++) sampled.push(all[Math.floor(i * step)]);
+    sampled.push(all[all.length - 1]);
+    return sampled;
+  }
+
+  function extractPoisFromGpx(xml){
+    return Array.from(xml.querySelectorAll('wpt')).map(el => ({
+      lat: parseFloat(el.getAttribute('lat')),
+      lng: parseFloat(el.getAttribute('lon')),
+      name: el.querySelector('name') ? el.querySelector('name').textContent.trim() : 'Unbenannt'
+    }));
+  }
+
+  function switchToPlanningTab(){
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="planning"]').classList.add('active');
+    document.getElementById('panel-planning').classList.add('active');
+    setTimeout(() => map.invalidateSize(), 50);
+  }
+
+  function clearPlannerState(){
+    waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
+    waypoints.length = 0;
+    if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
+    routeResultEl.textContent = '';
+    routeResultEl.className = '';
+  }
+
+  // ============================================================
+  // Import a route (GPX) directly into the planner
+  // ============================================================
+  document.getElementById('btn-import-route').addEventListener('click', () => {
+    document.getElementById('input-import-route').click();
+  });
+  document.getElementById('input-import-route').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const text = await file.text();
+    const xml = parseGpxText(text);
+    if (!xml){ alert('Ungültige GPX-Datei.'); return; }
+    const pts = extractWaypointsFromGpxForRoute(xml);
+    if (pts.length < 2){ alert('Zu wenige Punkte in dieser Datei gefunden (mindestens 2 nötig).'); return; }
+
+    clearPlannerState();
+    pts.forEach(p => {
+      const wp = createWaypoint(L.latLng(p.lat, p.lng), p.name || undefined);
+      waypoints.push(wp);
+    });
+    refreshWaypointIcons();
+    renderWaypointList();
+
+    const fg = L.featureGroup(waypoints.map(wp => wp.marker));
+    map.fitBounds(fg.getBounds(), { padding: [40, 40] });
+    routeResultEl.textContent = 'Importiert – zum Neuberechnen "Route berechnen" klicken.';
+    switchToPlanningTab();
+  });
+
+  // ============================================================
+  // Import POIs from a GPX waypoint list (e.g. a mountain-pass list)
+  // ============================================================
+  let pendingPoiImportPoints = null;
+  document.getElementById('btn-import-pois').addEventListener('click', () => {
+    document.getElementById('input-import-pois').click();
+  });
+  document.getElementById('input-import-pois').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const text = await file.text();
+    const xml = parseGpxText(text);
+    if (!xml){ alert('Ungültige GPX-Datei.'); return; }
+    const points = extractPoisFromGpx(xml);
+    if (!points.length){ alert('Keine Wegpunkte (wpt) in dieser Datei gefunden.'); return; }
+    pendingPoiImportPoints = points;
+    document.getElementById('poi-import-group-input').value = '';
+    document.getElementById('poi-import-modal-backdrop').classList.add('active');
+  });
+  document.getElementById('poi-import-modal-cancel').addEventListener('click', () => {
+    document.getElementById('poi-import-modal-backdrop').classList.remove('active');
+    pendingPoiImportPoints = null;
+  });
+  document.getElementById('poi-import-modal-confirm').addEventListener('click', () => {
+    const group = document.getElementById('poi-import-group-input').value.trim() || 'Import';
+    if (pendingPoiImportPoints){
+      pendingPoiImportPoints.forEach(p => addPoiInternal(p.name || 'Unbenannt', group, p.lat, p.lng, true));
+      savePoisToStorage();
+      renderPoiList();
+    }
+    document.getElementById('poi-import-modal-backdrop').classList.remove('active');
+    pendingPoiImportPoints = null;
+  });
+
+  // ============================================================
+  // Saved routes (Tab "Routen") -- persisted via localStorage,
+  // grouped/nested like POIs, editable, exportable as GPX for
+  // navigation devices (route + track combo, GPX 1.1).
+  // ============================================================
+  const routes = [];
+  let routeCounter = 0;
+  const collapsedRouteGroups = new Set();
+  const routesListEl = document.getElementById('routes-list');
+
+  function saveRoutesToStorage(){
+    try { localStorage.setItem('gpxviewer_routes', JSON.stringify(routes)); }
+    catch (e){ /* storage unavailable or full */ }
+  }
+
+  function loadRoutesFromStorage(){
+    try {
+      const raw = localStorage.getItem('gpxviewer_routes');
+      if (!raw) return;
+      JSON.parse(raw).forEach(r => { routes.push(r); routeCounter++; });
+    } catch (e){ /* corrupt or unavailable storage */ }
+  }
+
+  function saveCurrentAsRoute(name, group){
+    const id = 'route' + (routeCounter++);
+    const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended' }));
+    const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
+    const route = {
+      id, name, group,
+      waypoints: wpSnapshot,
+      routeCoords: coordsSnapshot,
+      profile: document.getElementById('route-profile').value,
+      avoidHighways: document.getElementById('avoid-highways').checked,
+      avoidTollways: document.getElementById('avoid-tollways').checked,
+      avoidFerries: document.getElementById('avoid-ferries').checked,
+      summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
+    };
+    routes.push(route);
+    saveRoutesToStorage();
+    renderRoutesList();
+  }
+
+  function deleteRoute(id){
+    const idx = routes.findIndex(r => r.id === id);
+    if (idx === -1) return;
+    routes.splice(idx, 1);
+    saveRoutesToStorage();
+    renderRoutesList();
+  }
+
+  function moveRouteToGroup(routeId, newGroupPath){
+    const route = routes.find(r => r.id === routeId);
+    if (!route || route.group === newGroupPath) return;
+    route.group = newGroupPath;
+    saveRoutesToStorage();
+    renderRoutesList();
+  }
+
+  function loadRouteIntoPlanner(route){
+    clearPlannerState();
+    route.waypoints.forEach(wpData => {
+      const wp = createWaypoint(L.latLng(wpData.lat, wpData.lng), wpData.label);
+      wp.segmentPreference = wpData.segmentPreference || 'recommended';
+      waypoints.push(wp);
+    });
+    refreshWaypointIcons();
+    renderWaypointList();
+
+    document.getElementById('route-profile').value = route.profile || 'driving';
+    document.getElementById('avoid-highways').checked = !!route.avoidHighways;
+    document.getElementById('avoid-tollways').checked = !!route.avoidTollways;
+    document.getElementById('avoid-ferries').checked = !!route.avoidFerries;
+
+    if (route.routeCoords && route.routeCoords.length > 1){
+      calculatedRouteLayer = L.polyline(route.routeCoords.map(c => L.latLng(c[0], c[1])), { color: '#22a6d8', weight: 5, opacity: 0.85, lineJoin: 'round' }).addTo(planningLayer);
+      map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+    } else if (waypoints.length){
+      const fg = L.featureGroup(waypoints.map(wp => wp.marker));
+      map.fitBounds(fg.getBounds(), { padding: [40, 40] });
+    }
+
+    routeResultEl.textContent = route.summaryText || '';
+    routeResultEl.className = route.summaryText ? 'success' : '';
+    switchToPlanningTab();
+  }
+
+  function exportRouteAsGPX(route){
+    const nameEsc = escapeXml(route.name);
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<gpx version="1.1" creator="Alex\'s Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n';
+
+    route.waypoints.forEach((wp, i) => {
+      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+      xml += `  <wpt lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><name>${label}</name></wpt>\n`;
+    });
+
+    xml += '  <rte>\n';
+    xml += `    <name>${nameEsc}</name>\n`;
+    route.waypoints.forEach((wp, i) => {
+      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+      xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><name>${label}</name></rtept>\n`;
+    });
+    xml += '  </rte>\n';
+
+    if (route.routeCoords && route.routeCoords.length > 1){
+      xml += '  <trk>\n';
+      xml += `    <name>${nameEsc}</name>\n`;
+      xml += '    <trkseg>\n';
+      route.routeCoords.forEach(c => {
+        xml += `      <trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"></trkpt>\n`;
+      });
+      xml += '    </trkseg>\n';
+      xml += '  </trk>\n';
+    }
+    xml += '</gpx>\n';
+
+    const blob = new Blob([xml], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (route.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'route') + '.gpx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function buildRouteGroupTree(){
+    const root = { children: new Map(), items: [] };
+    routes.forEach(r => {
+      const parts = (r.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) parts.push('Ohne Gruppe');
+      let node = root;
+      let pathSoFar = '';
+      parts.forEach(part => {
+        pathSoFar = pathSoFar ? pathSoFar + '/' + part : part;
+        if (!node.children.has(part)) node.children.set(part, { children: new Map(), items: [], path: pathSoFar, label: part });
+        node = node.children.get(part);
+      });
+      node.items.push(r);
+    });
+    return root;
+  }
+
+  function collectAllRoutesInNode(node){
+    let all = [...node.items];
+    node.children.forEach(child => { all = all.concat(collectAllRoutesInNode(child)); });
+    return all;
+  }
+
+  function buildRouteRow(route){
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.draggable = true;
+
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/x-route-id', route.id);
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+
+    const handle = document.createElement('span');
+    handle.className = 'waypoint-drag-handle';
+    handle.innerHTML = '&#8942;&#8942;';
+    handle.title = 'Ziehen, um die Gruppe zu ändern';
+    row.appendChild(handle);
+
+    const info = document.createElement('div');
+    info.className = 'file-info';
+    const nm = document.createElement('div');
+    nm.className = 'file-name';
+    nm.textContent = route.name;
+    nm.title = 'Doppelklick: umbenennen';
+    const meta = document.createElement('div');
+    meta.className = 'file-meta';
+    meta.textContent = route.summaryText ? route.summaryText.replace(/<[^>]+>/g, '') : (route.waypoints.length + ' Punkte');
+    nm.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startInlineRename(nm, route.name, (newName) => {
+        route.name = newName;
+        saveRoutesToStorage();
+        renderRoutesList();
+      });
+    });
+    info.appendChild(nm);
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'row-icon-btn';
+    loadBtn.innerHTML = '&#9998;';
+    loadBtn.title = 'Zum Bearbeiten laden';
+    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(route); });
+    row.appendChild(loadBtn);
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'row-icon-btn';
+    exportBtn.innerHTML = '&#8681;';
+    exportBtn.title = 'Als GPX exportieren (Route + Track)';
+    exportBtn.addEventListener('click', (ev) => { ev.stopPropagation(); exportRouteAsGPX(route); });
+    row.appendChild(exportBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-icon-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'Route löschen';
+    delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteRoute(route.id); });
+    row.appendChild(delBtn);
+
+    return row;
+  }
+
+  function renderRouteGroupNode(node, container){
+    node.children.forEach(child => {
+      const descendants = collectAllRoutesInNode(child);
+      const collapsed = collapsedRouteGroups.has(child.path);
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'group';
+
+      const header = document.createElement('div');
+      header.className = 'group-header' + (collapsed ? ' collapsed' : '');
+
+      const twist = document.createElement('span');
+      twist.className = 'twist';
+      twist.textContent = '▾';
+      header.appendChild(twist);
+
+      const spacer = document.createElement('span');
+      spacer.style.width = '15px';
+      header.appendChild(spacer);
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'group-name';
+      nameEl.textContent = child.label;
+      nameEl.title = 'Doppelklick: Gruppe umbenennen';
+      header.appendChild(nameEl);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = descendants.length;
+      header.appendChild(countEl);
+
+      header.addEventListener('click', (e) => {
+        if (e.target === nameEl) return;
+        if (collapsedRouteGroups.has(child.path)) collapsedRouteGroups.delete(child.path);
+        else collapsedRouteGroups.add(child.path);
+        renderRoutesList();
+      });
+
+      nameEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
+          const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
+          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
+          routes.forEach(r => {
+            if (r.group === child.path) r.group = newPath;
+            else if (r.group.startsWith(child.path + '/')) r.group = newPath + r.group.slice(child.path.length);
+          });
+          saveRoutesToStorage();
+          renderRoutesList();
+        }, renderRoutesList);
+      });
+
+      header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
+      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+      header.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        header.classList.remove('drop-target');
+        const routeId = e.dataTransfer.getData('text/x-route-id');
+        if (!routeId) return;
+        moveRouteToGroup(routeId, child.path);
+      });
+
+      groupEl.appendChild(header);
+
+      groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
+      groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
+      groupEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        groupEl.classList.remove('drop-target-box');
+        const routeId = e.dataTransfer.getData('text/x-route-id');
+        if (!routeId) return;
+        moveRouteToGroup(routeId, child.path);
+      });
+
+      const childWrap = document.createElement('div');
+      childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
+      child.items.forEach(route => childWrap.appendChild(buildRouteRow(route)));
+      renderRouteGroupNode(child, childWrap);
+
+      groupEl.appendChild(childWrap);
+      container.appendChild(groupEl);
+    });
+  }
+
+  function renderRoutesList(){
+    const scrollPos = routesListEl.scrollTop;
+    routesListEl.innerHTML = '';
+    if (routes.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div>Noch keine gespeicherten Routen.<br>Im Planen-Tab eine Route berechnen<br>und dort "Route speichern" nutzen.</div>';
+      routesListEl.appendChild(empty);
+      return;
+    }
+    const root = buildRouteGroupTree();
+    renderRouteGroupNode(root, routesListEl);
+    routesListEl.scrollTop = scrollPos;
+  }
+
+  // Generic inline-rename helper (same behaviour as startInlineRename,
+  // but with a caller-supplied fallback re-render for cancel/escape).
+  function startInlineRenameGeneric(displayEl, currentValue, onCommit, onCancelRender){
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'inline-rename-input';
+    input.value = currentValue;
+    displayEl.replaceWith(input);
+    input.focus();
+    input.select();
+    let committed = false;
+    function commit(){
+      if (committed) return;
+      committed = true;
+      const newValue = input.value.trim();
+      if (newValue && newValue !== currentValue) onCommit(newValue);
+      else onCancelRender();
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') input.blur();
+      if (ev.key === 'Escape'){ committed = true; onCancelRender(); }
+    });
+  }
+
+  // -- Save-route modal wiring --
+  document.getElementById('btn-save-route').addEventListener('click', () => {
+    if (waypoints.length < 2){ alert('Bitte zuerst mindestens Start und Ziel setzen.'); return; }
+    document.getElementById('route-name-input').value = '';
+    document.getElementById('route-group-input').value = '';
+    const dl = document.getElementById('route-group-options');
+    dl.innerHTML = '';
+    [...new Set(routes.map(r => r.group))].forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      dl.appendChild(opt);
+    });
+    document.getElementById('route-modal-backdrop').classList.add('active');
+    document.getElementById('route-name-input').focus();
+  });
+  document.getElementById('route-modal-cancel').addEventListener('click', () => {
+    document.getElementById('route-modal-backdrop').classList.remove('active');
+  });
+  document.getElementById('route-modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'route-modal-backdrop') e.target.classList.remove('active');
+  });
+  document.getElementById('route-modal-save').addEventListener('click', () => {
+    const name = document.getElementById('route-name-input').value.trim() || 'Unbenannte Route';
+    const group = document.getElementById('route-group-input').value.trim() || 'Ohne Gruppe';
+    saveCurrentAsRoute(name, group);
+    document.getElementById('route-modal-backdrop').classList.remove('active');
+  });
+
+  loadRoutesFromStorage();
+  renderRoutesList();
 
 })();
 </script>
