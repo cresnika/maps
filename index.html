@@ -1,0 +1,2703 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alex's Routenplaner</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  :root{
+    --bg-sidebar: #1b2420;
+    --bg-sidebar-raised: #222f29;
+    --bg-row-hover: #263229;
+    --text: #e8e6df;
+    --text-dim: #93a294;
+    --text-faint: #5f6f62;
+    --accent: #c98a3e;
+    --accent-soft: rgba(201,138,62,.16);
+    --border: #32433a;
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font-body);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar {
+    width: 340px;
+    min-width: 260px;
+    max-width: 640px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+  }
+
+  #sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 30;
+    background: transparent;
+  }
+  #sidebar-resizer:hover,
+  #sidebar-resizer.dragging {
+    background: var(--accent-soft);
+  }
+
+  #sidebar-header {
+    padding: 22px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  #settings-btn {
+    position: absolute;
+    top: 16px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: none;
+    background: var(--bg-sidebar-raised);
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #settings-btn:hover { color: var(--text); background: var(--bg-row-hover); }
+
+  #sidebar-close-btn {
+    display: none;
+    position: absolute;
+    top: 16px;
+    right: 52px;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: none;
+    background: var(--bg-sidebar-raised);
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+  }
+  #sidebar-close-btn:hover { color: var(--text); background: var(--bg-row-hover); }
+
+  #hamburger-btn {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1200;
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-sidebar);
+    color: var(--text);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  }
+
+  #sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 1050;
+  }
+  #sidebar-backdrop.active { display: block; }
+
+  @media (max-width: 820px) {
+    #hamburger-btn { display: flex; }
+    #sidebar-close-btn { display: flex; }
+
+    #sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 100%;
+      width: min(85vw, 340px);
+      min-width: 0;
+      transform: translateX(-100%);
+      transition: transform .25s ease;
+      z-index: 1100;
+      box-shadow: 4px 0 28px rgba(0,0,0,.45);
+    }
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar-resizer { display: none; }
+
+    #map { width: 100%; }
+
+    /* Move Leaflet's own zoom control out from under the hamburger button */
+    .leaflet-top.leaflet-left { margin-top: 64px; }
+  }
+
+  #hamburger-btn.hidden { display: none !important; }
+
+  #sidebar-header .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 4px;
+  }
+
+  #sidebar-header h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .btn {
+    flex: 1;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-sidebar-raised);
+    color: var(--text);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: #2a3830; border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1b2420; }
+  .btn.primary:hover { background: #dd9a4c; }
+
+  .util-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .util-row button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 2px 0;
+  }
+  .util-row button:hover { color: var(--accent); }
+
+  #summary {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-sidebar-raised);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .summary-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .summary-value {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .gap-row { margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--border); align-items: center; }
+  .gap-input-wrap { display: flex; align-items: center; gap: 4px; }
+  #gap-threshold {
+    width: 120px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 3px 6px;
+    border-radius: 4px;
+  }
+  #gap-threshold:focus { outline: none; border-color: var(--accent); }
+  .gap-unit { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+
+  .route-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  #route-profile {
+    flex: 0 0 auto;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 12px;
+    padding: 6px 6px;
+    border-radius: 5px;
+  }
+  .btn.small {
+    flex: 1;
+    font-size: 12px;
+    padding: 7px 8px;
+  }
+  .btn.small:disabled {
+    opacity: .6;
+    cursor: default;
+  }
+
+  #tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 20px;
+  }
+
+  #tree::-webkit-scrollbar { width: 8px; }
+  #tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .empty-state {
+    margin: 40px 24px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .empty-state svg { opacity: .5; margin-bottom: 10px; }
+
+  .group {
+    margin: 4px 10px 10px;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .group-header:hover { background: var(--bg-row-hover); }
+
+  .group-header .twist {
+    font-size: 10px;
+    color: var(--text-faint);
+    width: 10px;
+    transition: transform .15s;
+    flex-shrink: 0;
+  }
+  .group-header.collapsed .twist { transform: rotate(-90deg); }
+
+  .group-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .group-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .file-list {
+    margin-left: 19px;
+    border-left: 1px solid var(--border);
+    padding-left: 10px;
+  }
+  .file-list.collapsed { display: none; }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px;
+    border-radius: 5px;
+  }
+  .file-row:hover { background: var(--bg-row-hover); }
+  .file-row:hover .row-icon-btn { opacity: 1; }
+
+  .row-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 15px;
+    line-height: 1;
+    padding: 3px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity .1s;
+  }
+  .row-icon-btn:hover { color: var(--accent); background: var(--bg-sidebar); opacity: 1; }
+
+  .swatch-wrap {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    cursor: pointer;
+    display: block;
+  }
+
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,.25);
+    display: block;
+    box-sizing: border-box;
+    transition: transform .1s;
+  }
+  .swatch-wrap:hover .swatch { transform: scale(1.15); }
+
+  .swatch-input {
+    position: absolute;
+    top: 0; left: 0;
+    width: 14px;
+    height: 14px;
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+
+  .file-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .file-name {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-faint);
+  }
+
+  input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 11px 2px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-panel {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .tab-panel.active { display: flex; }
+
+  .tab-placeholder {
+    margin: 40px 24px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .shortcut-hint {
+    margin: 0;
+    padding: 0 20px 12px;
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.4;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 6px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-row input {
+    flex: 1;
+    background: var(--bg-sidebar-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 5px;
+  }
+  .search-row input:focus { outline: none; border-color: var(--accent); }
+
+  #search-results {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  #search-results:not(:empty) { border-bottom: 1px solid var(--border); }
+  .search-result-item {
+    padding: 9px 20px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover { background: var(--bg-row-hover); color: var(--text); }
+
+  #map.picking-mode { cursor: crosshair; }
+  #map.ctrl-active { cursor: copy; }
+  #map.shift-active { cursor: not-allowed; }
+
+  #waypoint-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 20px;
+  }
+  .waypoint-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    border-top: 2px solid transparent;
+    cursor: grab;
+  }
+  .waypoint-row.dragging { opacity: .4; }
+  .waypoint-row.drag-over { border-top-color: var(--accent); }
+  .waypoint-drag-handle {
+    color: var(--text-faint);
+    font-size: 13px;
+    letter-spacing: -3px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .waypoint-index {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .waypoint-info { flex: 1; min-width: 0; }
+  .waypoint-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-faint);
+  }
+  .waypoint-label {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .waypoint-actions { display: flex; gap: 1px; flex-shrink: 0; }
+  .waypoint-actions button {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 3px 5px;
+    border-radius: 4px;
+  }
+  .waypoint-actions button:hover { color: var(--accent); background: var(--bg-sidebar); }
+  .waypoint-actions button:disabled { opacity: .25; cursor: default; }
+  .waypoint-actions button:disabled:hover { background: none; color: var(--text-faint); }
+
+  .waypoint-marker {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #1b2420;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,.45);
+  }
+
+  .map-context-menu {
+    position: fixed;
+    z-index: 3000;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.5);
+    padding: 6px;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+  }
+  .map-context-menu-item {
+    background: none;
+    border: none;
+    color: var(--text);
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 9px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .map-context-menu-item:hover { background: var(--bg-row-hover); }
+  .map-context-menu-item:disabled { color: var(--text-faint); cursor: default; }
+  .map-context-menu-item:disabled:hover { background: none; }
+
+  #poi-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 20px;
+  }
+
+  .poi-marker {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 1px 2px rgba(0,0,0,.6);
+  }
+
+  .group-header.drop-target {
+    background: var(--accent-soft);
+    outline: 1px dashed var(--accent);
+    outline-offset: -1px;
+  }
+  .group.drop-target-box {
+    outline: 1px dashed var(--accent);
+    outline-offset: -1px;
+    border-radius: 6px;
+  }
+
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 4000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal-box {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    width: 300px;
+    max-width: 88vw;
+    box-shadow: 0 12px 44px rgba(0,0,0,.55);
+  }
+  .modal-box h3 {
+    margin: 0 0 16px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 19px;
+  }
+  .modal-box label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-faint);
+    margin-bottom: 14px;
+  }
+  .modal-box input {
+    display: block;
+    width: 100%;
+    margin-top: 5px;
+    background: var(--bg-sidebar-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 8px 9px;
+    border-radius: 5px;
+    box-sizing: border-box;
+  }
+  .modal-box input:focus { outline: none; border-color: var(--accent); }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+  .modal-actions .btn { flex: none; padding: 8px 16px; }
+
+  #route-options {
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .route-options-row select {
+    width: 100%;
+    background: var(--bg-sidebar-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 7px 8px;
+    border-radius: 5px;
+  }
+  .route-avoid-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .route-avoid-row label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .api-key-row {
+    display: flex;
+    gap: 6px;
+  }
+  .api-key-row input {
+    flex: 1;
+    background: var(--bg-sidebar-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 8px;
+    border-radius: 5px;
+  }
+  #api-key-hint { padding: 0; }
+  #route-result {
+    font-size: 13px;
+    min-height: 1.2em;
+  }
+  #route-result.success { color: var(--accent); font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+  #route-result.error { color: #e0665a; font-size: 12px; }
+
+  .attribution-text {
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--text-faint);
+    margin: 4px 0 16px;
+  }
+  .attribution-text a { color: var(--text-dim); }
+  .attribution-text a:hover { color: var(--accent); }
+
+  .settings-modal-box input[type="color"] {
+    padding: 3px;
+    height: 34px;
+    cursor: pointer;
+  }
+
+  .segment-connector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 11px;
+    padding: 4px 0 4px 20px;
+    border-left: 2px dashed var(--border);
+  }
+  .segment-pref-buttons {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-sidebar-raised);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .segment-pref-btn {
+    background: none;
+    border: none;
+    font-size: 13px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: .5;
+  }
+  .segment-pref-btn:hover { opacity: 1; background: var(--bg-row-hover); }
+  .segment-pref-btn.active { opacity: 1; background: var(--accent); }
+
+  .inline-rename-input {
+    flex: 1;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    padding: 2px 5px;
+    border-radius: 4px;
+    min-width: 0;
+  }
+
+  #sidebar-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- Map ---------- */
+  #map {
+    flex: 1;
+    height: 100%;
+    background: #dfe6df;
+  }
+
+  #dropzone-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(27,36,32,.82);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  #dropzone-overlay.active { display: flex; }
+  #dropzone-overlay .msg {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 2px dashed var(--accent);
+    padding: 40px 60px;
+    border-radius: 12px;
+  }
+
+  .leaflet-popup-content { font-family: var(--font-body); font-size: 13px; }
+  .poi-popup-group { font-size: 11px; color: #6b7a6d; margin-top: 2px; }
+  .poi-popup-actions { display: flex; gap: 4px; margin-top: 8px; }
+  .poi-popup-btn {
+    flex: 1;
+    background: #eef1ee;
+    border: 1px solid #cfd6cf;
+    color: #1b2420;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 5px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .poi-popup-btn:hover { background: var(--accent); border-color: var(--accent); color: #1b2420; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <button id="hamburger-btn" aria-label="Menü öffnen">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+
+  <div id="sidebar-backdrop"></div>
+
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">⚙</button>
+      <button id="sidebar-close-btn" aria-label="Menü schließen">✕</button>
+      <p class="eyebrow" style="font-size:26px;font-family:var(--font-display);font-weight:700;text-transform:none;letter-spacing:0.01em;">Alex's</p>
+      <h1>Routenplaner</h1>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="planning">Planen</button>
+      <button class="tab-btn" data-tab="saved-routes">Routen</button>
+      <button class="tab-btn" data-tab="saved-pois">POI</button>
+      <button class="tab-btn" data-tab="viewer">Viewer</button>
+      <button class="tab-btn" data-tab="saved-tracks">Track</button>
+    </div>
+
+    <div id="panel-viewer" class="tab-panel">
+      <div class="btn-row">
+        <button class="btn primary" id="btn-open-files">+ Dateien</button>
+        <button class="btn" id="btn-open-folder">+ Ordner</button>
+      </div>
+
+      <div class="util-row">
+        <span id="track-total" style="color:var(--text-dim)">0 Tracks geladen</span>
+        <button id="btn-clear">Alle entfernen</button>
+      </div>
+
+      <div id="summary">
+        <div class="summary-row">
+          <span class="summary-label">Eingeblendet</span>
+          <span class="summary-value" id="summary-count">0 Tracks</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Distanz</span>
+          <span class="summary-value" id="summary-distance">0,0 km</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Dauer</span>
+          <span class="summary-value" id="summary-duration">–</span>
+        </div>
+        <div class="route-row">
+          <select id="route-profile">
+            <option value="foot">Zu Fuß</option>
+            <option value="bike">Fahrrad</option>
+            <option value="driving" selected>Auto/Motorrad</option>
+          </select>
+          <button id="btn-close-gaps" class="btn small">Lücken schließen</button>
+        </div>
+      </div>
+
+      <div id="tree">
+        <div class="empty-state" id="empty-state">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+          <div>Noch keine Tracks geladen.<br>Dateien/Ordner öffnen oder<br>GPX-Dateien hierher ziehen.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-planning" class="tab-panel active">
+      <div class="btn-row">
+        <button class="btn primary" id="btn-toggle-pick">📍 Punkt auf Karte setzen</button>
+      </div>
+      <p class="shortcut-hint">Tipp: Strg+Klick setzt immer einen Punkt · Shift+Klick auf einen Punkt löscht ihn</p>
+      <div class="search-row">
+        <input type="text" id="waypoint-search" placeholder="Ort suchen…">
+        <button class="btn small" id="btn-search-waypoint">Suchen</button>
+      </div>
+      <div id="search-results"></div>
+      <div id="waypoint-list">
+        <div class="empty-state">
+          <div>Noch keine Wegpunkte.<br>Auf die Karte klicken (Button oben)<br>oder einen Ort suchen.</div>
+        </div>
+      </div>
+
+      <div id="route-options">
+        <p class="shortcut-hint" style="padding-left:0;">Tipp: Bei jedem Wegpunkt in der Liste die Streckenart bis zum nächsten Punkt wählen (⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste)</p>
+        <div class="route-avoid-row">
+          <label><input type="checkbox" id="avoid-highways"> Autobahn meiden</label>
+          <label><input type="checkbox" id="avoid-tollways"> Maut meiden</label>
+          <label><input type="checkbox" id="avoid-ferries"> Fähren meiden</label>
+        </div>
+        <button class="btn primary" id="btn-calc-route" style="width:100%;">Route berechnen</button>
+        <div id="route-result"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="btn-clear-waypoints">Wegpunkte löschen</button>
+      </div>
+    </div>
+
+    <div id="panel-saved-tracks" class="tab-panel">
+      <p class="tab-placeholder">Kommt als Nächstes.</p>
+    </div>
+
+    <div id="panel-saved-routes" class="tab-panel">
+      <p class="tab-placeholder">Kommt als Nächstes.</p>
+    </div>
+
+    <div id="panel-saved-pois" class="tab-panel">
+      <div class="search-row">
+        <input type="text" id="poi-search" placeholder="Ort suchen…">
+        <button class="btn small" id="btn-search-poi">Suchen</button>
+      </div>
+      <div id="poi-search-results"></div>
+      <div id="poi-list">
+        <div class="empty-state">
+          <div>Noch keine POIs gespeichert.<br>Rechtsklick auf die Karte →<br>"Als POI speichern".</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar-footer">Kartendaten © OpenStreetMap Mitwirkende</div>
+
+    <div id="sidebar-resizer" title="Breite ziehen"></div>
+  </aside>
+
+  <div id="settings-modal-backdrop" class="modal-backdrop">
+    <div class="modal-box settings-modal-box">
+      <h3>Einstellungen</h3>
+
+      <label>OpenRouteService API-Key
+        <input type="password" id="ors-api-key" placeholder="API-Key">
+      </label>
+      <p class="shortcut-hint" id="api-key-hint" style="padding:0 0 4px;">Kostenlosen Key holen: openrouteservice.org/dev/#/signup</p>
+
+      <label>Lücken schließen ab (m)
+        <input type="number" id="gap-threshold" value="1000" min="10" max="20000" step="10">
+      </label>
+
+      <label>Standardfarbe für neue POIs
+        <input type="color" id="settings-default-poi-color" value="#3b82f6">
+      </label>
+
+      <p class="attribution-text">
+        Routing &amp; Ortssuche: © Powered by <a href="https://openrouteservice.org" target="_blank" rel="noopener">openrouteservice.org</a>
+        (<a href="https://heigit.org" target="_blank" rel="noopener">HeiGIT gGmbH</a>).
+        Kartendaten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a>, ODbL.
+        <a href="https://account.heigit.org/info/tos" target="_blank" rel="noopener">ORS-Nutzungsbedingungen</a>
+      </p>
+
+      <div class="modal-actions">
+        <button id="settings-modal-close" class="btn primary">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="poi-modal-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+      <h3>POI speichern</h3>
+      <label>Name
+        <input type="text" id="poi-name-input" placeholder="z.B. Stilfser Joch">
+      </label>
+      <label>Gruppe
+        <input type="text" id="poi-group-input" list="poi-group-options" placeholder="z.B. Italien/Pässe">
+        <datalist id="poi-group-options"></datalist>
+      </label>
+      <div class="modal-actions">
+        <button id="poi-modal-cancel" class="btn">Abbrechen</button>
+        <button id="poi-modal-save" class="btn primary">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <main id="map"></main>
+</div>
+
+<div id="dropzone-overlay"><div class="msg">GPX-Dateien hier ablegen</div></div>
+
+<input type="file" id="input-files" accept=".gpx" multiple style="display:none">
+<input type="file" id="input-folder" webkitdirectory directory multiple style="display:none">
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-gpx@1.7.0/gpx.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Tab switching ----------
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      setTimeout(() => map.invalidateSize(), 50);
+    });
+  });
+
+  // ---------- Mobile drawer ----------
+  const sidebarEl = document.getElementById('sidebar');
+  const backdropEl = document.getElementById('sidebar-backdrop');
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+
+  function openSidebar(){
+    sidebarEl.classList.add('open');
+    backdropEl.classList.add('active');
+    hamburgerBtn.classList.add('hidden');
+  }
+  function closeSidebar(){
+    sidebarEl.classList.remove('open');
+    backdropEl.classList.remove('active');
+    hamburgerBtn.classList.remove('hidden');
+  }
+  hamburgerBtn.addEventListener('click', openSidebar);
+  sidebarCloseBtn.addEventListener('click', closeSidebar);
+
+  // -- Settings modal --
+  const settingsBtn = document.getElementById('settings-btn');
+  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
+  document.getElementById('settings-modal-close').addEventListener('click', () => settingsModalBackdrop.classList.remove('active'));
+  settingsModalBackdrop.addEventListener('click', (e) => {
+    if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
+  });
+  backdropEl.addEventListener('click', closeSidebar);
+
+  // ---------- Sidebar width resizing (desktop, mouse drag) ----------
+  const sidebarResizer = document.getElementById('sidebar-resizer');
+  let isResizingSidebar = false;
+
+  sidebarResizer.addEventListener('mousedown', (e) => {
+    isResizingSidebar = true;
+    sidebarResizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizingSidebar) return;
+    const newWidth = Math.min(640, Math.max(260, e.clientX));
+    sidebarEl.style.width = newWidth + 'px';
+    if (map) map.invalidateSize();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isResizingSidebar) return;
+    isResizingSidebar = false;
+    sidebarResizer.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    if (map) map.invalidateSize();
+  });
+
+  // ---------- Map setup ----------
+  const map = L.map('map', { zoomControl: true }).setView([47.2, 9.6], 9);
+
+  // Reliably suppress the browser's native right-click menu on the map,
+  // independent of Leaflet's own internal listener-presence check.
+  map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
+
+  const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap Mitwirkende'
+  });
+  const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap Mitwirkende &copy; CARTO'
+  });
+  const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    attribution: '&copy; OpenStreetMap Mitwirkende, SRTM | Kartendarstellung: &copy; OpenTopoMap (CC-BY-SA)'
+  });
+
+  osmStandard.addTo(map);
+
+  L.control.layers({
+    'OpenStreetMap (Standard)': osmStandard,
+    'Hell / reduziert (Carto)': cartoLight,
+    'Topographisch (OpenTopoMap)': openTopo
+  }, null, { collapsed: true, position: 'topright' }).addTo(map);
+
+  // ============================================================
+  // Route planning (Tab "Planung")
+  // ============================================================
+  const planningLayer = L.layerGroup().addTo(map);
+  const waypoints = []; // { id, lat, lng, label, marker }
+  let waypointCounter = 0;
+  let pickingMode = false;
+  let calculatedRouteLayer = null;
+
+  const mapEl = document.getElementById('map');
+  const btnTogglePick = document.getElementById('btn-toggle-pick');
+  const waypointListEl = document.getElementById('waypoint-list');
+  const waypointSearchInput = document.getElementById('waypoint-search');
+  const btnSearchWaypoint = document.getElementById('btn-search-waypoint');
+  const searchResultsEl = document.getElementById('search-results');
+  const btnClearWaypoints = document.getElementById('btn-clear-waypoints');
+
+  function waypointIcon(index){
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: `<div class="waypoint-marker">${index + 1}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+  }
+
+  function refreshWaypointIcons(){
+    waypoints.forEach((wp, i) => wp.marker.setIcon(waypointIcon(i)));
+  }
+
+  function waypointTag(index){
+    if (index === 0) return 'Start';
+    if (index === waypoints.length - 1) return 'Ziel';
+    return 'Wegpunkt ' + index;
+  }
+
+  function createWaypoint(latlng, label){
+    const id = 'wp' + (waypointCounter++);
+    const marker = L.marker(latlng, { draggable: true, icon: waypointIcon(0) }).addTo(planningLayer);
+    const wp = { id, lat: latlng.lat, lng: latlng.lng, label: label || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)), marker, segmentPreference: 'recommended' };
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      wp.lat = pos.lat;
+      wp.lng = pos.lng;
+    });
+    marker.on('click', (e) => {
+      if (e.originalEvent && e.originalEvent.shiftKey){
+        e.originalEvent.stopPropagation();
+        removeWaypoint(wp.id);
+      }
+    });
+    return wp;
+  }
+
+  // When 2+ waypoints already exist, insert a newly added point wherever it
+  // adds the least detour to the existing route, instead of always at the end.
+  function bestInsertionIndex(latlng){
+    if (waypoints.length < 2) return waypoints.length;
+    let bestIdx = waypoints.length;
+    let bestCost = Infinity;
+    for (let i = 0; i < waypoints.length - 1; i++){
+      const a = L.latLng(waypoints[i].lat, waypoints[i].lng);
+      const b = L.latLng(waypoints[i + 1].lat, waypoints[i + 1].lng);
+      const cost = a.distanceTo(latlng) + latlng.distanceTo(b) - a.distanceTo(b);
+      if (cost < bestCost){ bestCost = cost; bestIdx = i + 1; }
+    }
+    return bestIdx;
+  }
+
+  function addWaypoint(latlng, label){
+    const wp = createWaypoint(latlng, label);
+    const idx = bestInsertionIndex(latlng);
+    waypoints.splice(idx, 0, wp);
+    refreshWaypointIcons();
+    renderWaypointList();
+  }
+
+  // Insert a waypoint at a specific role: 'start' (front), 'end' (back),
+  // or 'via' (just before the current last point, i.e. before "Ziel").
+  function insertWaypointAtRole(latlng, role, label){
+    const wp = createWaypoint(latlng, label);
+    if (role === 'start') waypoints.unshift(wp);
+    else if (role === 'end') waypoints.push(wp);
+    else {
+      if (waypoints.length >= 1) waypoints.splice(waypoints.length - 1, 0, wp);
+      else waypoints.push(wp);
+    }
+    refreshWaypointIcons();
+    renderWaypointList();
+  }
+
+  function removeWaypoint(id){
+    const idx = waypoints.findIndex(w => w.id === id);
+    if (idx === -1) return;
+    planningLayer.removeLayer(waypoints[idx].marker);
+    waypoints.splice(idx, 1);
+    refreshWaypointIcons();
+    renderWaypointList();
+  }
+
+  function moveWaypoint(id, dir){
+    const idx = waypoints.findIndex(w => w.id === id);
+    const newIdx = idx + dir;
+    if (idx === -1 || newIdx < 0 || newIdx >= waypoints.length) return;
+    const tmp = waypoints[idx];
+    waypoints[idx] = waypoints[newIdx];
+    waypoints[newIdx] = tmp;
+    refreshWaypointIcons();
+    renderWaypointList();
+  }
+
+  function renderWaypointList(){
+    waypointListEl.innerHTML = '';
+    if (waypoints.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div>Noch keine Wegpunkte.<br>Auf die Karte klicken (Button oben)<br>oder einen Ort suchen.</div>';
+      waypointListEl.appendChild(empty);
+      return;
+    }
+    waypoints.forEach((wp, i) => {
+      const row = document.createElement('div');
+      row.className = 'waypoint-row';
+      row.draggable = true;
+      row.dataset.wpId = wp.id;
+
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', wp.id);
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (!draggedId || draggedId === wp.id) return;
+        const fromIdx = waypoints.findIndex(w => w.id === draggedId);
+        const toIdx = waypoints.findIndex(w => w.id === wp.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const [item] = waypoints.splice(fromIdx, 1);
+        waypoints.splice(toIdx, 0, item);
+        refreshWaypointIcons();
+        renderWaypointList();
+      });
+
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'Ziehen zum Umsortieren';
+      row.appendChild(handle);
+
+      const idx = document.createElement('span');
+      idx.className = 'waypoint-index';
+      idx.textContent = i + 1;
+      row.appendChild(idx);
+
+      const info = document.createElement('div');
+      info.className = 'waypoint-info';
+      const tag = document.createElement('div');
+      tag.className = 'waypoint-tag';
+      tag.textContent = waypointTag(i);
+      const label = document.createElement('div');
+      label.className = 'waypoint-label';
+      label.textContent = wp.label;
+      label.title = wp.label;
+      info.appendChild(tag);
+      info.appendChild(label);
+      row.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'waypoint-actions';
+
+      const upBtn = document.createElement('button');
+      upBtn.innerHTML = '&#8593;';
+      upBtn.title = 'Nach oben';
+      upBtn.disabled = i === 0;
+      upBtn.addEventListener('click', () => moveWaypoint(wp.id, -1));
+      actions.appendChild(upBtn);
+
+      const downBtn = document.createElement('button');
+      downBtn.innerHTML = '&#8595;';
+      downBtn.title = 'Nach unten';
+      downBtn.disabled = i === waypoints.length - 1;
+      downBtn.addEventListener('click', () => moveWaypoint(wp.id, 1));
+      actions.appendChild(downBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Entfernen';
+      delBtn.addEventListener('click', () => removeWaypoint(wp.id));
+      actions.appendChild(delBtn);
+
+      row.appendChild(actions);
+      waypointListEl.appendChild(row);
+
+      if (i < waypoints.length - 1){
+        waypointListEl.appendChild(buildSegmentConnector(waypoints[i + 1]));
+      }
+    });
+  }
+
+  function buildSegmentConnector(destinationWp){
+    const wrap = document.createElement('div');
+    wrap.className = 'segment-connector';
+
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'segment-pref-buttons';
+
+    const options = [
+      { key: 'fastest', icon: '⚡', title: 'Schnellste' },
+      { key: 'recommended', icon: '⭐', title: 'Empfohlen' },
+      { key: 'shortest', icon: '📏', title: 'Kürzeste' }
+    ];
+    if (!destinationWp.segmentPreference) destinationWp.segmentPreference = 'recommended';
+
+    options.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'segment-pref-btn' + (destinationWp.segmentPreference === opt.key ? ' active' : '');
+      b.textContent = opt.icon;
+      b.title = opt.title + ' (Anreise zu diesem Punkt)';
+      b.addEventListener('click', () => {
+        destinationWp.segmentPreference = opt.key;
+        renderWaypointList();
+      });
+      btnGroup.appendChild(b);
+    });
+
+    wrap.appendChild(btnGroup);
+    return wrap;
+  }
+
+  // -- Map-click picking mode --
+  btnTogglePick.addEventListener('click', () => {
+    pickingMode = !pickingMode;
+    btnTogglePick.classList.toggle('primary', pickingMode);
+    mapEl.classList.toggle('picking-mode', pickingMode);
+    btnTogglePick.textContent = pickingMode ? '📍 Klicke auf die Karte …' : '📍 Punkt auf Karte setzen';
+  });
+
+  // Below this zoom level, clicked points are snapped to the nearest routable
+  // road/path -- at this zoom or closer, the exact clicked pixel is used.
+  // Below the stricter zoom, only named (i.e. typically more major) roads are
+  // considered, so a big overview click doesn't snap onto every minor track.
+  const ROAD_SNAP_MAX_ZOOM = 15;
+  const ROAD_SNAP_STRICT_ZOOM = 13;
+
+  async function snapToRoadIfZoomedOut(latlng){
+    const zoom = map.getZoom();
+    if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
+    const profile = document.getElementById('route-profile').value;
+    const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
+    const count = preferNamed ? 8 : 1;
+    const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
+        let chosen = data.waypoints[0];
+        if (preferNamed){
+          const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
+          if (named) chosen = named;
+        }
+        return L.latLng(chosen.location[1], chosen.location[0]);
+      }
+    } catch (e){ /* network error -- fall back to the exact clicked point */ }
+    return latlng;
+  }
+
+  map.on('click', async (e) => {
+    const ctrlPressed = !!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey));
+    if (!pickingMode && !ctrlPressed) return;
+    addWaypoint(await snapToRoadIfZoomedOut(e.latlng));
+  });
+
+  // -- Cursor feedback while Ctrl/Shift is held --
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.add('ctrl-active');
+    if (e.key === 'Shift') mapEl.classList.add('shift-active');
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.remove('ctrl-active');
+    if (e.key === 'Shift') mapEl.classList.remove('shift-active');
+  });
+  window.addEventListener('blur', () => {
+    mapEl.classList.remove('ctrl-active', 'shift-active');
+  });
+
+  // -- Right-click context menu (extensible: waypoint roles, later POIs) --
+  function closeMapContextMenu(){
+    const m = document.getElementById('map-context-menu');
+    if (m) m.remove();
+  }
+
+  map.on('contextmenu', (e) => {
+    L.DomEvent.preventDefault(e.originalEvent);
+    closeMapContextMenu();
+
+    const menu = document.createElement('div');
+    menu.id = 'map-context-menu';
+    menu.className = 'map-context-menu';
+
+    const items = [
+      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
+      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
+      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
+      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
+    ];
+
+    items.forEach(it => {
+      const btn = document.createElement('button');
+      btn.className = 'map-context-menu-item';
+      btn.textContent = it.label;
+      if (it.disabled){
+        btn.disabled = true;
+      } else {
+        btn.addEventListener('click', () => { it.action(); closeMapContextMenu(); });
+      }
+      menu.appendChild(btn);
+    });
+
+    document.body.appendChild(menu);
+
+    const pt = e.originalEvent;
+    let left = pt.clientX, top = pt.clientY;
+    const rect = menu.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 8;
+    if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 8;
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+
+    setTimeout(() => {
+      document.addEventListener('click', closeMapContextMenu, { once: true });
+    }, 0);
+  });
+
+  // -- Text search (Nominatim) --
+  async function searchPlace(query){
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=0`;
+    try {
+      const resp = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+      return await resp.json();
+    } catch (e){
+      return [];
+    }
+  }
+
+  function shortLabel(displayName){
+    return displayName.split(',').slice(0, 2).join(',').trim();
+  }
+
+  let searchRequestId = 0;
+
+  async function runSearch(){
+    const q = waypointSearchInput.value.trim();
+    if (!q) return;
+    const requestId = ++searchRequestId;
+    searchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
+    const results = await searchPlace(q);
+    if (requestId !== searchRequestId) return; // a newer search has since been started
+    searchResultsEl.innerHTML = '';
+    if (!results.length){
+      searchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
+      return;
+    }
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+      item.textContent = r.display_name;
+      item.addEventListener('click', async () => {
+        const raw = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+        addWaypoint(await snapToRoadIfZoomedOut(raw), shortLabel(r.display_name));
+        searchResultsEl.innerHTML = '';
+        waypointSearchInput.value = '';
+      });
+      searchResultsEl.appendChild(item);
+    });
+  }
+
+  btnSearchWaypoint.addEventListener('click', runSearch);
+  waypointSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runSearch();
+  });
+
+  // Debounced live search: wait for a short typing pause before querying,
+  // and require at least 3 characters -- keeps request volume reasonable.
+  let searchDebounceTimer = null;
+  waypointSearchInput.addEventListener('input', () => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    const q = waypointSearchInput.value.trim();
+    if (q.length < 3){
+      searchResultsEl.innerHTML = '';
+      return;
+    }
+    searchDebounceTimer = setTimeout(runSearch, 500);
+  });
+
+  btnClearWaypoints.addEventListener('click', () => {
+    waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
+    waypoints.length = 0;
+    if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
+    routeResultEl.textContent = '';
+    routeResultEl.className = '';
+    renderWaypointList();
+  });
+
+  // ============================================================
+  // Route calculation (OpenRouteService)
+  // ============================================================
+  const orsKeyInput = document.getElementById('ors-api-key');
+  const apiKeyHint = document.getElementById('api-key-hint');
+  const routeResultEl = document.getElementById('route-result');
+
+  try {
+    const savedKey = localStorage.getItem('ors_api_key');
+    if (savedKey) orsKeyInput.value = savedKey;
+  } catch (e){ /* storage unavailable */ }
+
+  orsKeyInput.addEventListener('input', () => {
+    try { localStorage.setItem('ors_api_key', orsKeyInput.value.trim()); } catch (e){ /* ignore */ }
+  });
+
+  function formatRouteDuration(seconds){
+    const totalMin = Math.round(seconds / 60);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h} Std ${String(m).padStart(2, '0')} min` : `${m} min`;
+  }
+
+  async function calculateRoute(){
+    const apiKey = orsKeyInput.value.trim();
+    if (!apiKey){
+      routeResultEl.textContent = 'Bitte zuerst in den Einstellungen (⚙) einen kostenlosen API-Key eintragen.';
+      routeResultEl.className = 'error';
+      return;
+    }
+    if (waypoints.length < 2){
+      routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
+      routeResultEl.className = 'error';
+      return;
+    }
+
+    const profileMap = { foot: 'foot-walking', bike: 'cycling-regular', driving: 'driving-car' };
+    const profile = profileMap[document.getElementById('route-profile').value] || 'driving-car';
+    const avoidFeatures = [];
+    if (document.getElementById('avoid-highways').checked) avoidFeatures.push('highways');
+    if (document.getElementById('avoid-tollways').checked) avoidFeatures.push('tollways');
+    if (document.getElementById('avoid-ferries').checked) avoidFeatures.push('ferries');
+
+    const segmentCount = waypoints.length - 1;
+    let allCoords = [];
+    let totalDistance = 0;
+    let totalDuration = 0;
+
+    for (let i = 0; i < segmentCount; i++){
+      const a = waypoints[i], b = waypoints[i + 1];
+      const preference = b.segmentPreference || 'recommended';
+
+      routeResultEl.textContent = `Route wird berechnet … Abschnitt ${i + 1}/${segmentCount}`;
+      routeResultEl.className = '';
+
+      const body = { coordinates: [[a.lng, a.lat], [b.lng, b.lat]], preference };
+      if (avoidFeatures.length) body.options = { avoid_features: avoidFeatures };
+
+      try {
+        const resp = await fetch(`https://api.openrouteservice.org/v2/directions/${profile}/geojson`, {
+          method: 'POST',
+          headers: { 'Authorization': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || !data.features || !data.features[0]){
+          const msg = (data.error && (data.error.message || (typeof data.error === 'string' ? data.error : JSON.stringify(data.error)))) || ('HTTP ' + resp.status);
+          routeResultEl.textContent = `Fehler bei Abschnitt ${i + 1}: ` + msg;
+          routeResultEl.className = 'error';
+          return;
+        }
+
+        const feature = data.features[0];
+        const segCoords = feature.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
+        if (allCoords.length && segCoords.length){
+          const last = allCoords[allCoords.length - 1];
+          const first = segCoords[0];
+          if (Math.abs(last.lat - first.lat) < 1e-7 && Math.abs(last.lng - first.lng) < 1e-7) segCoords.shift();
+        }
+        allCoords = allCoords.concat(segCoords);
+        totalDistance += feature.properties.summary.distance;
+        totalDuration += feature.properties.summary.duration;
+      } catch (e){
+        routeResultEl.textContent = `Netzwerkfehler bei Abschnitt ${i + 1}.`;
+        routeResultEl.className = 'error';
+        return;
+      }
+    }
+
+    if (calculatedRouteLayer) planningLayer.removeLayer(calculatedRouteLayer);
+    calculatedRouteLayer = L.polyline(allCoords, { color: '#22a6d8', weight: 5, opacity: 0.85, lineJoin: 'round' }).addTo(planningLayer);
+    map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+
+    const distKm = (totalDistance / 1000).toFixed(1);
+    routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
+    routeResultEl.className = 'success';
+  }
+
+  document.getElementById('btn-calc-route').addEventListener('click', calculateRoute);
+
+  // ============================================================
+  // POIs (Tab "POI") -- persisted in the browser via localStorage
+  // ============================================================
+  const poiLayer = L.layerGroup().addTo(map);
+  const pois = [];
+  let poiCounter = 0;
+  let pendingPoiLatLng = null;
+  const collapsedPoiGroups = new Set();
+
+  const poiListEl = document.getElementById('poi-list');
+  const poiModalBackdrop = document.getElementById('poi-modal-backdrop');
+  const poiNameInput = document.getElementById('poi-name-input');
+  const poiGroupInput = document.getElementById('poi-group-input');
+  const poiGroupOptions = document.getElementById('poi-group-options');
+
+  function poiIcon(color){
+    return L.divIcon({
+      className: 'poi-marker-icon',
+      html: `<div class="poi-marker" style="color:${color};">&#9733;</div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 20]
+    });
+  }
+
+  const DEFAULT_POI_COLOR_FALLBACK = '#3b82f6';
+  const settingsDefaultPoiColorInput = document.getElementById('settings-default-poi-color');
+
+  function getDefaultPoiColor(){
+    try {
+      return localStorage.getItem('default_poi_color') || DEFAULT_POI_COLOR_FALLBACK;
+    } catch (e){
+      return DEFAULT_POI_COLOR_FALLBACK;
+    }
+  }
+
+  try {
+    settingsDefaultPoiColorInput.value = getDefaultPoiColor();
+  } catch (e){ /* ignore */ }
+
+  settingsDefaultPoiColorInput.addEventListener('input', () => {
+    try { localStorage.setItem('default_poi_color', settingsDefaultPoiColorInput.value); } catch (e){ /* ignore */ }
+  });
+
+  function savePoisToStorage(){
+    try {
+      const data = pois.map(p => ({ name: p.name, group: p.group, lat: p.lat, lng: p.lng, visible: p.visible, color: p.color }));
+      localStorage.setItem('gpxviewer_pois', JSON.stringify(data));
+    } catch (e){ /* storage unavailable or full -- ignore, in-memory list still works */ }
+  }
+
+  function buildPoiPopupContent(poi){
+    const container = document.createElement('div');
+    container.className = 'poi-popup';
+
+    const title = document.createElement('strong');
+    title.textContent = poi.name;
+    container.appendChild(title);
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'poi-popup-group';
+    groupEl.textContent = poi.group;
+    container.appendChild(groupEl);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'poi-popup-actions';
+    [['Start', 'start'], ['Via', 'via'], ['Ziel', 'end']].forEach(([lbl, role]) => {
+      const b = document.createElement('button');
+      b.className = 'poi-popup-btn';
+      b.textContent = lbl;
+      b.addEventListener('click', () => {
+        insertWaypointAtRole(L.latLng(poi.lat, poi.lng), role, poi.name);
+        poi.marker.closePopup();
+      });
+      btnRow.appendChild(b);
+    });
+    container.appendChild(btnRow);
+
+    return container;
+  }
+
+  function addPoiInternal(name, group, lat, lng, visible, color){
+    const id = 'poi' + (poiCounter++);
+    const poiColor = color || getDefaultPoiColor();
+    const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
+    const poi = { id, name, group, lat, lng, marker, visible: visible !== false, color: poiColor };
+    marker.bindPopup(() => buildPoiPopupContent(poi));
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      poi.lat = pos.lat;
+      poi.lng = pos.lng;
+      savePoisToStorage();
+    });
+    if (poi.visible) marker.addTo(poiLayer);
+    pois.push(poi);
+    return poi;
+  }
+
+  function loadPoisFromStorage(){
+    try {
+      const raw = localStorage.getItem('gpxviewer_pois');
+      if (!raw) return;
+      JSON.parse(raw).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, p.visible, p.color));
+    } catch (e){ /* corrupt or unavailable storage -- start empty */ }
+  }
+
+  function addPoi(latlng, name, group){
+    addPoiInternal(name, group, latlng.lat, latlng.lng, true);
+    savePoisToStorage();
+    renderPoiList();
+  }
+
+  function deletePoi(id){
+    const idx = pois.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    poiLayer.removeLayer(pois[idx].marker);
+    pois.splice(idx, 1);
+    savePoisToStorage();
+    renderPoiList();
+  }
+
+  function setPoiVisible(poi, visible){
+    poi.visible = visible;
+    if (visible){ if (!poiLayer.hasLayer(poi.marker)) poi.marker.addTo(poiLayer); }
+    else { if (poiLayer.hasLayer(poi.marker)) poiLayer.removeLayer(poi.marker); }
+    savePoisToStorage();
+  }
+
+  function buildPoiGroupTree(){
+    const root = { children: new Map(), items: [] };
+    pois.forEach(p => {
+      const parts = (p.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) parts.push('Ohne Gruppe');
+      let node = root;
+      let pathSoFar = '';
+      parts.forEach(part => {
+        pathSoFar = pathSoFar ? pathSoFar + '/' + part : part;
+        if (!node.children.has(part)) node.children.set(part, { children: new Map(), items: [], path: pathSoFar, label: part });
+        node = node.children.get(part);
+      });
+      node.items.push(p);
+    });
+    return root;
+  }
+
+  function collectAllPoisInNode(node){
+    let all = [...node.items];
+    node.children.forEach(child => { all = all.concat(collectAllPoisInNode(child)); });
+    return all;
+  }
+
+  function movePoiToGroup(poiId, newGroupPath){
+    const poi = pois.find(p => p.id === poiId);
+    if (!poi || poi.group === newGroupPath) return;
+    poi.group = newGroupPath;
+    savePoisToStorage();
+    renderPoiList();
+  }
+
+  function startInlineRename(displayEl, currentValue, onCommit){
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'inline-rename-input';
+    input.value = currentValue;
+    displayEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let committed = false;
+    function commit(){
+      if (committed) return;
+      committed = true;
+      const newValue = input.value.trim();
+      if (newValue && newValue !== currentValue) onCommit(newValue);
+      else renderPoiList();
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') input.blur();
+      if (ev.key === 'Escape'){ committed = true; renderPoiList(); }
+    });
+  }
+
+  function buildPoiRow(poi){
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.draggable = true;
+
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/x-poi-id', poi.id);
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+
+    const handle = document.createElement('span');
+    handle.className = 'waypoint-drag-handle';
+    handle.innerHTML = '&#8942;&#8942;';
+    handle.title = 'Ziehen, um die Gruppe zu ändern';
+    row.appendChild(handle);
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = poi.visible;
+    cb.addEventListener('change', () => setPoiVisible(poi, cb.checked));
+    row.appendChild(cb);
+
+    const swWrap = document.createElement('label');
+    swWrap.className = 'swatch-wrap';
+    swWrap.title = 'Farbe ändern';
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = poi.color;
+    swWrap.appendChild(sw);
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = 'swatch-input';
+    colorInput.value = poi.color;
+    colorInput.addEventListener('input', () => {
+      poi.color = colorInput.value;
+      sw.style.background = poi.color;
+      poi.marker.setIcon(poiIcon(poi.color));
+      savePoisToStorage();
+    });
+    colorInput.addEventListener('click', (ev) => ev.stopPropagation());
+    swWrap.appendChild(colorInput);
+    row.appendChild(swWrap);
+
+    const info = document.createElement('div');
+    info.className = 'file-info';
+    const nm = document.createElement('div');
+    nm.className = 'file-name';
+    nm.textContent = poi.name;
+    nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
+    nm.style.cursor = 'pointer';
+    nm.addEventListener('click', () => {
+      map.setView([poi.lat, poi.lng], Math.max(map.getZoom(), 13));
+      poi.marker.openPopup();
+    });
+    nm.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startInlineRename(nm, poi.name, (newName) => {
+        poi.name = newName;
+        savePoisToStorage();
+        renderPoiList();
+      });
+    });
+    info.appendChild(nm);
+    row.appendChild(info);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-icon-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'POI löschen';
+    delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deletePoi(poi.id); });
+    row.appendChild(delBtn);
+
+    return row;
+  }
+
+  function renderPoiGroupNode(node, container){
+    node.children.forEach(child => {
+      const descendants = collectAllPoisInNode(child);
+      const collapsed = collapsedPoiGroups.has(child.path);
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'group';
+
+      const header = document.createElement('div');
+      header.className = 'group-header' + (collapsed ? ' collapsed' : '');
+
+      const twist = document.createElement('span');
+      twist.className = 'twist';
+      twist.textContent = '▾';
+      header.appendChild(twist);
+
+      const allVisible = descendants.every(p => p.visible);
+      const noneVisible = descendants.every(p => !p.visible);
+      const groupCb = document.createElement('input');
+      groupCb.type = 'checkbox';
+      groupCb.checked = allVisible;
+      groupCb.indeterminate = !allVisible && !noneVisible;
+      groupCb.addEventListener('click', ev => ev.stopPropagation());
+      groupCb.addEventListener('change', () => {
+        descendants.forEach(p => setPoiVisible(p, groupCb.checked));
+        renderPoiList();
+      });
+      header.appendChild(groupCb);
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'group-name';
+      nameEl.textContent = child.label;
+      nameEl.title = 'Doppelklick: Gruppe umbenennen';
+      header.appendChild(nameEl);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = descendants.length;
+      header.appendChild(countEl);
+
+      header.addEventListener('click', (e) => {
+        if (e.target === nameEl) return; // let dblclick-to-rename own this element
+        if (collapsedPoiGroups.has(child.path)) collapsedPoiGroups.delete(child.path);
+        else collapsedPoiGroups.add(child.path);
+        renderPoiList();
+      });
+
+      nameEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startInlineRename(nameEl, child.label, (newLabel) => {
+          const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
+          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
+          pois.forEach(p => {
+            if (p.group === child.path) p.group = newPath;
+            else if (p.group.startsWith(child.path + '/')) p.group = newPath + p.group.slice(child.path.length);
+          });
+          savePoisToStorage();
+          renderPoiList();
+        });
+      });
+
+      header.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        header.classList.add('drop-target');
+      });
+      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+      header.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        header.classList.remove('drop-target');
+        const poiId = e.dataTransfer.getData('text/x-poi-id');
+        if (!poiId) return;
+        movePoiToGroup(poiId, child.path);
+      });
+
+      groupEl.appendChild(header);
+
+      // Fallback: dropping anywhere else in this group's box (not on a more
+      // specific nested header, which stops propagation) also files under it.
+      groupEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        groupEl.classList.add('drop-target-box');
+      });
+      groupEl.addEventListener('dragleave', (e) => {
+        if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box');
+      });
+      groupEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        groupEl.classList.remove('drop-target-box');
+        const poiId = e.dataTransfer.getData('text/x-poi-id');
+        if (!poiId) return;
+        movePoiToGroup(poiId, child.path);
+      });
+
+      const childWrap = document.createElement('div');
+      childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
+
+      child.items.forEach(poi => childWrap.appendChild(buildPoiRow(poi)));
+      renderPoiGroupNode(child, childWrap);
+
+      groupEl.appendChild(childWrap);
+      container.appendChild(groupEl);
+    });
+  }
+
+  function renderPoiList(){
+    const scrollPos = poiListEl.scrollTop;
+    poiListEl.innerHTML = '';
+
+    if (pois.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div>Noch keine POIs gespeichert.<br>Rechtsklick auf die Karte →<br>"Als POI speichern".</div>';
+      poiListEl.appendChild(empty);
+      return;
+    }
+
+    const root = buildPoiGroupTree();
+    renderPoiGroupNode(root, poiListEl);
+
+    poiListEl.scrollTop = scrollPos;
+  }
+
+  const poiSearchInput = document.getElementById('poi-search');
+  const btnSearchPoi = document.getElementById('btn-search-poi');
+  const poiSearchResultsEl = document.getElementById('poi-search-results');
+
+  async function runPoiSearch(){
+    const q = poiSearchInput.value.trim();
+    if (!q) return;
+    poiSearchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
+    const results = await searchPlace(q);
+    poiSearchResultsEl.innerHTML = '';
+    if (!results.length){
+      poiSearchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
+      return;
+    }
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+      item.textContent = r.display_name;
+      item.addEventListener('click', () => {
+        const latlng = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+        openPoiModal(latlng);
+        poiNameInput.value = shortLabel(r.display_name);
+        poiSearchResultsEl.innerHTML = '';
+        poiSearchInput.value = '';
+      });
+      poiSearchResultsEl.appendChild(item);
+    });
+  }
+
+  btnSearchPoi.addEventListener('click', runPoiSearch);
+  poiSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runPoiSearch(); });
+  let poiSearchDebounceTimer = null;
+  poiSearchInput.addEventListener('input', () => {
+    if (poiSearchDebounceTimer) clearTimeout(poiSearchDebounceTimer);
+    if (poiSearchInput.value.trim().length < 3){
+      poiSearchResultsEl.innerHTML = '';
+      return;
+    }
+    poiSearchDebounceTimer = setTimeout(runPoiSearch, 500);
+  });
+
+  function openPoiModal(latlng){
+    pendingPoiLatLng = latlng;
+    poiNameInput.value = '';
+    poiGroupInput.value = '';
+    poiGroupOptions.innerHTML = '';
+    [...new Set(pois.map(p => p.group))].forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      poiGroupOptions.appendChild(opt);
+    });
+    poiModalBackdrop.classList.add('active');
+    poiNameInput.focus();
+  }
+
+  function closePoiModal(){
+    poiModalBackdrop.classList.remove('active');
+    pendingPoiLatLng = null;
+  }
+
+  document.getElementById('poi-modal-cancel').addEventListener('click', closePoiModal);
+  poiModalBackdrop.addEventListener('click', (e) => { if (e.target === poiModalBackdrop) closePoiModal(); });
+  document.getElementById('poi-modal-save').addEventListener('click', () => {
+    const name = poiNameInput.value.trim() || 'Unbenannt';
+    const group = poiGroupInput.value.trim() || 'Ohne Gruppe';
+    if (pendingPoiLatLng) addPoi(pendingPoiLatLng, name, group);
+    closePoiModal();
+  });
+  poiNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') poiGroupInput.focus(); });
+  poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
+
+  loadPoisFromStorage();
+  renderPoiList();
+
+  // ---------- Color palette for tracks ----------
+  const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
+  let colorCursor = 0;
+  function nextColor(){ const c = PALETTE[colorCursor % PALETTE.length]; colorCursor++; return c; }
+
+  // ---------- State ----------
+  // groups: Map<groupName, { files: Map<fileId, fileEntry>, collapsed: bool }>
+  // fileEntry: { id, name, color, layer, visible, distanceKm, groupEl, checkboxEl, rowEl }
+  const groups = new Map();
+  let fileCounter = 0;
+
+  const treeEl = document.getElementById('tree');
+  const emptyState = document.getElementById('empty-state');
+  const totalEl = document.getElementById('track-total');
+
+  function groupFor(name){
+    if (!groups.has(name)) groups.set(name, { files: new Map(), collapsed: false });
+    return groups.get(name);
+  }
+
+  function totalFileCount(){
+    let n = 0;
+    groups.forEach(g => n += g.files.size);
+    return n;
+  }
+
+  function formatDuration(ms){
+    const totalMin = Math.round(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h === 0) return m + ' min';
+    return h + ' Std ' + String(m).padStart(2,'0') + ' min';
+  }
+
+  function updateSummary(){
+    let count = 0, distSum = 0, durSum = 0, anyDist = false, anyDur = false;
+    groups.forEach(g => g.files.forEach(f => {
+      if (!f.visible) return;
+      count++;
+      if (f.distanceKm && !isNaN(parseFloat(f.distanceKm))) { distSum += parseFloat(f.distanceKm); anyDist = true; }
+      if (f.durationMs) { durSum += f.durationMs; anyDur = true; }
+    }));
+    document.getElementById('summary-count').textContent = count + (count === 1 ? ' Track' : ' Tracks');
+    document.getElementById('summary-distance').textContent = anyDist ? distSum.toFixed(1).replace('.', ',') + ' km' : '–';
+    document.getElementById('summary-duration').textContent = anyDur ? formatDuration(durSum) : '–';
+  }
+
+  function updateTotal(){
+    const n = totalFileCount();
+    totalEl.textContent = n + (n === 1 ? ' Track geladen' : ' Tracks geladen');
+    emptyState.style.display = n === 0 ? 'block' : 'none';
+  }
+
+  // ---------- Loading a GPX File object ----------
+  function loadGPXFile(file, groupName){
+    const id = 'f' + (fileCounter++);
+    const color = nextColor();
+    const g = groupFor(groupName);
+
+    const entry = { id, name: file.name, color, layer: null, visible: true, distanceKm: null, durationMs: null, originalSegments: [], customLayers: [], groupName: groupName };
+    g.files.set(id, entry);
+    renderTree();
+
+    const url = URL.createObjectURL(file);
+    const gpxLayer = new L.GPX(url, {
+      async: true,
+      polyline_options: { color: color, weight: 4, opacity: 0.85, lineJoin: 'round' },
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null,
+        wptIconUrls: {}
+      }
+    });
+
+    gpxLayer.on('loaded', function(e){
+      entry.distanceKm = (e.target.get_distance() / 1000).toFixed(1);
+      const totalTime = e.target.get_total_time ? e.target.get_total_time() : 0;
+      entry.durationMs = (totalTime && totalTime > 0) ? totalTime : null;
+
+      // Capture original track geometry, then remove the plain polylines --
+      // we replace them with our own solid/dashed segments below.
+      const originalPolylines = [];
+      e.target.eachLayer(l => { if (l instanceof L.Polyline) originalPolylines.push(l); });
+      originalPolylines.forEach(l => {
+        entry.originalSegments.push(l.getLatLngs());
+        e.target.removeLayer(l);
+      });
+
+      renderTrackSegments(entry);
+      recomputeDistance(entry);
+      updateFileMeta(entry);
+      updateSummary();
+      URL.revokeObjectURL(url);
+    });
+
+    gpxLayer.on('error', function(){
+      entry.distanceKm = 'Fehler';
+      updateFileMeta(entry);
+    });
+
+    gpxLayer.addTo(map);
+    entry.layer = gpxLayer;
+  }
+
+  function recomputeDistance(entry){
+    let totalMeters = 0;
+    entry.customLayers.forEach(l => {
+      const latlngs = l.getLatLngs();
+      for (let i = 1; i < latlngs.length; i++) totalMeters += latlngs[i-1].distanceTo(latlngs[i]);
+    });
+    entry.distanceKm = (totalMeters / 1000).toFixed(1);
+  }
+
+  function updateFileMeta(entry){
+    if (!entry.rowEl) return;
+    const metaEl = entry.rowEl.querySelector('.file-meta');
+    if (metaEl) metaEl.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '…';
+  }
+
+  // ---------- Tree rendering ----------
+  function renderTree(){
+    const scrollPos = treeEl.scrollTop;
+    treeEl.querySelectorAll('.group').forEach(el => el.remove());
+
+    groups.forEach((g, groupName) => {
+      if (g.files.size === 0) return;
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'group';
+
+      const header = document.createElement('div');
+      header.className = 'group-header' + (g.collapsed ? ' collapsed' : '');
+
+      const twist = document.createElement('span');
+      twist.className = 'twist';
+      twist.textContent = '▾';
+      header.appendChild(twist);
+
+      const groupCb = document.createElement('input');
+      groupCb.type = 'checkbox';
+      const allVisible = [...g.files.values()].every(f => f.visible);
+      const noneVisible = [...g.files.values()].every(f => !f.visible);
+      groupCb.checked = allVisible;
+      groupCb.indeterminate = !allVisible && !noneVisible;
+      groupCb.addEventListener('click', (ev) => ev.stopPropagation());
+      groupCb.addEventListener('change', () => {
+        g.files.forEach(f => setFileVisible(f, groupCb.checked));
+        renderTree();
+      });
+      header.appendChild(groupCb);
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'group-name';
+      nameEl.textContent = groupName;
+      header.appendChild(nameEl);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = g.files.size;
+      header.appendChild(countEl);
+
+      header.addEventListener('click', () => {
+        g.collapsed = !g.collapsed;
+        renderTree();
+      });
+
+      groupEl.appendChild(header);
+
+      const fileList = document.createElement('div');
+      fileList.className = 'file-list' + (g.collapsed ? ' collapsed' : '');
+
+      g.files.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = entry.visible;
+        cb.addEventListener('change', () => {
+          setFileVisible(entry, cb.checked);
+          renderTree();
+        });
+        row.appendChild(cb);
+
+        const swWrap = document.createElement('label');
+        swWrap.className = 'swatch-wrap';
+        swWrap.title = 'Farbe ändern';
+
+        const sw = document.createElement('span');
+        sw.className = 'swatch';
+        sw.style.background = entry.color;
+        swWrap.appendChild(sw);
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.className = 'swatch-input';
+        colorInput.value = entry.color;
+        colorInput.addEventListener('input', () => {
+          entry.color = colorInput.value;
+          sw.style.background = entry.color;
+          setTrackColor(entry, entry.color);
+        });
+        colorInput.addEventListener('click', (ev) => ev.stopPropagation());
+        swWrap.appendChild(colorInput);
+
+        row.appendChild(swWrap);
+
+        const info = document.createElement('div');
+        info.className = 'file-info';
+        const nm = document.createElement('div');
+        nm.className = 'file-name';
+        nm.textContent = entry.name;
+        nm.title = entry.name;
+        const meta = document.createElement('div');
+        meta.className = 'file-meta';
+        meta.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '…';
+        info.appendChild(nm);
+        info.appendChild(meta);
+        row.appendChild(info);
+
+        entry.rowEl = row;
+        fileList.appendChild(row);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'row-icon-btn';
+        saveBtn.title = 'Als GPX-Datei speichern';
+        saveBtn.innerHTML = '&#8681;';
+        saveBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          exportEntryAsGPX(entry);
+        });
+        row.appendChild(saveBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'row-icon-btn';
+        delBtn.title = 'Track entfernen';
+        delBtn.innerHTML = '&times;';
+        delBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          deleteEntry(entry);
+        });
+        row.appendChild(delBtn);
+      });
+
+      groupEl.appendChild(fileList);
+      treeEl.appendChild(groupEl);
+    });
+
+    updateTotal();
+    updateSummary();
+    treeEl.scrollTop = scrollPos;
+  }
+
+  let gapThreshold = 1000; // meters -- points further apart than this are drawn dashed
+
+  function splitIntoSegments(latlngs, thresholdMeters){
+    const result = [];
+    if (latlngs.length < 2) return result;
+    let current = [latlngs[0]];
+    for (let i = 1; i < latlngs.length; i++){
+      const d = latlngs[i-1].distanceTo(latlngs[i]);
+      if (d > thresholdMeters){
+        if (current.length >= 2) result.push({ latlngs: current, dashed: false });
+        result.push({ latlngs: [latlngs[i-1], latlngs[i]], dashed: true });
+        current = [latlngs[i]];
+      } else {
+        current.push(latlngs[i]);
+      }
+    }
+    if (current.length >= 2) result.push({ latlngs: current, dashed: false });
+    return result;
+  }
+
+  function renderTrackSegments(entry){
+    entry.customLayers.forEach(l => entry.layer.removeLayer(l));
+    entry.customLayers = [];
+
+    entry.originalSegments.forEach(latlngs => {
+      const segments = splitIntoSegments(latlngs, gapThreshold);
+      segments.forEach(seg => {
+        const pl = L.polyline(seg.latlngs, {
+          color: entry.color,
+          weight: seg.dashed ? 3 : 4,
+          opacity: seg.dashed ? 0.55 : 0.85,
+          dashArray: seg.dashed ? '8 6' : null,
+          lineJoin: 'round'
+        });
+        pl._isDashedGap = seg.dashed;
+        if (seg.dashed) pl._gapPoints = seg.latlngs;
+        pl.addTo(entry.layer);
+        entry.customLayers.push(pl);
+      });
+    });
+  }
+
+  const gapInput = document.getElementById('gap-threshold');
+  gapInput.addEventListener('change', () => {
+    const val = parseInt(gapInput.value, 10);
+    gapThreshold = (isNaN(val) || val < 10) ? 1000 : val;
+    groups.forEach(g => g.files.forEach(entry => {
+      if (entry.originalSegments.length) renderTrackSegments(entry);
+    }));
+  });
+
+  // ---------- Gap routing via OSRM (fills gaps with the likely road/path) ----------
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  async function fetchOsrmRoute(p1, p2, profile){
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${p1.lng},${p1.lat};${p2.lng},${p2.lat}?overview=full&geometries=geojson`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.code === 'Ok' && data.routes && data.routes[0]) {
+        return data.routes[0].geometry.coordinates.map(c => L.latLng(c[1], c[0]));
+      }
+    } catch (e) { /* network/CORS error -- fall through to null */ }
+    return null;
+  }
+
+  const closeGapsBtn = document.getElementById('btn-close-gaps');
+  closeGapsBtn.addEventListener('click', async () => {
+    const profile = document.getElementById('route-profile').value;
+
+    const gapLayers = [];
+    groups.forEach(g => g.files.forEach(entry => {
+      entry.customLayers.forEach(l => { if (l._isDashedGap) gapLayers.push({ entry, layer: l }); });
+    }));
+
+    if (gapLayers.length === 0){
+      closeGapsBtn.textContent = 'Keine Lücken gefunden';
+      setTimeout(() => { closeGapsBtn.textContent = 'Lücken schließen'; }, 1800);
+      return;
+    }
+
+    closeGapsBtn.disabled = true;
+    let done = 0, failed = 0;
+
+    const touchedEntries = new Set();
+    for (const { entry, layer } of gapLayers){
+      done++;
+      closeGapsBtn.textContent = `Route ${done}/${gapLayers.length} …`;
+      const [p1, p2] = layer._gapPoints;
+      const routeLatLngs = await fetchOsrmRoute(p1, p2, profile);
+
+      if (routeLatLngs && routeLatLngs.length > 1){
+        const routedLayer = L.polyline(routeLatLngs, {
+          color: entry.color,
+          weight: 3,
+          opacity: 0.6,
+          dashArray: '2 7',
+          lineJoin: 'round'
+        });
+        routedLayer._isDashedGap = false;
+        routedLayer._isRoutedGap = true;
+        entry.layer.removeLayer(layer);
+        routedLayer.addTo(entry.layer);
+        const idx = entry.customLayers.indexOf(layer);
+        if (idx !== -1) entry.customLayers[idx] = routedLayer;
+        touchedEntries.add(entry);
+      } else {
+        failed++;
+      }
+
+      if (done < gapLayers.length) await sleep(1100); // respect OSRM demo server rate limit
+    }
+
+    touchedEntries.forEach(entry => { recomputeDistance(entry); updateFileMeta(entry); });
+    updateSummary();
+
+    closeGapsBtn.disabled = false;
+    closeGapsBtn.textContent = failed > 0 ? `${gapLayers.length - failed}/${gapLayers.length} geschlossen` : 'Lücken geschlossen';
+    setTimeout(() => { closeGapsBtn.textContent = 'Lücken schließen'; }, 2500);
+  });
+
+  function setTrackColor(entry, color){
+    if (!entry.layer) return;
+    entry.customLayers.forEach(l => l.setStyle({ color: color }));
+  }
+
+  function escapeXml(str){
+    return str.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+  }
+
+  function exportEntryAsGPX(entry){
+    const points = [];
+    entry.customLayers.forEach(l => {
+      l.getLatLngs().forEach(ll => {
+        const last = points[points.length - 1];
+        if (last && Math.abs(last.lat - ll.lat) < 1e-9 && Math.abs(last.lng - ll.lng) < 1e-9) return;
+        points.push(ll);
+      });
+    });
+    if (points.length < 2){
+      alert('Keine Track-Daten zum Speichern vorhanden.');
+      return;
+    }
+
+    const trkpts = points.map(p => `      <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"></trkpt>`).join('\n');
+    const baseName = entry.name.replace(/\.gpx$/i, '');
+    const gpxXml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GPX Viewer" xmlns="http://www.topografix.com/GPX/1/1">\n  <trk>\n    <name>${escapeXml(baseName)}</name>\n    <trkseg>\n${trkpts}\n    </trkseg>\n  </trk>\n</gpx>\n`;
+
+    const blob = new Blob([gpxXml], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = baseName + '_geschlossen.gpx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function deleteEntry(entry){
+    if (entry.layer && map.hasLayer(entry.layer)) map.removeLayer(entry.layer);
+    const g = groups.get(entry.groupName);
+    if (g){
+      g.files.delete(entry.id);
+      if (g.files.size === 0) groups.delete(entry.groupName);
+    }
+    renderTree();
+  }
+
+  function setFileVisible(entry, visible){
+    entry.visible = visible;
+    if (!entry.layer) return;
+    if (visible) { if (!map.hasLayer(entry.layer)) entry.layer.addTo(map); }
+    else { if (map.hasLayer(entry.layer)) map.removeLayer(entry.layer); }
+  }
+
+  // ---------- Zoom to all visible tracks ----------
+  function zoomToAll(){
+    const fg = L.featureGroup();
+    let any = false;
+    groups.forEach(g => g.files.forEach(f => {
+      if (f.visible && f.layer) { fg.addLayer(f.layer); any = true; }
+    }));
+    if (any) map.fitBounds(fg.getBounds(), { padding: [30,30] });
+  }
+
+  // ---------- Clear all ----------
+  function clearAll(){
+    groups.forEach(g => g.files.forEach(f => { if (f.layer) map.removeLayer(f.layer); }));
+    groups.clear();
+    renderTree();
+  }
+
+  document.getElementById('btn-clear').addEventListener('click', clearAll);
+
+  // ---------- File input handling ----------
+  function handleFileInputList(fileList, useRelativePath){
+    const gpxFiles = [...fileList].filter(f => /\.gpx$/i.test(f.name));
+    let addedAny = false;
+    gpxFiles.forEach(file => {
+      let groupName = 'Einzelne Dateien';
+      if (useRelativePath && file.webkitRelativePath) {
+        const parts = file.webkitRelativePath.split('/');
+        if (parts.length > 1) groupName = parts[0];
+      }
+      loadGPXFile(file, groupName);
+      addedAny = true;
+    });
+    if (addedAny) setTimeout(zoomToAll, 400);
+  }
+
+  const inputFiles = document.getElementById('input-files');
+  const inputFolder = document.getElementById('input-folder');
+
+  document.getElementById('btn-open-files').addEventListener('click', () => inputFiles.click());
+  document.getElementById('btn-open-folder').addEventListener('click', () => inputFolder.click());
+
+  inputFiles.addEventListener('change', (e) => {
+    handleFileInputList(e.target.files, false);
+    inputFiles.value = '';
+  });
+  inputFolder.addEventListener('change', (e) => {
+    handleFileInputList(e.target.files, true);
+    inputFolder.value = '';
+  });
+
+  // ---------- Drag & drop (files and folders) ----------
+  const overlay = document.getElementById('dropzone-overlay');
+  let dragCounter = 0;
+
+  function isFileDrag(e){
+    return !!(e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files'));
+  }
+
+  window.addEventListener('dragenter', (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragCounter++;
+    overlay.classList.add('active');
+  });
+  window.addEventListener('dragover', (e) => { if (isFileDrag(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', (e) => {
+    if (!isFileDrag(e)) return;
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('active'); }
+  });
+
+  window.addEventListener('drop', async (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.classList.remove('active');
+
+    const items = e.dataTransfer.items;
+    if (!items) return;
+
+    const collected = []; // { file, groupName }
+    const entryPromises = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) {
+        entryPromises.push(walkEntry(entry, entry.name, collected));
+      } else {
+        const file = item.getAsFile();
+        if (file && /\.gpx$/i.test(file.name)) collected.push({ file, groupName: 'Einzelne Dateien' });
+      }
+    }
+
+    await Promise.all(entryPromises);
+
+    if (collected.length === 0) return;
+    collected.forEach(({file, groupName}) => loadGPXFile(file, groupName));
+    setTimeout(zoomToAll, 400);
+  });
+
+  function walkEntry(entry, topName, collected){
+    return new Promise((resolve) => {
+      if (entry.isFile) {
+        entry.file(file => {
+          if (/\.gpx$/i.test(file.name)) {
+            collected.push({ file, groupName: 'Einzelne Dateien' });
+          }
+          resolve();
+        }, resolve);
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const groupName = topName;
+        const readAll = () => {
+          reader.readEntries(async (entries) => {
+            if (entries.length === 0) { resolve(); return; }
+            const promises = entries.map(child => {
+              if (child.isFile) {
+                return new Promise(res => {
+                  child.file(file => {
+                    if (/\.gpx$/i.test(file.name)) collected.push({ file, groupName });
+                    res();
+                  }, res);
+                });
+              } else {
+                return walkEntry(child, groupName, collected);
+              }
+            });
+            await Promise.all(promises);
+            readAll(); // directories can return entries in batches
+          }, resolve);
+        };
+        readAll();
+      } else {
+        resolve();
+      }
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
