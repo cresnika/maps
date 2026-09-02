@@ -40,6 +40,32 @@
     width: 100vw;
   }
 
+  /* ---------- Header ---------- */
+	.header-title {
+	  display: flex;
+	  align-items: baseline;
+	  gap: 10px;
+	}
+
+	.header-title .brand-name {
+	  margin: 0;
+	  font-size: 26px;
+	  font-family: var(--font-display);
+	  font-weight: 700;
+	  text-transform: none;
+	  letter-spacing: 0.01em;
+	}
+
+	.header-title h1 {
+	  margin: 0;
+	  font-family: var(--font-display);
+	  font-weight: 600;
+	  font-size: 26px;
+	  color: var(--accent);
+	  letter-spacing: 0.01em;
+	  line-height: 1;
+	}
+
   /* ---------- Sidebar ---------- */
   #sidebar {
     width: 340px;
@@ -70,7 +96,7 @@
   }
 
   #sidebar-header {
-    padding: 22px 20px 16px;
+    padding: 14px 20px 12px;
     border-bottom: 1px solid var(--border);
     position: relative;
   }
@@ -187,7 +213,6 @@
     display: flex;
     gap: 8px;
     padding: 10px 20px;
-    border-bottom: 1px solid var(--border);
   }
 
   .btn {
@@ -314,14 +339,14 @@
   .empty-state svg { opacity: .5; margin-bottom: 10px; }
 
   .group {
-    margin: 4px 10px 10px;
+    margin: 4px 4px 4px;
   }
 
   .group-header {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 7px 8px;
+    gap: 6px;
+    padding: 0px 5px 3px;
     border-radius: 6px;
     cursor: pointer;
   }
@@ -363,8 +388,8 @@
   .file-row {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 6px 8px;
+    gap: 6px;
+    padding: 0px 4px;
     border-radius: 5px;
   }
   .file-row:hover { background: var(--bg-row-hover); }
@@ -481,7 +506,7 @@
 
   .shortcut-hint {
     margin: 0;
-    padding: 0 20px 12px;
+    padding: 0 20px 0px;
     font-size: 11px;
     color: var(--text-faint);
     line-height: 1.4;
@@ -490,7 +515,8 @@
   .search-row {
     display: flex;
     gap: 6px;
-    padding: 14px 20px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
   }
   .search-row input {
@@ -532,20 +558,25 @@
   .waypoint-row {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 9px 0;
-    border-bottom: 1px solid var(--border);
-    border-top: 2px solid transparent;
+    gap: 5px;
+    padding: 2px 2px;
     cursor: grab;
   }
   .waypoint-row.dragging { opacity: .4; }
-  .waypoint-row.drag-over { border-top-color: var(--accent); }
+  .waypoint-row.drag-over-top {
+	border-top: 2px solid var(--accent);
+  }
+  .waypoint-row.drag-over-bottom {
+	border-bottom: 2px solid var(--accent);
+  }  
   .waypoint-drag-handle {
     color: var(--text-faint);
     font-size: 13px;
     letter-spacing: -3px;
     flex-shrink: 0;
     line-height: 1;
+    border-bottom: 1px solid var(--border);
+    border-top: 2px solid transparent;
   }
   .waypoint-index {
     font-family: var(--font-mono);
@@ -914,12 +945,15 @@
   <div id="sidebar-backdrop"></div>
 
   <aside id="sidebar">
-    <div id="sidebar-header">
-      <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">⚙</button>
-      <button id="sidebar-close-btn" aria-label="Menü schließen">✕</button>
-      <p class="eyebrow" style="font-size:26px;font-family:var(--font-display);font-weight:700;text-transform:none;letter-spacing:0.01em;">Alex's</p>
-      <h1>Routenplaner</h1>
-    </div>
+	<div id="sidebar-header">
+	  <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">⚙</button>
+	  <button id="sidebar-close-btn" aria-label="Menü schließen">✕</button>
+
+	  <div class="header-title">
+		<p class="brand-name">Alex's</p>
+		<h1>Routenplaner</h1>
+	  </div>
+	</div>
 
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="planning">Planen</button>
@@ -988,7 +1022,7 @@
       </div>
 
       <div id="route-options">
-        <p class="shortcut-hint" style="padding:0 0 4px;">⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste – wählbar zwischen den Punkten</p>
+        <p class="shortcut-hint" style="padding:0 0 4px;">⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste</p>
         <div class="route-avoid-row">
           <label><input type="checkbox" id="avoid-highways"> Autobahn meiden</label>
           <label><input type="checkbox" id="avoid-tollways"> Maut meiden</label>
@@ -997,9 +1031,6 @@
         <button class="btn primary" id="btn-calc-route" style="width:100%;">Route berechnen</button>
         <div id="route-result"></div>
         <button class="btn" id="btn-save-route" style="width:100%;">Route speichern</button>
-      </div>
-
-      <div class="btn-row">
         <button class="btn" id="btn-clear-waypoints">Wegpunkte löschen</button>
       </div>
     </div>
@@ -1327,18 +1358,33 @@
 
   // Insert a waypoint at a specific role: 'start' (front), 'end' (back),
   // or 'via' (just before the current last point, i.e. before "Ziel").
-  function insertWaypointAtRole(latlng, role, label){
-    const wp = createWaypoint(latlng, label);
-    if (role === 'start') waypoints.unshift(wp);
-    else if (role === 'end') waypoints.push(wp);
-    else {
-      if (waypoints.length >= 1) waypoints.splice(waypoints.length - 1, 0, wp);
-      else waypoints.push(wp);
-    }
-    refreshWaypointIcons();
-    renderWaypointList();
-    maybeAutoRecalculateRoute();
-  }
+	function insertWaypointAtRole(latlng, role, label){
+		const wp = createWaypoint(latlng, label);
+
+		if (role === 'start') {
+			waypoints.unshift(wp);
+		}
+		else if (role === 'end') {
+			waypoints.push(wp);
+		}
+		else { // via
+
+			if (waypoints.length <= 1) {
+				waypoints.push(wp);
+			}
+			else {
+				waypoints.splice(
+					waypoints.length - 1,
+					0,
+					wp
+				);
+			}
+		}
+
+		refreshWaypointIcons();
+		renderWaypointList();
+		maybeAutoRecalculateRoute();
+	}
 
   function removeWaypoint(id){
     const idx = waypoints.findIndex(w => w.id === id);
@@ -1383,26 +1429,57 @@
         row.classList.add('dragging');
       });
       row.addEventListener('dragend', () => row.classList.remove('dragging'));
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        row.classList.add('drag-over');
-      });
-      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-      row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        row.classList.remove('drag-over');
-        const draggedId = e.dataTransfer.getData('text/plain');
-        if (!draggedId || draggedId === wp.id) return;
-        const fromIdx = waypoints.findIndex(w => w.id === draggedId);
-        const toIdx = waypoints.findIndex(w => w.id === wp.id);
-        if (fromIdx === -1 || toIdx === -1) return;
-        const [item] = waypoints.splice(fromIdx, 1);
-        waypoints.splice(toIdx, 0, item);
-        refreshWaypointIcons();
-        renderWaypointList();
-        maybeAutoRecalculateRoute();
-      });
+      
+	  row.addEventListener('dragover', (e) => {
+		e.preventDefault();
+		const rect = row.getBoundingClientRect();
+		row.classList.remove(
+			'drag-over-top',
+			'drag-over-bottom'
+		);
+		if ((e.clientY - rect.top) < (rect.height / 2))
+			row.classList.add('drag-over-top');
+		else
+			row.classList.add('drag-over-bottom');
+	  });
+	  row.addEventListener('dragleave', () => {
+		row.classList.remove(
+			'drag-over-top',
+			'drag-over-bottom'
+		);
+	  });
 
+	  row.addEventListener('drop', (e) => {
+		e.preventDefault();
+		const rect = row.getBoundingClientRect();
+		const dropBelow =
+			(e.clientY - rect.top) >= (rect.height / 2);
+		row.classList.remove(
+			'drag-over-top',
+			'drag-over-bottom'
+		);
+		const draggedId =
+			e.dataTransfer.getData('text/plain');
+		if (!draggedId || draggedId === wp.id) 
+			return;
+		const fromIdx =
+			waypoints.findIndex(w => w.id === draggedId);
+		const toIdx =
+			waypoints.findIndex(w => w.id === wp.id);
+		if (fromIdx === -1 || toIdx === -1)
+			return;
+		const [item] =
+			waypoints.splice(fromIdx, 1);
+		let insertIdx = toIdx;
+		if (fromIdx < toIdx)
+			insertIdx--;
+		if (dropBelow)
+			insertIdx++;
+		waypoints.splice(insertIdx, 0, item);
+		refreshWaypointIcons();
+		renderWaypointList();
+		maybeAutoRecalculateRoute();
+  	  });
       const handle = document.createElement('span');
       handle.className = 'waypoint-drag-handle';
       handle.innerHTML = '&#8942;&#8942;';
