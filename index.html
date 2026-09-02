@@ -1252,7 +1252,7 @@
   let calculatedRouteLayer = null;
 
   function maybeAutoRecalculateRoute(){
-    if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute();
+    if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false });
   }
 
   const mapEl = document.getElementById('map');
@@ -1691,7 +1691,8 @@
     return h > 0 ? `${h} Std ${String(m).padStart(2, '0')} min` : `${m} min`;
   }
 
-  async function calculateRoute(){
+  async function calculateRoute(options){
+    const fitView = !options || options.fitView !== false;
     const apiKey = orsKeyInput.value.trim();
     if (!apiKey){
       routeResultEl.textContent = 'Bitte zuerst in den Einstellungen (⚙) einen kostenlosen API-Key eintragen.';
@@ -1760,14 +1761,14 @@
 
     if (calculatedRouteLayer) planningLayer.removeLayer(calculatedRouteLayer);
     calculatedRouteLayer = L.polyline(allCoords, { color: '#22a6d8', weight: 5, opacity: 0.85, lineJoin: 'round' }).addTo(planningLayer);
-    map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+    if (fitView) map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
 
     const distKm = (totalDistance / 1000).toFixed(1);
     routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
     routeResultEl.className = 'success';
   }
 
-  document.getElementById('btn-calc-route').addEventListener('click', calculateRoute);
+  document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
 
   // ============================================================
   // POIs (Tab "POI") -- persisted in the browser via localStorage
