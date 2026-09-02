@@ -186,7 +186,7 @@
   .btn-row {
     display: flex;
     gap: 8px;
-    padding: 16px 20px;
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border);
   }
 
@@ -328,9 +328,9 @@
   .group-header:hover { background: var(--bg-row-hover); }
 
   .group-header .twist {
-    font-size: 10px;
-    color: var(--text-faint);
-    width: 10px;
+    font-size: 15px;
+    color: var(--text-dim);
+    width: 14px;
     transition: transform .15s;
     flex-shrink: 0;
   }
@@ -384,6 +384,8 @@
     transition: opacity .1s;
   }
   .row-icon-btn:hover { color: var(--accent); background: var(--bg-sidebar); opacity: 1; }
+  .group-del-btn { opacity: .45; }
+  .group-del-btn:hover { opacity: 1; }
 
   .swatch-wrap {
     position: relative;
@@ -714,12 +716,12 @@
   .modal-actions .btn { flex: none; padding: 8px 16px; }
 
   #route-options {
-    padding: 12px 20px 16px;
+    padding: 8px 20px 12px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
   .route-options-row select {
     width: 100%;
@@ -733,14 +735,14 @@
   }
   .route-avoid-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 4px 12px;
   }
   .route-avoid-row label {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: 12.5px;
+    gap: 5px;
+    font-size: 11.5px;
     color: var(--text-dim);
     cursor: pointer;
   }
@@ -785,9 +787,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    margin: 2px 0;
-    padding: 3px 0;
+    gap: 6px;
+    margin: 0;
+    padding: 1px 0;
   }
   .segment-connector::before,
   .segment-connector::after {
@@ -798,17 +800,17 @@
   }
   .segment-pref-buttons {
     display: flex;
-    gap: 2px;
+    gap: 1px;
     background: var(--bg-sidebar-raised);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2px;
+    border-radius: 5px;
+    padding: 1px;
   }
   .segment-pref-btn {
     background: none;
     border: none;
-    font-size: 13px;
-    padding: 3px 7px;
+    font-size: 11px;
+    padding: 2px 5px;
     border-radius: 4px;
     cursor: pointer;
     opacity: .5;
@@ -898,6 +900,8 @@
     cursor: pointer;
   }
   .poi-popup-btn:hover { background: var(--accent); border-color: var(--accent); color: #1b2420; }
+  .poi-popup-actions + .poi-popup-actions { margin-top: 4px; }
+  .poi-popup-btn-wide { width: 100%; }
 </style>
 </head>
 <body>
@@ -984,7 +988,7 @@
       </div>
 
       <div id="route-options">
-        <p class="shortcut-hint" style="padding-left:0;">Tipp: Bei jedem Wegpunkt in der Liste die Streckenart bis zum nächsten Punkt wählen (⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste)</p>
+        <p class="shortcut-hint" style="padding:0 0 4px;">⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste – wählbar zwischen den Punkten</p>
         <div class="route-avoid-row">
           <label><input type="checkbox" id="avoid-highways"> Autobahn meiden</label>
           <label><input type="checkbox" id="avoid-tollways"> Maut meiden</label>
@@ -1241,10 +1245,15 @@
   // Route planning (Tab "Planung")
   // ============================================================
   const planningLayer = L.layerGroup().addTo(map);
+  const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
   let waypointCounter = 0;
   let pickingMode = false;
   let calculatedRouteLayer = null;
+
+  function maybeAutoRecalculateRoute(){
+    if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute();
+  }
 
   const mapEl = document.getElementById('map');
   const btnTogglePick = document.getElementById('btn-toggle-pick');
@@ -1270,7 +1279,7 @@
   function waypointTag(index){
     if (index === 0) return 'Start';
     if (index === waypoints.length - 1) return 'Ziel';
-    return 'Wegpunkt ' + index;
+    return '';
   }
 
   function createWaypoint(latlng, label){
@@ -1281,6 +1290,7 @@
       const pos = marker.getLatLng();
       wp.lat = pos.lat;
       wp.lng = pos.lng;
+      maybeAutoRecalculateRoute();
     });
     marker.on('click', (e) => {
       if (e.originalEvent && e.originalEvent.shiftKey){
@@ -1312,6 +1322,7 @@
     waypoints.splice(idx, 0, wp);
     refreshWaypointIcons();
     renderWaypointList();
+    maybeAutoRecalculateRoute();
   }
 
   // Insert a waypoint at a specific role: 'start' (front), 'end' (back),
@@ -1326,6 +1337,7 @@
     }
     refreshWaypointIcons();
     renderWaypointList();
+    maybeAutoRecalculateRoute();
   }
 
   function removeWaypoint(id){
@@ -1335,6 +1347,7 @@
     waypoints.splice(idx, 1);
     refreshWaypointIcons();
     renderWaypointList();
+    maybeAutoRecalculateRoute();
   }
 
   function moveWaypoint(id, dir){
@@ -1346,6 +1359,7 @@
     waypoints[newIdx] = tmp;
     refreshWaypointIcons();
     renderWaypointList();
+    maybeAutoRecalculateRoute();
   }
 
   function renderWaypointList(){
@@ -1386,6 +1400,7 @@
         waypoints.splice(toIdx, 0, item);
         refreshWaypointIcons();
         renderWaypointList();
+        maybeAutoRecalculateRoute();
       });
 
       const handle = document.createElement('span');
@@ -1401,14 +1416,17 @@
 
       const info = document.createElement('div');
       info.className = 'waypoint-info';
-      const tag = document.createElement('div');
-      tag.className = 'waypoint-tag';
-      tag.textContent = waypointTag(i);
+      const tagText = waypointTag(i);
+      if (tagText){
+        const tag = document.createElement('div');
+        tag.className = 'waypoint-tag';
+        tag.textContent = tagText;
+        info.appendChild(tag);
+      }
       const label = document.createElement('div');
       label.className = 'waypoint-label';
       label.textContent = wp.label;
       label.title = wp.label;
-      info.appendChild(tag);
       info.appendChild(label);
       row.appendChild(info);
 
@@ -1536,20 +1554,12 @@
     if (m) m.remove();
   }
 
-  map.on('contextmenu', (e) => {
-    L.DomEvent.preventDefault(e.originalEvent);
+  function showCustomContextMenu(x, y, items){
     closeMapContextMenu();
 
     const menu = document.createElement('div');
     menu.id = 'map-context-menu';
     menu.className = 'map-context-menu';
-
-    const items = [
-      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
-      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
-      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
-      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
-    ];
 
     items.forEach(it => {
       const btn = document.createElement('button');
@@ -1565,8 +1575,7 @@
 
     document.body.appendChild(menu);
 
-    const pt = e.originalEvent;
-    let left = pt.clientX, top = pt.clientY;
+    let left = x, top = y;
     const rect = menu.getBoundingClientRect();
     if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 8;
     if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 8;
@@ -1576,6 +1585,17 @@
     setTimeout(() => {
       document.addEventListener('click', closeMapContextMenu, { once: true });
     }, 0);
+  }
+
+  map.on('contextmenu', (e) => {
+    L.DomEvent.preventDefault(e.originalEvent);
+    const items = [
+      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
+      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
+      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
+      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
+    ];
+    showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
   });
 
   // -- Text search (Nominatim) --
@@ -1769,7 +1789,7 @@
       className: 'poi-marker-icon',
       html: `<div class="poi-marker" style="color:${color};">&#9733;</div>`,
       iconSize: [24, 24],
-      iconAnchor: [12, 20]
+      iconAnchor: [12, 12]
     });
   }
 
@@ -1788,8 +1808,30 @@
     settingsDefaultPoiColorInput.value = getDefaultPoiColor();
   } catch (e){ /* ignore */ }
 
+  function hexToRgb(hex){
+    hex = hex.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const num = parseInt(hex, 16);
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  }
+  function colorsAreSimilar(a, b, threshold){
+    const ca = hexToRgb(a), cb = hexToRgb(b);
+    const dist = Math.sqrt((ca.r - cb.r) ** 2 + (ca.g - cb.g) ** 2 + (ca.b - cb.b) ** 2);
+    return dist <= (threshold || 30);
+  }
+
   settingsDefaultPoiColorInput.addEventListener('input', () => {
-    try { localStorage.setItem('default_poi_color', settingsDefaultPoiColorInput.value); } catch (e){ /* ignore */ }
+    const oldDefault = getDefaultPoiColor();
+    const newDefault = settingsDefaultPoiColorInput.value;
+    try { localStorage.setItem('default_poi_color', newDefault); } catch (e){ /* ignore */ }
+    pois.forEach(poi => {
+      if (colorsAreSimilar(poi.color, oldDefault)){
+        poi.color = newDefault;
+        poi.marker.setIcon(poiIcon(poi.color));
+      }
+    });
+    savePoisToStorage();
+    renderPoiList();
   });
 
   function savePoisToStorage(){
@@ -1826,6 +1868,17 @@
     });
     container.appendChild(btnRow);
 
+    const searchRow = document.createElement('div');
+    searchRow.className = 'poi-popup-actions';
+    const searchBtn = document.createElement('button');
+    searchBtn.className = 'poi-popup-btn poi-popup-btn-wide';
+    searchBtn.innerHTML = '🔍 In Google suchen';
+    searchBtn.addEventListener('click', () => {
+      window.open('https://www.google.com/search?q=' + encodeURIComponent(poi.name), '_blank', 'noopener');
+    });
+    searchRow.appendChild(searchBtn);
+    container.appendChild(searchRow);
+
     return container;
   }
 
@@ -1835,6 +1888,15 @@
     const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
     const poi = { id, name, group, lat, lng, marker, visible: visible !== false, color: poiColor };
     marker.bindPopup(() => buildPoiPopupContent(poi));
+    marker.on('contextmenu', (e) => {
+      L.DomEvent.stop(e);
+      const items = [
+        { label: 'Als Startpunkt setzen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'start', poi.name) },
+        { label: 'Als Via-Punkt hinzufügen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'via', poi.name) },
+        { label: 'Als Zielpunkt setzen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'end', poi.name) }
+      ];
+      showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
+    });
     marker.on('dragend', () => {
       const pos = marker.getLatLng();
       poi.lat = pos.lat;
@@ -1942,6 +2004,15 @@
       row.classList.add('dragging');
     });
     row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const items = [
+        { label: 'Als Startpunkt setzen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'start', poi.name) },
+        { label: 'Als Via-Punkt hinzufügen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'via', poi.name) },
+        { label: 'Als Zielpunkt setzen', action: () => insertWaypointAtRole(L.latLng(poi.lat, poi.lng), 'end', poi.name) }
+      ];
+      showCustomContextMenu(e.clientX, e.clientY, items);
+    });
 
     const handle = document.createElement('span');
     handle.className = 'waypoint-drag-handle';
@@ -2047,6 +2118,17 @@
       countEl.className = 'group-count';
       countEl.textContent = descendants.length;
       header.appendChild(countEl);
+
+      const groupDelBtn = document.createElement('button');
+      groupDelBtn.className = 'row-icon-btn group-del-btn';
+      groupDelBtn.innerHTML = '&times;';
+      groupDelBtn.title = 'Ganze Gruppe löschen';
+      groupDelBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!confirm(`"${child.label}" mit ${descendants.length} POI(s) (inkl. Untergruppen) wirklich löschen?`)) return;
+        descendants.forEach(p => deletePoi(p.id));
+      });
+      header.appendChild(groupDelBtn);
 
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return; // let dblclick-to-rename own this element
@@ -2921,6 +3003,7 @@
     pendingPoiImportPoints = points;
     document.getElementById('poi-import-group-input').value = '';
     document.getElementById('poi-import-modal-backdrop').classList.add('active');
+    document.getElementById('poi-import-group-input').focus();
   });
   document.getElementById('poi-import-modal-cancel').addEventListener('click', () => {
     document.getElementById('poi-import-modal-backdrop').classList.remove('active');
@@ -2996,6 +3079,7 @@
   }
 
   function loadRouteIntoPlanner(route){
+    routePreviewLayer.clearLayers();
     clearPlannerState();
     route.waypoints.forEach(wpData => {
       const wp = createWaypoint(L.latLng(wpData.lat, wpData.lng), wpData.label);
@@ -3087,6 +3171,21 @@
     return all;
   }
 
+  function previewRouteOnMap(route){
+    routePreviewLayer.clearLayers();
+    let lineCoords;
+    if (route.routeCoords && route.routeCoords.length > 1){
+      lineCoords = route.routeCoords.map(c => L.latLng(c[0], c[1]));
+    } else {
+      lineCoords = route.waypoints.map(wp => L.latLng(wp.lat, wp.lng));
+    }
+    const previewLine = L.polyline(lineCoords, { color: '#22a6d8', weight: 5, opacity: 0.75, dashArray: '7 7', lineJoin: 'round' }).addTo(routePreviewLayer);
+    route.waypoints.forEach((wp, i) => {
+      L.marker([wp.lat, wp.lng], { icon: waypointIcon(i) }).addTo(routePreviewLayer);
+    });
+    map.fitBounds(previewLine.getBounds(), { padding: [30, 30] });
+  }
+
   function buildRouteRow(route){
     const row = document.createElement('div');
     row.className = 'file-row';
@@ -3110,17 +3209,19 @@
     const nm = document.createElement('div');
     nm.className = 'file-name';
     nm.textContent = route.name;
-    nm.title = 'Doppelklick: umbenennen';
+    nm.title = 'Klick: auf Karte anzeigen · Doppelklick: umbenennen';
+    nm.style.cursor = 'pointer';
     const meta = document.createElement('div');
     meta.className = 'file-meta';
     meta.textContent = route.summaryText ? route.summaryText.replace(/<[^>]+>/g, '') : (route.waypoints.length + ' Punkte');
+    nm.addEventListener('click', () => previewRouteOnMap(route));
     nm.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      startInlineRename(nm, route.name, (newName) => {
+      startInlineRenameGeneric(nm, route.name, (newName) => {
         route.name = newName;
         saveRoutesToStorage();
         renderRoutesList();
-      });
+      }, renderRoutesList);
     });
     info.appendChild(nm);
     info.appendChild(meta);
