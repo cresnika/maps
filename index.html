@@ -370,8 +370,9 @@
   }
 
   .group-count {
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
     color: var(--text-faint);
   }
 
@@ -3239,17 +3240,24 @@
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   }
 
-  function openGpxExportMenu(event, provider){
+  function openGpxExportMenu(event, provider, crnprovider){
     if (event) event.stopPropagation();
     const result = provider();
     if (!result || !result.xml){ alert('Keine Track-Daten zum Exportieren vorhanden.'); return; }
     const { xml, filename } = result;
-    const items = [
+
+    const crnresult = crnprovider();
+//    const crnresult = route();
+//    const {crnxml, crnfilename } = crnresult;
+//    CRNprovider = buildRouteCRNGpxXml(route);
+
+const items = [
       { label: '💾 Als GPX-Datei speichern', action: () => downloadGpxString(xml, filename) },
+      { label: '📤 BMW CRN speichern', action: () => downloadGpxString(crnresult.xml, crnresult.filename) },
       { label: '📤 Teilen…', action: () => shareGpxString(xml, filename) },
       { label: '✉️ Per E-Mail', action: () => emailGpxString(xml, filename) }
     ];
-    showCustomContextMenu(event.clientX, event.clientY, items);
+showCustomContextMenu(event.clientX, event.clientY, items);
   }
 
   function deleteEntry(entry){
@@ -3694,6 +3702,58 @@
     return { xml, filename };
   }
 
+  function buildRouteCRNGpxXml(route){
+    const nameEsc = escapeXml(route.name);
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<gpx version="1.1" creator="Alex\'s Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n';
+
+    xml += '  <extensions>\n';
+//    const distEsc = escapeXml(route.totalDistance);
+//    const timeEsc = escapeXml(route.totalDuration);
+    const profile = document.getElementById('planning-route-profile').value;
+
+    const avoidTollways = document.getElementById('avoid-tollways').checked;
+    const tollRoadsEsc = escapeXml(avoidTollways === false ? 'allow' : 'forbid');
+
+    const avoidFerries = document.getElementById('avoid-ferries').checked;
+    const feriesEsc = escapeXml(avoidFerries === false ? 'allow' : 'forbid');
+
+    //    const summaryText = routeResultEl.className === 'success' ? routeResultEl.textContent : ''
+    const distEsc = '123';
+    const timeEsc = '456';
+    const optim = profile === 'recommended' ? "fastest" : '';
+    xml += '    <cnrd:PlannedRouteExtension durationInSeconds="'+timeEsc+'" lengthInMeters="'+distEsc+'">\n';
+    xml += '      <cnrd:routeOptions optimization="fastest">\n';
+    xml += '        <cnrd:avoidances motorways="allow" tunnels="allow" feries="'+feriesEsc+'" tollRoads="'+tollRoadsEsc+'" dirtRoads="forbid"/>\n';
+    xml += '      </cnrd:routeOptions>\n';
+    xml += '    </cnrd:PlannedRouteExtension>\n';
+    xml += '  </extensions>\n';
+
+    xml += '  <rte>\n';
+    xml += `    <name>${nameEsc}</name>\n`;
+    route.waypoints.forEach((wp, i) => {
+      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+      xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><desc>${label}</desc></rtept>\n`;
+    });
+    xml += '  </rte>\n';
+
+    if (route.routeCoords && route.routeCoords.length > 1){
+      xml += '  <trk>\n';
+      xml += `    <name>${nameEsc}</name>\n`;
+      xml += '    <trkseg>\n';
+      route.routeCoords.forEach(c => {
+        xml += `      <trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"></trkpt>\n`;
+      });
+      xml += '    </trkseg>\n';
+      xml += '  </trk>\n';
+    }
+    xml += '</gpx>\n';
+
+    const filename = (route.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'route') + '.gpx';
+    return { xml, filename };
+  }
+  
+
   function buildRouteGroupTree(){
     const root = { children: new Map(), items: [] };
     routes.forEach(r => {
@@ -3785,7 +3845,7 @@
     exportBtn.innerHTML = '&#8681;';
     exportBtn.title = 'Als GPX exportieren (Route + Track)';
     exportBtn.addEventListener('click', (ev) => {
-      openGpxExportMenu(ev, () => buildRouteGpxXml(route));
+      openGpxExportMenu(ev, () => buildRouteGpxXml(route), () => buildRouteCRNGpxXml(route));
     });
     row.appendChild(exportBtn);
 
@@ -3936,14 +3996,14 @@
       id, name,
 //      group,
       waypoints: wpSnapshot,
-      routeCoords: coordsSnapshot,
+//      routeCoords: coordsSnapshot,
       profile: document.getElementById('planning-route-profile').value,
       avoidTollways: document.getElementById('avoid-tollways').checked,
       avoidFerries: document.getElementById('avoid-ferries').checked,
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
     console.log(`[Export route]`, JSON.stringify(route));
-    openGpxExportMenu(e, () => buildRouteGpxXml(route));
+    openGpxExportMenu(e, () => buildRouteGpxXml(route), () => buildRouteCRNGpxXml(route));
   });
 
   // -- Save-route modal wiring --
