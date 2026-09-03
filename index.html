@@ -1099,8 +1099,11 @@
           <button class="btn primary" id="btn-calc-route">Route berechnen</button>
         </div>
         <div id="route-result"></div>
-        <button class="btn" id="btn-save-route" style="width:100%;">Route speichern</button>
-        <button class="btn" id="btn-clear-waypoints">Wegpunkte löschen</button>
+        <div class="route-calc-row">
+          <button class="btn" id="btn-export-route" style="width:100%;">Exportieren</button>
+          <button class="btn" id="btn-save-route" style="width:100%;">Speichern</button>
+        </div>
+        <button class="btn" id="btn-clear-waypoints">Planung löschen</button>
       </div>
     </div>
 
@@ -3919,6 +3922,29 @@
       if (ev.key === 'Escape'){ committed = true; onCancelRender(); }
     });
   }
+
+  // -- Export-route modal wiring --
+  document.getElementById('btn-export-route').addEventListener('click', (e) => {
+    if (waypoints.length < 2){ alert('Bitte zuerst mindestens Start und Ziel setzen.'); return; }
+
+    const id = 'route' + (routeCounter++);
+    const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
+    const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
+    const name = 'ExportedRoute';
+//    const group = 'ExportGroup';
+    const route = {
+      id, name,
+//      group,
+      waypoints: wpSnapshot,
+      routeCoords: coordsSnapshot,
+      profile: document.getElementById('planning-route-profile').value,
+      avoidTollways: document.getElementById('avoid-tollways').checked,
+      avoidFerries: document.getElementById('avoid-ferries').checked,
+      summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
+    };
+    console.log(`[Export route]`, JSON.stringify(route));
+    openGpxExportMenu(e, () => buildRouteGpxXml(route));
+  });
 
   // -- Save-route modal wiring --
   document.getElementById('btn-save-route').addEventListener('click', () => {
