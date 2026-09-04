@@ -1,7 +1,8 @@
 import json
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,87 +11,29 @@ from pathlib import Path
 # KONFIGURATION
 # ============================================================
 
-# Gesamter Datenbereich:
 SOUTH = 43.0
 WEST = 4.0
 NORTH = 49.5
 EAST = 17.0
 
-# Mehrere kleinere Regionen.
-#
-# Jede Region wird separat von Overpass abgefragt.
-# Dadurch vermeiden wir einen großen Timeout.
-#
-# Format:
-# (Name, south, west, north, east)
-
-REGIONS = [
-    (
-        "Westalpen",
-        43.0,
-        4.0,
-        46.5,
-        8.0
-    ),
-    (
-        "Schweiz",
-        45.0,
-        6.0,
-        48.0,
-        10.5
-    ),
-    (
-        "Nordalpen",
-        46.5,
-        8.0,
-        49.5,
-        13.0
-    ),
-    (
-        "Ostalpen",
-        46.0,
-        11.5,
-        49.5,
-        17.0
-    ),
-    (
-        "Südalpen_West",
-        43.0,
-        7.0,
-        46.0,
-        11.5
-    ),
-    (
-        "Südalpen_Ost",
-        44.0,
-        11.0,
-        46.5,
-        17.0
-    ),
-    (
-        "Südwest",
-        43.0,
-        4.0,
-        46.0,
-        7.0
-    ),
-    (
-        "Südost",
-        43.0,
-        13.0,
-        46.0,
-        17.0
-    )
-]
-
-
-# Overpass-Server
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-
-# Zieldatei
 OUTPUT_FILE = Path(
     "data/mountain_passes.json"
 )
+
+# Mehrere öffentliche Overpass-Server.
+# Falls einer rate-limited oder überlastet ist,
+# wird automatisch der nächste verwendet.
+
+OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
+
+# Anzahl Wiederholungen pro Anfrage
+MAX_RETRIES = 5
+
+# Wartezeit zwischen erfolgreichen Requests
+REQUEST_DELAY = 10
 
 
 # ============================================================
@@ -117,15 +60,32 @@ print(
     f"{SOUTH},{WEST} → {NORTH},{EAST}"
 )
 
-print(
-    f"Regionen: {len(REGIONS)}"
-)
-
 print()
 
 
 # ============================================================
-# OVERPASS ABFRAGE
+# OVERPASS QUERY
+# ============================================================
+
+def build_query(
+    south,
+    west,
+    north,
+    east
+):
+
+    return f"""
+[out:json][timeout:120];
+
+node["mountain_pass"="yes"]
+    ({south},{west},{north},{east});
+
+out body;
+"""
+
+
+# ============================================================
+# OVERPASS REQUEST
 # ============================================================
 
 def query_overpass(
@@ -136,153 +96,248 @@ def query_overpass(
     east
 ):
 
-    print("----------------------------------------")
-    print(
-        f"Region: {region_name}"
-    )
-    print(
-        f"Gebiet: "
-        f"{south},{west} → {north},{east}"
-    )
-    print("----------------------------------------")
-
-    query = f"""
-[out:json][timeout:120];
-
-node["mountain_pass"="yes"]
-  ({south},{west},{north},{east});
-
-out body;
-"""
-
-    data = urllib.parse.urlencode({
-        "data": query
-    }).encode("utf-8")
-
-    request = urllib.request.Request(
-        OVERPASS_URL,
-        data=data,
-        headers={
-            "User-Agent":
-                "motorcycle-route-planner/1.0"
-        }
-    )
-
-    try:
-
-        with urllib.request.urlopen(
-            request,
-            timeout=180
-        ) as response:
-
-            raw = response.read()
-
-        osm_data = json.loads(
-            raw.decode("utf-8")
-        )
-
-        elements = osm_data.get(
-            "elements",
-            []
-        )
-
-        print(
-            f"Overpass liefert "
-            f"{len(elements)} Objekte."
-        )
-
-        return elements
-
-    except urllib.error.HTTPError as error:
-
-        print()
-        print(
-            f"FEHLER in Region "
-            f"{region_name}"
-        )
-
-        print(
-            f"HTTP {error.code}: "
-            f"{error.reason}"
-        )
-
-        raise
-
-    except urllib.error.URLError as error:
-
-        print()
-        print(
-            f"NETZWERKFEHLER in Region "
-            f"{region_name}"
-        )
-
-        print(error)
-
-        raise
-
-
-# ============================================================
-# ALLE REGIONEN ABFRAGEN
-# ============================================================
-
-all_elements = []
-
-for region in REGIONS:
-
-    region_name = region[0]
-    south = region[1]
-    west = region[2]
-    north = region[3]
-    east = region[4]
-
-    elements = query_overpass(
-        region_name,
+    query = build_query(
         south,
         west,
         north,
         east
     )
 
-    all_elements.extend(
-        elements
+    data = urllib.parse.urlencode({
+        "data": query
+    }).encode("utf-8")
+
+
+    for attempt in range(
+        MAX_RETRIES
+    ):
+
+        # Server bei jedem Versuch wechseln
+        server = OVERPASS_SERVERS[
+            attempt % len(
+                OVERPASS_SERVERS
+            )
+        ]
+
+
+        print()
+        print("----------------------------------------")
+        print(
+            f"Region: {region_name}"
+        )
+        print(
+            f"Versuch: "
+            f"{attempt + 1}/{MAX_RETRIES}"
+        )
+        print(
+            f"Server: {server}"
+        )
+        print("----------------------------------------")
+
+
+        request = urllib.request.Request(
+            server,
+            data=data,
+            headers={
+                "User-Agent":
+                    "motorcycle-route-planner/1.0"
+            }
+        )
+
+
+        try:
+
+            with urllib.request.urlopen(
+                request,
+                timeout=180
+            ) as response:
+
+                raw = response.read()
+
+
+            osm_data = json.loads(
+                raw.decode("utf-8")
+            )
+
+
+            elements = osm_data.get(
+                "elements",
+                []
+            )
+
+
+            print()
+            print(
+                f"Overpass liefert "
+                f"{len(elements)} Objekte."
+            )
+
+
+            # Server nach erfolgreichem Request
+            # kurz entlasten.
+            print(
+                f"Warte {REQUEST_DELAY} Sekunden..."
+            )
+
+            time.sleep(
+                REQUEST_DELAY
+            )
+
+
+            return elements
+
+
+        except urllib.error.HTTPError as e:
+
+            print()
+            print(
+                f"HTTP {e.code}: {e.reason}"
+            )
+
+
+            # ------------------------------------------------
+            # RATE LIMIT
+            # ------------------------------------------------
+
+            if e.code == 429:
+
+                wait_time = (
+                    30 * (attempt + 1)
+                )
+
+                print(
+                    "Overpass meldet "
+                    "Too Many Requests."
+                )
+
+                print(
+                    f"Warte {wait_time} Sekunden "
+                    "vor dem nächsten Versuch..."
+                )
+
+                time.sleep(
+                    wait_time
+                )
+
+                continue
+
+
+            # ------------------------------------------------
+            # TEMPORÄRE SERVERFEHLER
+            # ------------------------------------------------
+
+            if e.code in (
+                502,
+                503,
+                504
+            ):
+
+                wait_time = (
+                    20 * (attempt + 1)
+                )
+
+                print(
+                    "Overpass ist momentan "
+                    "nicht verfügbar."
+                )
+
+                print(
+                    f"Warte {wait_time} Sekunden..."
+                )
+
+                time.sleep(
+                    wait_time
+                )
+
+                continue
+
+
+            # Andere HTTP-Fehler sind echte Fehler
+            raise
+
+
+        except (
+            urllib.error.URLError,
+            TimeoutError
+        ) as e:
+
+            print()
+            print(
+                f"Netzwerkfehler: {e}"
+            )
+
+
+            if attempt < MAX_RETRIES - 1:
+
+                wait_time = (
+                    20 * (attempt + 1)
+                )
+
+                print(
+                    f"Warte {wait_time} Sekunden..."
+                )
+
+                time.sleep(
+                    wait_time
+                )
+
+                continue
+
+
+            raise
+
+
+        except Exception as e:
+
+            print()
+            print(
+                f"Unerwarteter Fehler: "
+                f"{type(e).__name__}: {e}"
+            )
+
+
+            if attempt < MAX_RETRIES - 1:
+
+                wait_time = (
+                    20 * (attempt + 1)
+                )
+
+                print(
+                    f"Warte {wait_time} Sekunden..."
+                )
+
+                time.sleep(
+                    wait_time
+                )
+
+                continue
+
+
+            raise
+
+
+    raise RuntimeError(
+        f"Region '{region_name}' konnte "
+        f"nach {MAX_RETRIES} Versuchen "
+        f"nicht geladen werden."
     )
 
-    print()
-
 
 # ============================================================
-# DUPLIKATE ENTFERNEN
+# HAUPTABFRAGE
 # ============================================================
-
-print("----------------------------------------")
-print("Entferne Duplikate...")
-print("----------------------------------------")
-
-unique_elements = {}
-
-for element in all_elements:
-
-    element_id = element.get("id")
-
-    if element_id is None:
-        continue
-
-    unique_elements[
-        element_id
-    ] = element
-
-
-print(
-    f"Objekte insgesamt: "
-    f"{len(all_elements)}"
-)
-
-print(
-    f"Nach Duplikatbereinigung: "
-    f"{len(unique_elements)}"
-)
 
 print()
+print("Starte Overpass-Abfrage...")
+print()
+
+elements = query_overpass(
+    "Gesamtgebiet",
+    SOUTH,
+    WEST,
+    NORTH,
+    EAST
+)
 
 
 # ============================================================
@@ -291,21 +346,52 @@ print()
 
 places = []
 
-for element in unique_elements.values():
+seen_ids = set()
+
+
+for element in elements:
 
     if element.get("type") != "node":
         continue
+
+
+    osm_id = element.get("id")
+
+    if osm_id is None:
+        continue
+
+
+    # Sicherheit gegen eventuelle Duplikate
+    if osm_id in seen_ids:
+        continue
+
+    seen_ids.add(
+        osm_id
+    )
+
 
     tags = element.get(
         "tags",
         {}
     )
 
-    lat = element.get("lat")
-    lon = element.get("lon")
+
+    lat = element.get(
+        "lat"
+    )
+
+    lon = element.get(
+        "lon"
+    )
+
 
     if lat is None or lon is None:
         continue
+
+
+    # --------------------------------------------------------
+    # NAME
+    # --------------------------------------------------------
 
     name = (
         tags.get("name")
@@ -314,14 +400,23 @@ for element in unique_elements.values():
         or "Gebirgspass"
     )
 
+
+    # --------------------------------------------------------
+    # POI
+    # --------------------------------------------------------
+
     place = {
-        "id": element["id"],
+        "id": osm_id,
         "name": name,
         "lat": lat,
         "lng": lon
     }
 
-    # Höhe
+
+    # --------------------------------------------------------
+    # HÖHE
+    # --------------------------------------------------------
+
     if tags.get("ele"):
 
         try:
@@ -330,8 +425,14 @@ for element in unique_elements.values():
                 str(
                     tags["ele"]
                 )
-                .replace(",", ".")
-                .replace("m", "")
+                .replace(
+                    ",",
+                    "."
+                )
+                .replace(
+                    "m",
+                    ""
+                )
                 .strip()
             )
 
@@ -339,19 +440,32 @@ for element in unique_elements.values():
 
             pass
 
-    # Deutscher Name
-    if tags.get("name:de"):
+
+    # --------------------------------------------------------
+    # DEUTSCHER NAME
+    # --------------------------------------------------------
+
+    if tags.get(
+        "name:de"
+    ):
 
         place["name_de"] = (
             tags["name:de"]
         )
 
-    # Wikidata
-    if tags.get("wikidata"):
+
+    # --------------------------------------------------------
+    # WIKIDATA
+    # --------------------------------------------------------
+
+    if tags.get(
+        "wikidata"
+    ):
 
         place["wikidata"] = (
             tags["wikidata"]
         )
+
 
     places.append(
         place
@@ -372,7 +486,7 @@ places.sort(
 
 
 # ============================================================
-# AUSGABEOBJEKT
+# AUSGABE
 # ============================================================
 
 output = {
@@ -398,7 +512,6 @@ output = {
         "north": NORTH,
 
         "east": EAST
-
     },
 
     "places":
@@ -407,7 +520,7 @@ output = {
 
 
 # ============================================================
-# DATEI ERZEUGEN
+# DATEI SCHREIBEN
 # ============================================================
 
 OUTPUT_FILE.parent.mkdir(
@@ -438,7 +551,10 @@ with OUTPUT_FILE.open(
         output,
         file,
         ensure_ascii=False,
-        separators=(",", ":")
+        separators=(
+            ",",
+            ":"
+        )
     )
 
 
