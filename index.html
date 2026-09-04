@@ -945,6 +945,74 @@
     font-family: var(--font-mono);
   }
 
+  /* ---------- Gebirgspässe ---------- */
+  .mountain-pass-control {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .mountain-pass-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 6px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .mountain-pass-switch input {
+    display: none;
+  }
+
+  .mountain-pass-slider {
+    position: relative;
+    width: 34px;
+    height: 18px;
+    background: #aaa;
+    border-radius: 18px;
+    transition: 0.2s;
+  }
+
+  .mountain-pass-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .mountain-pass-switch input:checked + .mountain-pass-slider {
+    background: #22a6d8;
+  }
+
+  .mountain-pass-switch input:checked + .mountain-pass-slider::after {
+    transform: translateX(16px);
+  }
+
+  .mountain-pass-marker {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 30px;
+    text-align: center;
+  }
+
+  .mountain-pass-popup {
+    min-width: 140px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
   /* ---------- Map ---------- */
   #map {
     flex: 1;
@@ -1344,6 +1412,148 @@
   let pickingMode = false;
   let calculatedRouteLayer = null;
   let routeCalculationController = null;
+  let mountainPassLayer = L.layerGroup();
+  let mountainPassesVisible = false;
+  let mountainPassRequestId = 0;
+
+  const mountainPassIcon = L.divIcon({
+    className: 'mountain-pass-marker',
+    html: '🏔️',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -14]
+  });
+
+  async function loadMountainPasses() {
+    if (!mountainPassesVisible) {
+      return;
+    }
+
+    const bounds = map.getBounds();
+    const south = bounds.getSouth();
+    const west  = bounds.getWest();
+    const north = bounds.getNorth();
+    const east  = bounds.getEast();
+
+    /*
+    * Request-ID verhindert, dass eine ältere Overpass-Antwort
+    * eine neuere Kartenansicht überschreibt.
+    */
+    const requestId = ++mountainPassRequestId;
+    try {
+      const url =
+        `https://maps.a-cresnik.workers.dev/passes` +
+        `?south=${encodeURIComponent(south)}` +
+        `&west=${encodeURIComponent(west)}` +
+        `&north=${encodeURIComponent(north)}` +
+        `&east=${encodeURIComponent(east)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      /*
+      * Zwischenzeitlich wurde bereits eine neuere Anfrage gestartet.
+      */
+      if (requestId !== mountainPassRequestId) {
+        return;
+      }
+      mountainPassLayer.clearLayers();
+
+      for (const pass of data.elements || []) {
+        if (typeof pass.lat !== 'number' || typeof pass.lon !== 'number') {
+          continue;
+        }
+
+        const tags = pass.tags || {};
+        const name = tags.name ||
+                     tags['name:de'] ||
+                     'Gebirgspass';
+        const elevation = tags.ele ? `${tags.ele} m` : '';
+
+        const marker = L.marker(
+          [pass.lat, pass.lon],
+          {
+            icon: mountainPassIcon,
+            keyboard: false
+          }
+        );
+
+        let popup = `
+          <div class="mountain-pass-popup">
+            <strong>🏔️ ${escapeHtml(name)}</strong>
+        `;
+
+        if (elevation) {
+          popup += `<br>${escapeHtml(elevation)}`;
+        }
+
+        popup += `
+          </div>
+        `;
+
+        marker.bindPopup(popup);
+        marker.addTo(mountainPassLayer);
+      }
+
+    } catch (error) {
+      console.warn(
+        'Gebirgspässe konnten nicht geladen werden:',
+        error
+      );
+    }
+  }
+
+  const mountainPassControl = L.control({
+    position: 'topright'
+  });
+
+  mountainPassControl.onAdd = function() {
+
+    const container = L.DomUtil.create(
+      'div',
+      'leaflet-bar mountain-pass-control'
+    );
+
+    container.innerHTML = `
+      <label class="mountain-pass-switch">
+        <span>🏔️ Gebirgspässe</span>
+        <input type="checkbox" id="mountain-pass-toggle">
+        <span class="mountain-pass-slider"></span>
+      </label>
+    `;
+
+    /*
+    * Verhindert, dass Klicks auf den Switch gleichzeitig
+    * als Kartenklick interpretiert werden.
+    */
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.disableScrollPropagation(container);
+
+    const checkbox =
+      container.querySelector('#mountain-pass-toggle');
+
+    checkbox.addEventListener('change', () => {
+
+      mountainPassesVisible = checkbox.checked;
+
+      if (mountainPassesVisible) {
+
+        mountainPassLayer.addTo(map);
+
+        loadMountainPasses();
+
+      } else {
+
+        mountainPassLayer.clearLayers();
+        map.removeLayer(mountainPassLayer);
+      }
+    });
+
+    return container;
+  };
+
+  mountainPassControl.addTo(map);
 
   async function reverseGeocodeWaypoint(wp) {
     const lat = wp.lat;
@@ -1867,6 +2077,12 @@
     addWaypoint(await snapToRoadIfZoomedOut(e.latlng));
   });
 
+  map.on('moveend', () => {
+    if (mountainPassesVisible) {
+      loadMountainPasses();
+    }
+  });  
+  
   // -- Cursor feedback while Ctrl/Shift is held --
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.add('ctrl-active');
@@ -3742,6 +3958,15 @@
 
   function escapeXml(str){
     return str.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function buildEntryGpxXml(entry){
