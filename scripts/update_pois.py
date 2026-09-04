@@ -16,24 +16,94 @@ WEST = 4.0
 NORTH = 49.5
 EAST = 17.0
 
-OUTPUT_FILE = Path(
-    "data/mountain_passes.json"
-)
-
-# Mehrere öffentliche Overpass-Server.
-# Falls einer rate-limited oder überlastet ist,
-# wird automatisch der nächste verwendet.
+DATA_DIR = Path("data")
 
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
 
-# Anzahl Wiederholungen pro Anfrage
 MAX_RETRIES = 5
 
-# Wartezeit zwischen erfolgreichen Requests
+# Pause nach erfolgreicher Abfrage
 REQUEST_DELAY = 10
+
+
+# ============================================================
+# POI-KATEGORIEN
+# ============================================================
+#
+# Jede Kategorie bekommt eine eigene JSON-Datei.
+#
+# query:
+#   OSM-Tags, nach denen gesucht wird.
+#
+# output:
+#   Name der erzeugten JSON-Datei.
+#
+# type:
+#   Interner Typ für die spätere Verwendung in index.html.
+#
+# ============================================================
+
+POI_TYPES = [
+
+    {
+        "name": "Mountain Passes",
+        "type": "mountain_pass",
+        "output": "mountain_passes.json",
+        "query": 'node["mountain_pass"="yes"]'
+    },
+
+    {
+        "name": "Hotels",
+        "type": "hotel",
+        "output": "hotels.json",
+        "query": 'node["tourism"="hotel"]'
+    },
+
+    {
+        "name": "Restaurants",
+        "type": "restaurant",
+        "output": "restaurants.json",
+        "query": 'node["amenity"="restaurant"]'
+    },
+
+    {
+        "name": "Tankstellen",
+        "type": "fuel",
+        "output": "fuel.json",
+        "query": 'node["amenity"="fuel"]'
+    },
+
+    {
+        "name": "Campingplätze",
+        "type": "campsite",
+        "output": "campsites.json",
+        "query": 'node["tourism"="camp_site"]'
+    },
+
+    {
+        "name": "Aussichtspunkte",
+        "type": "viewpoint",
+        "output": "viewpoints.json",
+        "query": 'node["tourism"="viewpoint"]'
+    },
+
+    {
+        "name": "Motorradhändler",
+        "type": "motorcycle_shop",
+        "output": "motorcycle_shops.json",
+        "query": 'node["shop"="motorcycle"]'
+    },
+
+    {
+        "name": "Ladestationen",
+        "type": "charging_station",
+        "output": "charging_stations.json",
+        "query": 'node["amenity"="charging_station"]'
+    },
+]
 
 
 # ============================================================
@@ -42,22 +112,17 @@ REQUEST_DELAY = 10
 
 print()
 print("========================================")
-print("Mountain Pass POI Update")
+print("OSM POI DATABASE UPDATE")
 print("========================================")
-print()
-
-print("### NEUES SCRIPT WIRD AUSGEFÜHRT ###")
-print(
-    f"OUTPUT_FILE = {OUTPUT_FILE}"
-)
-print(
-    f"ABSOLUTER PFAD = {OUTPUT_FILE.resolve()}"
-)
 print()
 
 print(
     f"Gesamtgebiet: "
     f"{SOUTH},{WEST} → {NORTH},{EAST}"
+)
+
+print(
+    f"Kategorien: {len(POI_TYPES)}"
 )
 
 print()
@@ -68,6 +133,7 @@ print()
 # ============================================================
 
 def build_query(
+    osm_query,
     south,
     west,
     north,
@@ -77,7 +143,7 @@ def build_query(
     return f"""
 [out:json][timeout:120];
 
-node["mountain_pass"="yes"]
+{osm_query}
     ({south},{west},{north},{east});
 
 out body;
@@ -89,7 +155,8 @@ out body;
 # ============================================================
 
 def query_overpass(
-    region_name,
+    poi_type,
+    osm_query,
     south,
     west,
     north,
@@ -97,6 +164,7 @@ def query_overpass(
 ):
 
     query = build_query(
+        osm_query,
         south,
         west,
         north,
@@ -112,7 +180,6 @@ def query_overpass(
         MAX_RETRIES
     ):
 
-        # Server bei jedem Versuch wechseln
         server = OVERPASS_SERVERS[
             attempt % len(
                 OVERPASS_SERVERS
@@ -123,7 +190,7 @@ def query_overpass(
         print()
         print("----------------------------------------")
         print(
-            f"Region: {region_name}"
+            f"Typ: {poi_type}"
         )
         print(
             f"Versuch: "
@@ -166,17 +233,15 @@ def query_overpass(
             )
 
 
-            print()
             print(
                 f"Overpass liefert "
                 f"{len(elements)} Objekte."
             )
 
 
-            # Server nach erfolgreichem Request
-            # kurz entlasten.
             print(
-                f"Warte {REQUEST_DELAY} Sekunden..."
+                f"Warte "
+                f"{REQUEST_DELAY} Sekunden..."
             )
 
             time.sleep(
@@ -189,7 +254,6 @@ def query_overpass(
 
         except urllib.error.HTTPError as e:
 
-            print()
             print(
                 f"HTTP {e.code}: {e.reason}"
             )
@@ -206,13 +270,12 @@ def query_overpass(
                 )
 
                 print(
-                    "Overpass meldet "
-                    "Too Many Requests."
+                    "Rate Limit erreicht."
                 )
 
                 print(
-                    f"Warte {wait_time} Sekunden "
-                    "vor dem nächsten Versuch..."
+                    f"Warte "
+                    f"{wait_time} Sekunden..."
                 )
 
                 time.sleep(
@@ -237,12 +300,13 @@ def query_overpass(
                 )
 
                 print(
-                    "Overpass ist momentan "
+                    "Overpass momentan "
                     "nicht verfügbar."
                 )
 
                 print(
-                    f"Warte {wait_time} Sekunden..."
+                    f"Warte "
+                    f"{wait_time} Sekunden..."
                 )
 
                 time.sleep(
@@ -252,7 +316,6 @@ def query_overpass(
                 continue
 
 
-            # Andere HTTP-Fehler sind echte Fehler
             raise
 
 
@@ -261,7 +324,6 @@ def query_overpass(
             TimeoutError
         ) as e:
 
-            print()
             print(
                 f"Netzwerkfehler: {e}"
             )
@@ -274,7 +336,8 @@ def query_overpass(
                 )
 
                 print(
-                    f"Warte {wait_time} Sekunden..."
+                    f"Warte "
+                    f"{wait_time} Sekunden..."
                 )
 
                 time.sleep(
@@ -289,7 +352,6 @@ def query_overpass(
 
         except Exception as e:
 
-            print()
             print(
                 f"Unerwarteter Fehler: "
                 f"{type(e).__name__}: {e}"
@@ -303,7 +365,8 @@ def query_overpass(
                 )
 
                 print(
-                    f"Warte {wait_time} Sekunden..."
+                    f"Warte "
+                    f"{wait_time} Sekunden..."
                 )
 
                 time.sleep(
@@ -317,245 +380,382 @@ def query_overpass(
 
 
     raise RuntimeError(
-        f"Region '{region_name}' konnte "
-        f"nach {MAX_RETRIES} Versuchen "
+        f"POI-Typ '{poi_type}' konnte "
         f"nicht geladen werden."
     )
 
 
 # ============================================================
-# HAUPTABFRAGE
+# OSM DATEN AUFBEREITEN
 # ============================================================
 
-print()
-print("Starte Overpass-Abfrage...")
-print()
+def convert_elements(
+    elements
+):
 
-elements = query_overpass(
-    "Gesamtgebiet",
-    SOUTH,
-    WEST,
-    NORTH,
-    EAST
-)
+    places = []
+
+    seen_ids = set()
+
+
+    for element in elements:
+
+        if element.get("type") != "node":
+            continue
+
+
+        osm_id = element.get("id")
+
+        if osm_id is None:
+            continue
+
+
+        if osm_id in seen_ids:
+            continue
+
+        seen_ids.add(
+            osm_id
+        )
+
+
+        tags = element.get(
+            "tags",
+            {}
+        )
+
+
+        lat = element.get(
+            "lat"
+        )
+
+        lon = element.get(
+            "lon"
+        )
+
+
+        if lat is None or lon is None:
+            continue
+
+
+        # ----------------------------------------------------
+        # NAME
+        # ----------------------------------------------------
+
+        name = (
+            tags.get("name")
+            or tags.get("name:de")
+            or tags.get("name:en")
+            or "Unbenannter POI"
+        )
+
+
+        place = {
+            "id": osm_id,
+            "name": name,
+            "lat": lat,
+            "lng": lon
+        }
+
+
+        # ----------------------------------------------------
+        # DEUTSCHER NAME
+        # ----------------------------------------------------
+
+        if tags.get(
+            "name:de"
+        ):
+
+            place["name_de"] = (
+                tags["name:de"]
+            )
+
+
+        # ----------------------------------------------------
+        # ENGLISCHER NAME
+        # ----------------------------------------------------
+
+        if tags.get(
+            "name:en"
+        ):
+
+            place["name_en"] = (
+                tags["name:en"]
+            )
+
+
+        # ----------------------------------------------------
+        # HÖHE
+        # ----------------------------------------------------
+
+        if tags.get("ele"):
+
+            try:
+
+                place["ele"] = float(
+                    str(
+                        tags["ele"]
+                    )
+                    .replace(
+                        ",",
+                        "."
+                    )
+                    .replace(
+                        "m",
+                        ""
+                    )
+                    .strip()
+                )
+
+            except ValueError:
+
+                pass
+
+
+        # ----------------------------------------------------
+        # WIKIDATA
+        # ----------------------------------------------------
+
+        if tags.get(
+            "wikidata"
+        ):
+
+            place["wikidata"] = (
+                tags["wikidata"]
+            )
+
+
+        # ----------------------------------------------------
+        # WEBSITE
+        # ----------------------------------------------------
+
+        if tags.get(
+            "website"
+        ):
+
+            place["website"] = (
+                tags["website"]
+            )
+
+
+        # ----------------------------------------------------
+        # TELEFON
+        # ----------------------------------------------------
+
+        if tags.get(
+            "phone"
+        ):
+
+            place["phone"] = (
+                tags["phone"]
+            )
+
+
+        # ----------------------------------------------------
+        # ÖFFNUNGSZEITEN
+        # ----------------------------------------------------
+
+        if tags.get(
+            "opening_hours"
+        ):
+
+            place["opening_hours"] = (
+                tags["opening_hours"]
+            )
+
+
+        # ----------------------------------------------------
+        # ADRESSE
+        # ----------------------------------------------------
+
+        address_fields = {
+
+            "street": "addr:street",
+
+            "housenumber":
+                "addr:housenumber",
+
+            "postcode":
+                "addr:postcode",
+
+            "city":
+                "addr:city",
+
+            "country":
+                "addr:country"
+        }
+
+
+        address = {}
+
+
+        for output_name, osm_tag in (
+            address_fields.items()
+        ):
+
+            if tags.get(osm_tag):
+
+                address[output_name] = (
+                    tags[osm_tag]
+                )
+
+
+        if address:
+
+            place["address"] = address
+
+
+        places.append(
+            place
+        )
+
+
+    # --------------------------------------------------------
+    # SORTIEREN
+    # --------------------------------------------------------
+
+    places.sort(
+        key=lambda p:
+            p.get(
+                "name",
+                ""
+            ).lower()
+    )
+
+
+    return places
 
 
 # ============================================================
-# DATEN REDUZIEREN
+# JSON SCHREIBEN
 # ============================================================
 
-places = []
+def write_json(
+    poi_config,
+    places
+):
 
-seen_ids = set()
-
-
-for element in elements:
-
-    if element.get("type") != "node":
-        continue
-
-
-    osm_id = element.get("id")
-
-    if osm_id is None:
-        continue
-
-
-    # Sicherheit gegen eventuelle Duplikate
-    if osm_id in seen_ids:
-        continue
-
-    seen_ids.add(
-        osm_id
+    output_file = (
+        DATA_DIR
+        / poi_config["output"]
     )
 
 
-    tags = element.get(
-        "tags",
-        {}
-    )
+    output = {
 
+        "version": 1,
 
-    lat = element.get(
-        "lat"
-    )
+        "type":
+            poi_config["type"],
 
-    lon = element.get(
-        "lon"
-    )
+        "generatedAt":
+            datetime.now(
+                timezone.utc
+            ).isoformat(),
 
+        "source":
+            "OpenStreetMap",
 
-    if lat is None or lon is None:
-        continue
+        "bounds": {
 
+            "south": SOUTH,
 
-    # --------------------------------------------------------
-    # NAME
-    # --------------------------------------------------------
+            "west": WEST,
 
-    name = (
-        tags.get("name")
-        or tags.get("name:de")
-        or tags.get("name:en")
-        or "Gebirgspass"
-    )
+            "north": NORTH,
 
+            "east": EAST
+        },
 
-    # --------------------------------------------------------
-    # POI
-    # --------------------------------------------------------
-
-    place = {
-        "id": osm_id,
-        "name": name,
-        "lat": lat,
-        "lng": lon
+        "places":
+            places
     }
 
 
-    # --------------------------------------------------------
-    # HÖHE
-    # --------------------------------------------------------
+    DATA_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    if tags.get("ele"):
 
-        try:
+    with output_file.open(
+        "w",
+        encoding="utf-8"
+    ) as file:
 
-            place["ele"] = float(
-                str(
-                    tags["ele"]
-                )
-                .replace(
-                    ",",
-                    "."
-                )
-                .replace(
-                    "m",
-                    ""
-                )
-                .strip()
+        json.dump(
+            output,
+            file,
+            ensure_ascii=False,
+            separators=(
+                ",",
+                ":"
             )
-
-        except ValueError:
-
-            pass
-
-
-    # --------------------------------------------------------
-    # DEUTSCHER NAME
-    # --------------------------------------------------------
-
-    if tags.get(
-        "name:de"
-    ):
-
-        place["name_de"] = (
-            tags["name:de"]
         )
 
 
-    # --------------------------------------------------------
-    # WIKIDATA
-    # --------------------------------------------------------
-
-    if tags.get(
-        "wikidata"
-    ):
-
-        place["wikidata"] = (
-            tags["wikidata"]
-        )
+    return output_file
 
 
-    places.append(
-        place
+# ============================================================
+# HAUPTPROGRAMM
+# ============================================================
+
+total_places = 0
+
+
+for poi_config in POI_TYPES:
+
+    print()
+    print()
+    print("========================================")
+    print(
+        f"STARTE: "
+        f"{poi_config['name']}"
+    )
+    print("========================================")
+
+
+    elements = query_overpass(
+
+        poi_config["type"],
+
+        poi_config["query"],
+
+        SOUTH,
+        WEST,
+        NORTH,
+        EAST
     )
 
 
-# ============================================================
-# SORTIEREN
-# ============================================================
-
-places.sort(
-    key=lambda p:
-        p.get(
-            "name",
-            ""
-        ).lower()
-)
+    places = convert_elements(
+        elements
+    )
 
 
-# ============================================================
-# AUSGABE
-# ============================================================
-
-output = {
-
-    "version": 1,
-
-    "type": "mountain_pass",
-
-    "generatedAt":
-        datetime.now(
-            timezone.utc
-        ).isoformat(),
-
-    "source":
-        "OpenStreetMap",
-
-    "bounds": {
-
-        "south": SOUTH,
-
-        "west": WEST,
-
-        "north": NORTH,
-
-        "east": EAST
-    },
-
-    "places":
+    output_file = write_json(
+        poi_config,
         places
-}
-
-
-# ============================================================
-# DATEI SCHREIBEN
-# ============================================================
-
-OUTPUT_FILE.parent.mkdir(
-    parents=True,
-    exist_ok=True
-)
-
-
-print()
-print("DEBUG:")
-print(
-    f"OUTPUT_FILE = "
-    f"{OUTPUT_FILE}"
-)
-print(
-    f"ABSOLUTER PFAD = "
-    f"{OUTPUT_FILE.resolve()}"
-)
-print()
-
-
-with OUTPUT_FILE.open(
-    "w",
-    encoding="utf-8"
-) as file:
-
-    json.dump(
-        output,
-        file,
-        ensure_ascii=False,
-        separators=(
-            ",",
-            ":"
-        )
     )
+
+
+    total_places += len(
+        places
+    )
+
+
+    print()
+    print("----------------------------------------")
+    print(
+        f"{poi_config['name']} abgeschlossen"
+    )
+    print(
+        f"Objekte: {len(places)}"
+    )
+    print(
+        f"Datei: {output_file}"
+    )
+    print("----------------------------------------")
 
 
 # ============================================================
@@ -563,21 +763,19 @@ with OUTPUT_FILE.open(
 # ============================================================
 
 print()
+print()
 print("========================================")
-print("POI-Update abgeschlossen")
+print("OSM POI UPDATE ABGESCHLOSSEN")
 print("========================================")
 
 print(
-    f"Typ: mountain_pass"
+    f"Kategorien: "
+    f"{len(POI_TYPES)}"
 )
 
 print(
-    f"Gefundene Gebirgspässe: "
-    f"{len(places)}"
-)
-
-print(
-    f"Datei: {OUTPUT_FILE}"
+    f"Gesamtzahl POIs: "
+    f"{total_places}"
 )
 
 print(
@@ -585,4 +783,15 @@ print(
     f"{SOUTH},{WEST} → {NORTH},{EAST}"
 )
 
+print()
+print("Erzeugte Dateien:")
+
+for poi_config in POI_TYPES:
+
+    print(
+        f"  - data/"
+        f"{poi_config['output']}"
+    )
+
+print()
 print("========================================")
