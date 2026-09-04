@@ -18,6 +18,8 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 OUTPUT_FILE = Path("data/mountain_passes.json")
 
+print("### NEUES SCRIPT WIRD AUSGEFÜHRT ###")
+print("OUTPUT_FILE =", OUTPUT_FILE)
 
 # ============================================================
 # OVERPASS ABFRAGE
