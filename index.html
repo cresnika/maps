@@ -1343,6 +1343,117 @@
   let waypointCounter = 0;
   let pickingMode = false;
   let calculatedRouteLayer = null;
+  let routeCalculationController = null;
+
+  async function reverseGeocodeWaypoint(wp) {
+    const lat = wp.lat;
+    const lng = wp.lng;
+    try {
+      const url = `https://maps.a-cresnik.workers.dev/reverse` +
+                  `?lat=${encodeURIComponent(lat)}` +
+                  `&lon=${encodeURIComponent(lng)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+
+      /*
+      * Wenn der Wegpunkt inzwischen verschoben oder gelöscht wurde,
+      * nichts mehr verändern.
+      */
+      if (!waypoints.includes(wp)) {
+        return;
+      }
+      const address = data.address || {};
+
+      /*
+      * Straßenname
+      */
+      const road = address.road || address.pedestrian || address.cycleway || address.footway || '';
+
+      /*
+      * Hausnummer
+      */
+      const houseNumber = address.house_number || '';
+
+      /*
+      * Ort:
+      *
+      * Nominatim kann je nach Position unterschiedliche Felder
+      * zurückgeben.
+      */
+      const city = address.city || address.town || address.village || address.municipality || '';
+
+      /*
+      * Region / Bundesland
+      */
+      const state = address.state || '';
+
+      /*
+      * ---------------------------------------------------------
+      * Beschriftung zusammensetzen
+      * ---------------------------------------------------------
+      */
+
+      let label = '';
+
+      const place =
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        '';
+
+      if (place) {
+        label = place;
+      }
+
+      if (road) {
+        label += (label ? ', ' : '') + road;
+
+        if (houseNumber) {
+          label += ' ' + houseNumber;
+        }
+      }
+
+      if (state) {
+        label += (label ? ', ' : '') + state;
+      }
+
+      if (address.country) {
+        label += (label ? ', ' : '') + address.country;
+      }
+
+      /*
+      * Wenn gar nichts gefunden wurde:
+      * Koordinaten als Fallback verwenden.
+      */
+      if (!label) {
+        label =
+          lat.toFixed(5) +
+          ', ' +
+          lng.toFixed(5);
+      }
+      wp.label = label;
+
+      /*
+      * Liste aktualisieren.
+      */
+      renderWaypointList();
+
+    } catch (error) {
+      console.warn(
+        'Reverse Geocoding fehlgeschlagen:',
+        error
+      );
+
+      /*
+      * Bei Fehler bleiben die Koordinaten stehen.
+      */
+    }
+  }
 
   function maybeAutoRecalculateRoute(){
     if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false });
@@ -1377,6 +1488,74 @@
 
   function createWaypoint(latlng, label){
     const id = 'wp' + (waypointCounter++);
+    const marker = L.marker(
+      latlng,
+      {
+        draggable: true,
+        icon: waypointIcon(0)
+      }
+    ).addTo(planningLayer);
+
+    const hasKnownLabel = !!label && String(label).trim() !== '';
+    const wp = {
+      id,
+      lat: latlng.lat,
+      lng: latlng.lng,
+
+      // Bekannten POI-Namen behalten.
+      // Bei einem freien Kartenpunkt zunächst Koordinaten anzeigen.
+      label: hasKnownLabel ? label : (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)),  
+      marker, 
+      segmentPreference: 'recommended',
+      avoidHighways: false,
+
+      // Merken, ob der Name bereits aus einem bekannten POI stammt.
+      labelIsKnown: hasKnownLabel
+    };
+
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      wp.lat = pos.lat;
+      wp.lng = pos.lng;
+
+      // Der bisherige POI-Name ist nach dem Verschieben
+      // nicht mehr zwangsläufig korrekt.
+      wp.labelIsKnown = false;
+
+      // Während das Reverse Geocoding läuft,
+      // vorübergehend Koordinaten anzeigen.
+      wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+      renderWaypointList();
+
+      // IMMER neue Position reverse-geocodieren.
+      reverseGeocodeWaypoint(wp);
+      maybeAutoRecalculateRoute();
+    });
+
+    marker.on('click', (e) => {
+      if (
+        e.originalEvent &&
+        e.originalEvent.shiftKey
+      ){
+        e.originalEvent.stopPropagation();
+        removeWaypoint(wp.id);
+      }
+    });
+
+    /*
+    * Nur für frei gesetzte Punkte Reverse Geocoding starten.
+    *
+    * Bekannte POIs behalten ihren vorhandenen Namen.
+    */
+    if (!wp.labelIsKnown) {
+      reverseGeocodeWaypoint(wp);
+    }
+    return wp;
+  }
+
+/*
+  function createWaypoint(latlng, label){
+    const id = 'wp' + (waypointCounter++);
     const marker = L.marker(latlng, { draggable: true, icon: waypointIcon(0) }).addTo(planningLayer);
     const wp = { id, lat: latlng.lat, lng: latlng.lng, label: label || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)), marker, segmentPreference: 'recommended', avoidHighways: false };
     marker.on('dragend', () => {
@@ -1393,7 +1572,7 @@
     });
     return wp;
   }
-
+*/
   // When 2+ waypoints already exist, insert a newly added point wherever it
   // adds the least detour to the existing route, instead of always at the end.
   function bestInsertionIndex(latlng){
@@ -1422,7 +1601,6 @@
   // or 'via' (just before the current last point, i.e. before "Ziel").
 	function insertWaypointAtRole(latlng, role, label){
 		const wp = createWaypoint(latlng, label);
-
 		if (role === 'start') {
 			waypoints.unshift(wp);
 		}
@@ -1854,106 +2032,416 @@
     return h > 0 ? `${h} Std ${String(m).padStart(2, '0')} min` : `${m} min`;
   }
 
+  function buildRouteGroups(waypoints) {
+    const groups = [];
+    let group = null;
+
+    for (let i = 1; i < waypoints.length; i++) {
+      const from = waypoints[i - 1];
+      const to = waypoints[i];
+      const preference = to.segmentPreference || 'recommended';
+      const avoidHighways = !!to.avoidHighways;
+
+      // Neue Gruppe beginnen, wenn sich eine Routing-Option ändert.
+      if (!group || group.preference !== preference || group.avoidHighways !== avoidHighways) {
+        if (group) {
+          groups.push(group);
+        }
+        group = { waypoints: [from, to], preference, avoidHighways };
+      } 
+      else {
+        // Gleiche Optionen -> weiteren Wegpunkt in die bestehende
+        // ORS-Anfrage aufnehmen.
+        group.waypoints.push(to);
+      }
+    }
+
+    if (group) {
+      groups.push(group);
+    }
+    return groups;
+  }
+
   async function calculateRoute(options){
     const fitView = !options || options.fitView !== false;
-/*
-    const apiKey = orsKeyInput.value.trim();
-    if (!apiKey){
-      routeResultEl.textContent = 'Bitte zuerst in den Einstellungen (⚙) einen kostenlosen API-Key eintragen.';
-      routeResultEl.className = 'error';
-      return;
+
+    /*
+      Alte laufende Berechnung abbrechen.
+      Dadurch kann z.B. ein mehrfach ausgelöstes "Route berechnen"
+      keine alte Berechnung mehr weiterlaufen lassen.
+    */
+    if (routeCalculationController) {
+      routeCalculationController.abort();
     }
-*/
+
+    routeCalculationController = new AbortController();
+    const controller = routeCalculationController;
+    const signal = controller.signal;
+
     if (waypoints.length < 2){
       routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
       routeResultEl.className = 'error';
+
+      if (routeCalculationController === controller) {
+        routeCalculationController = null;
+      }
+
       return;
     }
 
-    const profileMap = { foot: 'foot-walking', bike: 'cycling-regular', driving: 'driving-car' };
-    const profile = profileMap[document.getElementById('planning-route-profile').value] || 'driving-car';
-    const avoidFeatures = [];
-    if (document.getElementById('avoid-tollways').checked) avoidFeatures.push('tollways');
-    if (document.getElementById('avoid-ferries').checked) avoidFeatures.push('ferries');
+    const profileMap = {
+      foot: 'foot-walking',
+      bike: 'cycling-regular',
+      driving: 'driving-car'
+    };
 
-    const segmentCount = waypoints.length - 1;
+    const profile =
+      profileMap[
+        document.getElementById('planning-route-profile').value
+      ] || 'driving-car';
+
+    /*
+    * Globale Vermeidungen.
+    * Diese gelten für die komplette Berechnung.
+    */
+    const avoidFeatures = [];
+
+    if (document.getElementById('avoid-tollways').checked) {
+      avoidFeatures.push('tollways');
+    }
+
+    if (document.getElementById('avoid-ferries').checked) {
+      avoidFeatures.push('ferries');
+    }
+
+    /*
+    * Wegpunkte anhand ihrer Routing-Optionen gruppieren.
+    *
+    * Gleiche Optionen:
+    *   A -> B -> C
+    *
+    * Unterschiedliche Optionen:
+    *   A -> B -> C
+    *   C -> D -> E
+    *
+    * buildRouteGroups() berücksichtigt:
+    *   - segmentPreference
+    *   - avoidHighways
+    */
+    const groups = buildRouteGroups(waypoints);
+
     let allCoords = [];
     let totalDistance = 0;
     let totalDuration = 0;
 
-    for (let i = 0; i < segmentCount; i++){
-      const a = waypoints[i], b = waypoints[i + 1];
-      const preference = b.segmentPreference || 'recommended';
+    /*
+    * Jede Gruppe einzeln an ORS senden.
+    */
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex++){
 
-      routeResultEl.textContent = `Route wird berechnet … Abschnitt ${i + 1}/${segmentCount}`;
+      /*
+      * Prüfen, ob diese Berechnung inzwischen abgebrochen wurde.
+      */
+      if (signal.aborted) {
+        return;
+      }
+
+      const group = groups[groupIndex];
+
+      routeResultEl.textContent =
+        `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
+
       routeResultEl.className = '';
 
-      const body = { coordinates: [[a.lng, a.lat], [b.lng, b.lat]], preference };
-      const segmentAvoidFeatures = [...avoidFeatures];
-      if (b.avoidHighways) segmentAvoidFeatures.push('highways');
-      if (segmentAvoidFeatures.length) body.options = { avoid_features: segmentAvoidFeatures };
-      console.log(`[ORS Anfrage Abschnitt ${i + 1}]`, JSON.parse(JSON.stringify(body)));
+      /*
+      * Alle Wegpunkte der Gruppe werden in EINER
+      * ORS-Anfrage übergeben.
+      *
+      * Beispiel:
+      * A -> B -> C
+      *
+      * wird:
+      *
+      * coordinates: [
+      *   [A.lng, A.lat],
+      *   [B.lng, B.lat],
+      *   [C.lng, C.lat]
+      * ]
+      */
+      const coordinates = group.waypoints.map(wp => [
+        wp.lng,
+        wp.lat
+      ]);
+
+      const body = {
+        coordinates: coordinates,
+        preference: group.preference
+      };
+
+      /*
+      * Globale Vermeidungen übernehmen.
+      */
+      const groupAvoidFeatures = [...avoidFeatures];
+
+      /*
+      * Autobahnen nur für diese Gruppe vermeiden,
+      * wenn die Gruppe entsprechend konfiguriert ist.
+      */
+      if (group.avoidHighways) {
+        groupAvoidFeatures.push('highways');
+      }
+
+      /*
+      * Doppelte Werte verhindern.
+      */
+      const uniqueAvoidFeatures = [
+        ...new Set(groupAvoidFeatures)
+      ];
+
+      if (uniqueAvoidFeatures.length) {
+        body.options = {
+          avoid_features: uniqueAvoidFeatures
+        };
+      }
 
       try {
         const url = `https://maps.a-cresnik.workers.dev/route?profile=${encodeURIComponent(profile)}`;
-        const resp = await fetch( url,
+        const resp = await fetch(
+          url,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(body)
-          }
-        );
-/*
-        const resp = await fetch(`https://api.heigit.org/openrouteservice/v2/directions/${profile}/geojson`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': apiKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-          }
-        );
-*/
-        const data = await resp.json();
-        console.log(`[ORS Antwort Abschnitt ${i + 1}]`, data);
+            body: JSON.stringify(body),
 
-        if (!resp.ok || !data.features || !data.features[0]){
-          const msg = (data.error && (data.error.message || (typeof data.error === 'string' ? data.error : JSON.stringify(data.error)))) || ('HTTP ' + resp.status);
-          routeResultEl.textContent = `Fehler bei Abschnitt ${i + 1}: ` + msg;
+            /*
+            * Wichtig:
+            * Dieser Fetch gehört zu genau dieser Berechnung.
+            * Wird eine neue Berechnung gestartet, wird dieser
+            * Request abgebrochen.
+            */
+            signal: signal
+          }
+        );
+
+        /*
+        * Während des Fetches könnte eine neue Berechnung
+        * gestartet worden sein.
+        */
+        if (signal.aborted) {
+          return;
+        }
+
+        const data = await resp.json();
+
+        /*
+        * Auch nach dem JSON-Parsing noch einmal prüfen.
+        */
+        if (signal.aborted) {
+          return;
+        }
+
+        if (
+          !resp.ok ||
+          !data.features ||
+          !data.features[0]
+        ){
+          const msg =
+            (
+              data.error &&
+              (
+                data.error.message ||
+                (
+                  typeof data.error === 'string'
+                    ? data.error
+                    : JSON.stringify(data.error)
+                )
+              )
+            ) ||
+            ('HTTP ' + resp.status);
+
+          /*
+          * Falls zwischenzeitlich eine neue Berechnung
+          * gestartet wurde, keine alte Fehlermeldung anzeigen.
+          */
+          if (signal.aborted) {
+            return;
+          }
+
+          routeResultEl.textContent =
+            `Fehler bei Gruppe ${groupIndex + 1}: ${msg}`;
+
           routeResultEl.className = 'error';
+
           return;
         }
 
         const feature = data.features[0];
-        const segCoords = feature.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
-        if (allCoords.length && segCoords.length){
-          const last = allCoords[allCoords.length - 1];
-          const first = segCoords[0];
-          if (Math.abs(last.lat - first.lat) < 1e-7 && Math.abs(last.lng - first.lng) < 1e-7) segCoords.shift();
+
+        /*
+        * ORS-Geometrie der kompletten Gruppe.
+        */
+        const groupCoords =
+          feature.geometry.coordinates.map(c =>
+            L.latLng(c[1], c[0])
+          );
+
+        /*
+        * Prüfen, ob die Berechnung währenddessen
+        * ersetzt wurde.
+        */
+        if (signal.aborted) {
+          return;
         }
-        allCoords = allCoords.concat(segCoords);
-        totalDistance += feature.properties.summary.distance;
-        totalDuration += feature.properties.summary.duration;
-      } catch (e){
-        console.log(JSON.stringify(e.message));
-        routeResultEl.textContent = `Netzwerkfehler bei Abschnitt ${i + 1}.`;
+
+        /*
+        * Gruppen haben einen gemeinsamen Wegpunkt.
+        *
+        * Beispiel:
+        *
+        * Gruppe 1: A -> B -> C
+        * Gruppe 2: C -> D -> E
+        *
+        * C würde sonst zweimal in allCoords stehen.
+        */
+        if (
+          allCoords.length &&
+          groupCoords.length
+        ){
+          const last =
+            allCoords[allCoords.length - 1];
+
+          const first =
+            groupCoords[0];
+
+          if (
+            Math.abs(last.lat - first.lat) < 1e-7 &&
+            Math.abs(last.lng - first.lng) < 1e-7
+          ){
+            groupCoords.shift();
+          }
+        }
+
+        /*
+        * Geometrie anhängen.
+        */
+        allCoords = allCoords.concat(groupCoords);
+
+        /*
+        * Entfernung und Dauer der kompletten Gruppe
+        * genau einmal addieren.
+        */
+        if (
+          feature.properties &&
+          feature.properties.summary
+        ){
+          totalDistance +=
+            feature.properties.summary.distance || 0;
+
+          totalDuration +=
+            feature.properties.summary.duration || 0;
+        }
+
+      } catch (e) {
+
+        /*
+        * AbortController-Abbruch ist KEIN Fehler.
+        *
+        * Das passiert ganz normal, wenn z.B. während einer
+        * laufenden Berechnung eine neue Route gestartet wird.
+        */
+        if (e.name === 'AbortError' || signal.aborted) {
+          console.log(
+            `[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`
+          );
+
+          return;
+        }
+
+        console.error(
+          `[Route Berechnung Gruppe ${groupIndex + 1}]`,
+          e
+        );
+
+        routeResultEl.textContent =
+          `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
+
         routeResultEl.className = 'error';
+
         return;
       }
     }
 
-    if (calculatedRouteLayer) planningLayer.removeLayer(calculatedRouteLayer);
-    calculatedRouteLayer = L.polyline(allCoords, { color: '#22a6d8', weight: 5, opacity: 0.85, lineJoin: 'round' }).addTo(planningLayer);
-    if (fitView) map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+    /*
+    * Noch einmal sicherstellen, dass wir nicht gerade
+    * eine veraltete Berechnung fertigstellen.
+    */
+    if (signal.aborted) {
+      return;
+    }
 
-    const distKm = (totalDistance / 1000).toFixed(1);
-    routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
-    routeResultEl.totalDistance = totalDistance;
-    routeResultEl.totalDuration = totalDuration;
-    routeResultEl.className = 'success';
+    /*
+    * ------------------------------------------------------------
+    * Route auf der Karte anzeigen
+    * ------------------------------------------------------------
+    */
+
+    if (calculatedRouteLayer) {
+      planningLayer.removeLayer(calculatedRouteLayer);
+    }
+
+    calculatedRouteLayer =
+      L.polyline(
+        allCoords,
+        {
+          color: '#22a6d8',
+          weight: 5,
+          opacity: 0.85,
+          lineJoin: 'round'
+        }
+      ).addTo(planningLayer);
+
+    if (
+      fitView &&
+      allCoords.length
+    ){
+      map.fitBounds(
+        calculatedRouteLayer.getBounds(),
+        {
+          padding: [30, 30]
+        }
+      );
+    }
+
+    /*
+    * ------------------------------------------------------------
+    * Ergebnis anzeigen
+    * ------------------------------------------------------------
+    */
+
+    const distKm =
+      (totalDistance / 1000).toFixed(1);
+
+    routeResultEl.innerHTML =
+      `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
+
+    routeResultEl.totalDistance =
+      totalDistance;
+
+    routeResultEl.totalDuration =
+      totalDuration;
+
+    routeResultEl.className =
+      'success';
+
+    /*
+    * Controller nur dann löschen, wenn er noch zu
+    * dieser Berechnung gehört.
+    */
+    if (routeCalculationController === controller) {
+      routeCalculationController = null;
+    }
   }
 
   document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
