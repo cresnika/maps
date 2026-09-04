@@ -937,13 +937,6 @@
     padding: 8px 0 20px;
   }
 
-  #my-tracks-list {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 8px 0 20px;
-  }
-
   #sidebar-footer {
     padding: 10px 20px;
     border-top: 1px solid var(--border);
@@ -1169,7 +1162,7 @@
       <div class="settings-divider"></div>
 
       <label>Alle Daten (POIs, Routen, Einstellungen)</label>
-      <p class="shortcut-hint" style="padding:0 0 8px;">Läuft alles nur im Browser (localStorage) – im Inkognito-Modus oder auf einem anderen Gerät nicht automatisch verfügbar. Hier sichern und dort wieder einspielen.</p>
+      <p class="shortcut-hint" style="padding:0 0 8px;">Läuft alles nur im Browser (IndexedDB) – im Inkognito-Modus oder auf einem anderen Gerät nicht automatisch verfügbar. Hier sichern und dort wieder einspielen.</p>
       <div class="backup-row">
         <button class="btn" id="btn-export-data" style="flex:1;">Daten exportieren</button>
         <button class="btn" id="btn-import-data" style="flex:1;">Daten importieren</button>
@@ -1835,14 +1828,23 @@
   const orsKeyInput = document.getElementById('ors-api-key');
   const apiKeyHint = document.getElementById('api-key-hint');
   const routeResultEl = document.getElementById('route-result');
-
-  try {
-    const savedKey = localStorage.getItem('ors_api_key');
-    if (savedKey) orsKeyInput.value = savedKey;
-  } catch (e){ /* storage unavailable */ }
+  let appDbPromise = null;
+  const APP_DB_NAME = 'maps-planer-viewer';
+  const APP_DB_VERSION = 2;
+  const VIEWER_STORE_NAME = 'tracks';
+  const SETTINGS_STORE_NAME = 'settings';
+  const POI_STORE_NAME  = 'pois';
+  
+  dbGet('ors_api_key', '').then(savedKey => {
+      if (savedKey) {
+          orsKeyInput.value = savedKey;
+      }
+  }).catch(error => {
+      console.error('dbGet Fehler:', error);
+  });
 
   orsKeyInput.addEventListener('input', () => {
-    try { localStorage.setItem('ors_api_key', orsKeyInput.value.trim()); } catch (e){ /* ignore */ }
+    dbSet('ors_api_key', orsKeyInput.value.trim());
   });
 
   function formatRouteDuration(seconds){
@@ -1854,12 +1856,14 @@
 
   async function calculateRoute(options){
     const fitView = !options || options.fitView !== false;
+/*
     const apiKey = orsKeyInput.value.trim();
     if (!apiKey){
       routeResultEl.textContent = 'Bitte zuerst in den Einstellungen (⚙) einen kostenlosen API-Key eintragen.';
       routeResultEl.className = 'error';
       return;
     }
+*/
     if (waypoints.length < 2){
       routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
       routeResultEl.className = 'error';
@@ -1891,7 +1895,17 @@
       console.log(`[ORS Anfrage Abschnitt ${i + 1}]`, JSON.parse(JSON.stringify(body)));
 
       try {
-//        const resp = await fetch(`https://api.openrouteservice.org/v2/directions/${profile}/geojson`, 
+        const url = `https://maps.a-cresnik.workers.dev/route?profile=${encodeURIComponent(profile)}`;
+        const resp = await fetch( url,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+          }
+        );
+/*
         const resp = await fetch(`https://api.heigit.org/openrouteservice/v2/directions/${profile}/geojson`,
           {
             method: 'POST',
@@ -1902,7 +1916,7 @@
             body: JSON.stringify(body)
           }
         );
-
+*/
         const data = await resp.json();
         console.log(`[ORS Antwort Abschnitt ${i + 1}]`, data);
 
@@ -1924,6 +1938,7 @@
         totalDistance += feature.properties.summary.distance;
         totalDuration += feature.properties.summary.duration;
       } catch (e){
+        console.log(JSON.stringify(e.message));
         routeResultEl.textContent = `Netzwerkfehler bei Abschnitt ${i + 1}.`;
         routeResultEl.className = 'error';
         return;
@@ -1936,13 +1951,15 @@
 
     const distKm = (totalDistance / 1000).toFixed(1);
     routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
+    routeResultEl.totalDistance = totalDistance;
+    routeResultEl.totalDuration = totalDuration;
     routeResultEl.className = 'success';
   }
 
   document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
 
   // ============================================================
-  // POIs (Tab "POI") -- persisted in the browser via localStorage
+  // POIs (Tab "POI") -- persisted via IndexedDB (see dbGet/dbSet above)
   // ============================================================
   const poiLayer = L.layerGroup().addTo(map);
   const poiSearchPreviewLayer = L.layerGroup().addTo(map);
@@ -1990,18 +2007,16 @@
 
   const DEFAULT_POI_COLOR_FALLBACK = '#3b82f6';
   const settingsDefaultPoiColorInput = document.getElementById('settings-default-poi-color');
+  let cachedDefaultPoiColor = DEFAULT_POI_COLOR_FALLBACK;
 
   function getDefaultPoiColor(){
-    try {
-      return localStorage.getItem('default_poi_color') || DEFAULT_POI_COLOR_FALLBACK;
-    } catch (e){
-      return DEFAULT_POI_COLOR_FALLBACK;
-    }
+    return cachedDefaultPoiColor;
   }
 
-  try {
-    settingsDefaultPoiColorInput.value = getDefaultPoiColor();
-  } catch (e){ /* ignore */ }
+  dbGet('default_poi_color', DEFAULT_POI_COLOR_FALLBACK).then(color => {
+    cachedDefaultPoiColor = color || DEFAULT_POI_COLOR_FALLBACK;
+    settingsDefaultPoiColorInput.value = cachedDefaultPoiColor;
+  });
 
   function hexToRgb(hex){
     hex = hex.replace('#', '');
@@ -2018,7 +2033,8 @@
   settingsDefaultPoiColorInput.addEventListener('input', () => {
     const oldDefault = getDefaultPoiColor();
     const newDefault = settingsDefaultPoiColorInput.value;
-    try { localStorage.setItem('default_poi_color', newDefault); } catch (e){ /* ignore */ }
+    cachedDefaultPoiColor = newDefault;
+    dbSet('default_poi_color', newDefault);
     pois.forEach(poi => {
       if (colorsAreSimilar(poi.color, oldDefault)){
         poi.color = newDefault;
@@ -2030,10 +2046,9 @@
   });
 
   function savePoisToStorage(){
-    try {
-      const data = pois.map(p => ({ name: p.name, group: p.group, lat: p.lat, lng: p.lng, visible: p.visible, color: p.color }));
-      localStorage.setItem('gpxviewer_pois', JSON.stringify(data));
-    } catch (e){ /* storage unavailable or full -- ignore, in-memory list still works */ }
+    const data = pois.map(p => ({ name: p.name, group: p.group, lat: p.lat, lng: p.lng, visible: p.visible, color: p.color }));
+    console.log('savePoisToStorage: ' + JSON.stringify(data));
+    dbSet(POI_STORE_NAME, data);
   }
 
   function buildPoiPopupContent(poi){
@@ -2115,12 +2130,9 @@
     return poi;
   }
 
-  function loadPoisFromStorage(){
-    try {
-      const raw = localStorage.getItem('gpxviewer_pois');
-      if (!raw) return;
-      JSON.parse(raw).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, p.visible, p.color));
-    } catch (e){ /* corrupt or unavailable storage -- start empty */ }
+  async function loadPoisFromStorage(){
+    const data = await dbGet(POI_STORE_NAME, []);
+    (data || []).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, p.visible, p.color));
   }
 
   function addPoi(latlng, name, group){
@@ -2286,9 +2298,22 @@
     return row;
   }
 
+  let poiGroupsInitialized = false;
+    
   function renderPoiGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllPoisInNode(child);
+        
+      if (!poiGroupsInitialized) {
+        if (child.items.length > 0) 
+        {
+          collapsedPoiGroups.add(child.path);
+        } 
+        else 
+        {
+          collapsedPoiGroups.delete(child.path);
+        }
+      }
       const collapsed = collapsedPoiGroups.has(child.path);
 
       const groupEl = document.createElement('div');
@@ -2417,6 +2442,7 @@
 
     const root = buildPoiGroupTree();
     renderPoiGroupNode(root, poiListEl);
+     poiGroupsInitialized = true;
 
     poiListEl.scrollTop = scrollPos;
   }
@@ -2491,8 +2517,7 @@
   poiNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') poiGroupInput.focus(); });
   poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
 
-  loadPoisFromStorage();
-  renderPoiList();
+  loadPoisFromStorage().then(renderPoiList);
 
   // ---------- Color palette for tracks ----------
   const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
@@ -2504,10 +2529,6 @@
   // fileEntry: { id, name, color, layer, visible, distanceKm, groupEl, checkboxEl, rowEl }
   const groups = new Map();
   let fileCounter = 0;
-  const VIEWER_DB_NAME = 'alex-routenplaner-viewer';
-  const VIEWER_DB_VERSION = 1;
-  const VIEWER_STORE_NAME = 'tracks';
-  let viewerDbPromise = null;
   const collapsedViewerGroups = new Set();
 
   const treeEl = document.getElementById('tree');
@@ -2576,20 +2597,66 @@
     return hasDuration ? totalMs : null;
   }
 
-  function openViewerDb(){
-    if (viewerDbPromise) return viewerDbPromise;
+  function openAppDb(){
+    if (appDbPromise) return appDbPromise;
     if (!window.indexedDB) return Promise.resolve(null);
-    viewerDbPromise = new Promise(resolve => {
-      const request = indexedDB.open(VIEWER_DB_NAME, VIEWER_DB_VERSION);
+    appDbPromise = new Promise(resolve => {
+      const request = indexedDB.open(APP_DB_NAME, APP_DB_VERSION);
       request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains(VIEWER_STORE_NAME)) {
-          request.result.createObjectStore(VIEWER_STORE_NAME, { keyPath: 'id' });
-        }
+        const db = request.result;
+        if (!db.objectStoreNames.contains(VIEWER_STORE_NAME)) db.createObjectStore(VIEWER_STORE_NAME, { keyPath: 'id' });
+        if (!db.objectStoreNames.contains(SETTINGS_STORE_NAME)) db.createObjectStore(SETTINGS_STORE_NAME, { keyPath: 'key' });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
     });
-    return viewerDbPromise;
+    return appDbPromise;
+  }
+
+  // ---------- Generic key/value settings storage (IndexedDB, with localStorage fallback) ----------
+  // Used for POIs, routes, the ORS API key and the default POI color.
+  // On first use per key, an existing localStorage value (from before the
+  // IndexedDB migration) is picked up automatically so nothing is lost.
+  async function dbGet(key, fallback){
+    const db = await openAppDb();
+    if (db){
+      const fromDb = await new Promise(resolve => {
+        const req = db.transaction(SETTINGS_STORE_NAME, 'readonly').objectStore(SETTINGS_STORE_NAME).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : undefined);
+        req.onerror = () => resolve(undefined);
+      });
+      if (fromDb !== undefined) return fromDb;
+      // Not in IndexedDB yet -- check for a legacy localStorage value to migrate once.
+      try {
+        const legacy = localStorage.getItem(key);
+        if (legacy !== null){
+          const parsed = (() => { try { return JSON.parse(legacy); } catch (e){ return legacy; } })();
+          await dbSet(key, parsed);
+          return parsed;
+        }
+      } catch (e){ /* ignore */ }
+      return fallback;
+    }
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      try { return JSON.parse(raw); } catch (e){ return raw; }
+    } catch (e){ return fallback; }
+  }
+
+  async function dbSet(key, value){
+    const db = await openAppDb();
+    if (db){
+      await new Promise(resolve => {
+        const tx = db.transaction(SETTINGS_STORE_NAME, 'readwrite');
+        tx.objectStore(SETTINGS_STORE_NAME).put({ key, value });
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+      return;
+    }
+    try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); }
+    catch (e){ /* storage unavailable or full */ }
   }
 
   async function saveViewerEntry(entry){
@@ -2602,7 +2669,7 @@
       visible: entry.visible,
       gpxText: entry.gpxText
     };
-    const db = await openViewerDb();
+    const db = await openAppDb();
     if (db){
       await new Promise(resolve => {
         const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
@@ -2622,7 +2689,7 @@
   }
 
   async function deleteViewerEntry(id){
-    const db = await openViewerDb();
+    const db = await openAppDb();
     if (db){
       const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
       transaction.objectStore(VIEWER_STORE_NAME).delete(id);
@@ -2635,7 +2702,7 @@
   }
 
   async function clearViewerStorage(){
-    const db = await openViewerDb();
+    const db = await openAppDb();
     if (db){
       const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
       transaction.objectStore(VIEWER_STORE_NAME).clear();
@@ -2645,7 +2712,7 @@
   }
 
   async function loadViewerRecords(){
-    const db = await openViewerDb();
+    const db = await openAppDb();
     if (db){
       return await new Promise(resolve => {
         const request = db.transaction(VIEWER_STORE_NAME, 'readonly').objectStore(VIEWER_STORE_NAME).getAll();
@@ -3240,24 +3307,52 @@
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   }
 
-  function openGpxExportMenu(event, provider, crnprovider){
+  function openGpxExportMenu(event, provider, route){
     if (event) event.stopPropagation();
+
+/*    
     const result = provider();
-    if (!result || !result.xml){ alert('Keine Track-Daten zum Exportieren vorhanden.'); return; }
-    const { xml, filename } = result;
-
-    const crnresult = crnprovider();
-//    const crnresult = route();
-//    const {crnxml, crnfilename } = crnresult;
-//    CRNprovider = buildRouteCRNGpxXml(route);
-
-const items = [
+    if (!result || !result.xml) 
+    { 
+      alert('Keine Route-Daten zum Exportieren vorhanden.'); 
+      return; 
+    }
+    const {xml, filename} = result;
+    const items = [
       { label: '💾 Als GPX-Datei speichern', action: () => downloadGpxString(xml, filename) },
       { label: '📤 BMW CRN speichern', action: () => downloadGpxString(crnresult.xml, crnresult.filename) },
       { label: '📤 Teilen…', action: () => shareGpxString(xml, filename) },
       { label: '✉️ Per E-Mail', action: () => emailGpxString(xml, filename) }
     ];
-showCustomContextMenu(event.clientX, event.clientY, items);
+    showCustomContextMenu(event.clientX, event.clientY, items);
+*/    
+
+    var items = new Array;
+
+    const CRNresult = buildRouteCRNGpxXml(route);
+    if (CRNresult && CRNresult.xml)
+    {
+      const CRNxml = CRNresult.xml;
+      const CRNfilename = CRNresult.filename;
+      items.push({ label: 'Export für BMW CRN', action: () => downloadGpxString(CRNresult.xml, CRNresult.filename) });
+    }
+
+    const Rresult = buildRouteGpxXml(route);
+    if (Rresult && Rresult.xml)
+    {
+      const Rxml = Rresult.xml;
+      const Rfilename = Rresult.filename;
+      items.push({ label: 'Als GPX-Datei speichern', action: () => downloadGpxString(Rxml, Rfilename) });
+      items.push({ label: 'Teilen…', action: () => shareGpxString(Rxml, Rfilename) });
+      items.push({ label: 'Per E-Mail', action: () => emailGpxString(Rxml, Rfilename)});
+    }
+
+    if (items.length === 0)
+    {
+      alert('Keine Route-Daten zum Exportieren vorhanden.'); 
+      return;
+    }
+    showCustomContextMenu(event.clientX, event.clientY, items);
   }
 
   function deleteEntry(entry){
@@ -3422,13 +3517,14 @@ showCustomContextMenu(event.clientX, event.clientY, items);
   // ============================================================
   // Data backup / restore (for incognito mode or switching devices)
   // ============================================================
-  document.getElementById('btn-export-data').addEventListener('click', () => {
+  document.getElementById('btn-export-data').addEventListener('click', async () => {
     const backup = {
       app: "Alex's Routenplaner",
       exported_at: new Date().toISOString(),
-      pois: JSON.parse(localStorage.getItem('gpxviewer_pois') || '[]'),
-      routes: JSON.parse(localStorage.getItem('gpxviewer_routes') || '[]'),
-      default_poi_color: localStorage.getItem('default_poi_color') || ''
+      pois: await dbGet(POI_STORE_NAME, []),
+      routes: await dbGet('gpxviewer_routes', []),
+      viewer: await loadViewerRecords(),
+      default_poi_color: await dbGet('default_poi_color', '')
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -3451,9 +3547,12 @@ showCustomContextMenu(event.clientX, event.clientY, items);
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (data.pois) localStorage.setItem('gpxviewer_pois', JSON.stringify(data.pois));
-      if (data.routes) localStorage.setItem('gpxviewer_routes', JSON.stringify(data.routes));
-      if (data.default_poi_color) localStorage.setItem('default_poi_color', data.default_poi_color);
+      if (data.pois) await dbSet(POI_STORE_NAME, data.pois);
+      if (data.routes) await dbSet('gpxviewer_routes', data.routes);
+      if (data.default_poi_color) await dbSet('default_poi_color', data.default_poi_color);
+      if (Array.isArray(data.viewer)){
+        for (const record of data.viewer) await saveViewerEntry(record);
+      }
       alert('Daten importiert. Die Seite wird neu geladen.');
       location.reload();
     } catch (err){
@@ -3583,7 +3682,7 @@ showCustomContextMenu(event.clientX, event.clientY, items);
   });
 
   // ============================================================
-  // Saved routes (Tab "Routen") -- persisted via localStorage,
+  // Saved routes -- persisted via IndexedDB (see dbGet/dbSet above),
   // grouped/nested like POIs, editable, exportable as GPX for
   // navigation devices (route + track combo, GPX 1.1).
   // ============================================================
@@ -3593,16 +3692,12 @@ showCustomContextMenu(event.clientX, event.clientY, items);
   const routesListEl = document.getElementById('routes-list');
 
   function saveRoutesToStorage(){
-    try { localStorage.setItem('gpxviewer_routes', JSON.stringify(routes)); }
-    catch (e){ /* storage unavailable or full */ }
+    dbSet('gpxviewer_routes', routes);
   }
 
-  function loadRoutesFromStorage(){
-    try {
-      const raw = localStorage.getItem('gpxviewer_routes');
-      if (!raw) return;
-      JSON.parse(raw).forEach(r => { routes.push(r); routeCounter++; });
-    } catch (e){ /* corrupt or unavailable storage */ }
+  async function loadRoutesFromStorage(){
+    const data = await dbGet('gpxviewer_routes', []);
+    (data || []).forEach(r => { routes.push(r); routeCounter++; });
   }
 
   function saveCurrentAsRoute(name, group){
@@ -3704,12 +3799,12 @@ showCustomContextMenu(event.clientX, event.clientY, items);
 
   function buildRouteCRNGpxXml(route){
     const nameEsc = escapeXml(route.name);
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<gpx version="1.1" creator="Alex\'s Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n';
+    let xml = "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>\n";
+    xml += '<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Maps by Alex" xmlns:cnrd="http://www.bmw-motorrad.com/CNRD/1/0">\n';
+    xml += '  <metadata>\n';
+    xml += `    <name>${nameEsc}</name>\n`;
+    xml += '  </metadata>\n';
 
-    xml += '  <extensions>\n';
-//    const distEsc = escapeXml(route.totalDistance);
-//    const timeEsc = escapeXml(route.totalDuration);
     const profile = document.getElementById('planning-route-profile').value;
 
     const avoidTollways = document.getElementById('avoid-tollways').checked;
@@ -3719,18 +3814,20 @@ showCustomContextMenu(event.clientX, event.clientY, items);
     const feriesEsc = escapeXml(avoidFerries === false ? 'allow' : 'forbid');
 
     //    const summaryText = routeResultEl.className === 'success' ? routeResultEl.textContent : ''
-    const distEsc = '123';
-    const timeEsc = '456';
+    const distEsc = escapeXml(route.totalDistance.toFixed(0));
+    const timeEsc = escapeXml(route.totalDuration.toFixed(0));
     const optim = profile === 'recommended' ? "fastest" : '';
-    xml += '    <cnrd:PlannedRouteExtension durationInSeconds="'+timeEsc+'" lengthInMeters="'+distEsc+'">\n';
-    xml += '      <cnrd:routeOptions optimization="fastest">\n';
-    xml += '        <cnrd:avoidances motorways="allow" tunnels="allow" feries="'+feriesEsc+'" tollRoads="'+tollRoadsEsc+'" dirtRoads="forbid"/>\n';
-    xml += '      </cnrd:routeOptions>\n';
-    xml += '    </cnrd:PlannedRouteExtension>\n';
-    xml += '  </extensions>\n';
-
     xml += '  <rte>\n';
     xml += `    <name>${nameEsc}</name>\n`;
+    /* Add extension infos */
+    xml += '      <extensions>\n';
+    xml += '        <cnrd:PlannedRouteExtension durationInSeconds="'+timeEsc+'" lengthInMeters="'+distEsc+'">\n';
+    xml += '          <cnrd:routeOptions optimization="fastest">\n';
+    xml += '            <cnrd:avoidances motorways="allow" tunnels="allow" feries="'+feriesEsc+'" tollRoads="'+tollRoadsEsc+'" dirtRoads="forbid"/>\n';
+    xml += '          </cnrd:routeOptions>\n';
+    xml += '        </cnrd:PlannedRouteExtension>\n';
+    xml += '      </extensions>\n';
+    /* Add waypoints */
     route.waypoints.forEach((wp, i) => {
       const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
       xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><desc>${label}</desc></rtept>\n`;
@@ -3845,7 +3942,7 @@ showCustomContextMenu(event.clientX, event.clientY, items);
     exportBtn.innerHTML = '&#8681;';
     exportBtn.title = 'Als GPX exportieren (Route + Track)';
     exportBtn.addEventListener('click', (ev) => {
-      openGpxExportMenu(ev, () => buildRouteGpxXml(route), () => buildRouteCRNGpxXml(route));
+      openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
     });
     row.appendChild(exportBtn);
 
@@ -3984,7 +4081,7 @@ showCustomContextMenu(event.clientX, event.clientY, items);
   }
 
   // -- Export-route modal wiring --
-  document.getElementById('btn-export-route').addEventListener('click', (e) => {
+  document.getElementById('btn-export-route').addEventListener('click', (ev) => {
     if (waypoints.length < 2){ alert('Bitte zuerst mindestens Start und Ziel setzen.'); return; }
 
     const id = 'route' + (routeCounter++);
@@ -3996,14 +4093,17 @@ showCustomContextMenu(event.clientX, event.clientY, items);
       id, name,
 //      group,
       waypoints: wpSnapshot,
-//      routeCoords: coordsSnapshot,
+      totalDistance: Number.parseInt(routeResultEl.totalDistance),
+      totalDuration: Number.parseInt(routeResultEl.totalDuration),
+      routeCoords: coordsSnapshot,
       profile: document.getElementById('planning-route-profile').value,
       avoidTollways: document.getElementById('avoid-tollways').checked,
       avoidFerries: document.getElementById('avoid-ferries').checked,
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
-    console.log(`[Export route]`, JSON.stringify(route));
-    openGpxExportMenu(e, () => buildRouteGpxXml(route), () => buildRouteCRNGpxXml(route));
+
+//    console.log(`[Export route]`, JSON.stringify(route));
+    openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
   });
 
   // -- Save-route modal wiring --
@@ -4034,418 +4134,8 @@ showCustomContextMenu(event.clientX, event.clientY, items);
     document.getElementById('route-modal-backdrop').classList.remove('active');
   });
 
-  loadRoutesFromStorage();
-  renderRoutesList();
+  loadRoutesFromStorage().then(renderRoutesList);
 
-  // ============================================================
-  // Saved tracks -- stored in IndexedDB and shown in the Viewer.
-  // ============================================================
-  if (false) {
-  const myTracks = [];
-  let myTrackCounter = 0;
-  const collapsedTrackGroups = new Set();
-  const myTracksListEl = document.getElementById('my-tracks-list');
-  let pendingTrackSaveEntry = null;
-  const TRACKS_DB_NAME = 'alex-routenplaner';
-  const TRACKS_DB_VERSION = 1;
-  const TRACKS_STORE_NAME = 'tracks';
-  let tracksDbPromise = null;
-
-  function openTracksDb(){
-    if (tracksDbPromise) return tracksDbPromise;
-    if (!window.indexedDB) return Promise.resolve(null);
-    tracksDbPromise = new Promise(resolve => {
-      const request = indexedDB.open(TRACKS_DB_NAME, TRACKS_DB_VERSION);
-      request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains(TRACKS_STORE_NAME)) {
-          request.result.createObjectStore(TRACKS_STORE_NAME, { keyPath: 'id' });
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    });
-    return tracksDbPromise;
-  }
-
-  async function saveTracksToStorage(){
-    const db = await openTracksDb();
-    if (db){
-      await new Promise(resolve => {
-        const transaction = db.transaction(TRACKS_STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(TRACKS_STORE_NAME);
-        store.clear();
-        myTracks.forEach(track => store.put(track));
-        transaction.oncomplete = resolve;
-        transaction.onerror = resolve;
-      });
-      try { localStorage.removeItem('gpxviewer_tracks'); } catch (e){ /* ignore */ }
-      return;
-    }
-    try {
-      const raw = localStorage.getItem('gpxviewer_tracks');
-      localStorage.setItem('gpxviewer_tracks', JSON.stringify(myTracks));
-    } catch (e){ /* storage unavailable or full */ }
-  }
-
-  async function loadTracksFromStorage(){
-    const db = await openTracksDb();
-    if (db){
-      const storedTracks = await new Promise(resolve => {
-        const request = db.transaction(TRACKS_STORE_NAME, 'readonly').objectStore(TRACKS_STORE_NAME).getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => resolve([]);
-      });
-      if (storedTracks.length){
-        storedTracks.forEach(track => { myTracks.push(track); myTrackCounter++; });
-        return;
-      }
-    }
-
-    try {
-      const raw = localStorage.getItem('gpxviewer_tracks');
-      if (!raw) return;
-      JSON.parse(raw).forEach(t => { myTracks.push(t); myTrackCounter++; });
-      await saveTracksToStorage();
-    } catch (e){ /* corrupt or unavailable storage */ }
-  }
-
-  function openTrackSaveModal(entry){
-    pendingTrackSaveEntry = entry;
-    document.getElementById('track-name-input').value = entry.name.replace(/\.gpx$/i, '');
-    document.getElementById('track-group-input').value = '';
-    const dl = document.getElementById('track-group-options');
-    dl.innerHTML = '';
-    [...new Set(myTracks.map(t => t.group))].forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g;
-      dl.appendChild(opt);
-    });
-    document.getElementById('track-modal-backdrop').classList.add('active');
-    const nameInput = document.getElementById('track-name-input');
-    nameInput.focus();
-    nameInput.select();
-  }
-
-  document.getElementById('track-modal-cancel').addEventListener('click', () => {
-    document.getElementById('track-modal-backdrop').classList.remove('active');
-    pendingTrackSaveEntry = null;
-  });
-  document.getElementById('track-modal-backdrop').addEventListener('click', (e) => {
-    if (e.target.id === 'track-modal-backdrop'){
-      e.target.classList.remove('active');
-      pendingTrackSaveEntry = null;
-    }
-  });
-  document.getElementById('track-modal-save').addEventListener('click', () => {
-    const name = document.getElementById('track-name-input').value.trim() || 'Unbenannter Track';
-    const group = document.getElementById('track-group-input').value.trim() || 'Ohne Gruppe';
-    if (pendingTrackSaveEntry){
-      const built = buildEntryGpxXml(pendingTrackSaveEntry);
-      if (!built){
-        alert('Keine Track-Daten zum Speichern vorhanden.');
-      } else {
-        const id = 'track' + (myTrackCounter++);
-        myTracks.push({
-          id, name, group,
-          points: built.points.map(p => [p.lat, p.lng]),
-          color: pendingTrackSaveEntry.color || null,
-          distanceKm: pendingTrackSaveEntry.distanceKm || null,
-          durationMs: pendingTrackSaveEntry.durationMs || null
-        });
-        saveTracksToStorage();
-        renderMyTracksList();
-      }
-    }
-    document.getElementById('track-modal-backdrop').classList.remove('active');
-    pendingTrackSaveEntry = null;
-  });
-
-  function deleteTrack(id){
-    const idx = myTracks.findIndex(t => t.id === id);
-    if (idx === -1) return;
-    myTracks.splice(idx, 1);
-    saveTracksToStorage();
-    renderMyTracksList();
-  }
-
-  function moveTrackToGroup(trackId, newGroupPath){
-    const track = myTracks.find(t => t.id === trackId);
-    if (!track || track.group === newGroupPath) return;
-    track.group = newGroupPath;
-    saveTracksToStorage();
-    renderMyTracksList();
-  }
-
-  function buildTrackGpxXml(track){
-    if (!track.points || track.points.length < 2) return null;
-    const trkpts = track.points.map(p => `      <trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}"></trkpt>`).join('\n');
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Alex's Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n  <trk>\n    <name>${escapeXml(track.name)}</name>\n    <trkseg>\n${trkpts}\n    </trkseg>\n  </trk>\n</gpx>\n`;
-    const filename = (track.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'track') + '.gpx';
-    return { xml, filename };
-  }
-
-  function loadTrackIntoViewer(track){
-    const groupName = track.group || 'Meine Tracks';
-    const g = groupFor(groupName);
-    const id = 'f' + (fileCounter++);
-    const color = track.color || nextColor();
-    const entry = {
-      id, name: track.name + '.gpx', color,
-      layer: L.layerGroup().addTo(map),
-      visible: true,
-      distanceKm: track.distanceKm || null,
-      durationMs: track.durationMs || null,
-      originalSegments: [track.points.map(p => L.latLng(p[0], p[1]))],
-      customLayers: [],
-      groupName: groupName
-    };
-    g.files.set(id, entry);
-    renderTree();
-    renderTrackSegments(entry);
-    recomputeDistance(entry);
-    updateFileMeta(entry);
-    updateSummary();
-    setTimeout(zoomToAll, 100);
-
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelector('.tab-btn[data-tab="viewer"]').classList.add('active');
-    document.getElementById('panel-viewer').classList.add('active');
-    setTimeout(() => map.invalidateSize(), 50);
-  }
-
-  function buildTrackGroupTreeData(){
-    const root = { children: new Map(), items: [] };
-    myTracks.forEach(t => {
-      const parts = (t.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 0) parts.push('Ohne Gruppe');
-      let node = root;
-      let pathSoFar = '';
-      parts.forEach(part => {
-        pathSoFar = pathSoFar ? pathSoFar + '/' + part : part;
-        if (!node.children.has(part)) node.children.set(part, { children: new Map(), items: [], path: pathSoFar, label: part });
-        node = node.children.get(part);
-      });
-      node.items.push(t);
-    });
-    return root;
-  }
-
-  function collectAllTracksInNode(node){
-    let all = [...node.items];
-    node.children.forEach(child => { all = all.concat(collectAllTracksInNode(child)); });
-    return all;
-  }
-
-  function buildTrackRow(track){
-    const row = document.createElement('div');
-    row.className = 'file-row';
-    row.draggable = true;
-
-    row.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/x-track-id', track.id);
-      row.classList.add('dragging');
-    });
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
-
-    const handle = document.createElement('span');
-    handle.className = 'waypoint-drag-handle';
-    handle.innerHTML = '&#8942;&#8942;';
-    handle.title = 'Ziehen, um die Gruppe zu ändern';
-    row.appendChild(handle);
-
-    const sw = document.createElement('span');
-    sw.className = 'swatch';
-    sw.style.background = track.color || '#888';
-    sw.style.flexShrink = '0';
-    row.appendChild(sw);
-
-    const info = document.createElement('div');
-    info.className = 'file-info';
-    const nm = document.createElement('div');
-    nm.className = 'file-name';
-    nm.textContent = track.name;
-    nm.title = 'Doppelklick: umbenennen';
-    const meta = document.createElement('div');
-    meta.className = 'file-meta';
-    meta.textContent = track.distanceKm ? track.distanceKm + ' km' : (track.points.length + ' Punkte');
-    nm.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      startInlineRenameGeneric(nm, track.name, (newName) => {
-        track.name = newName;
-        saveTracksToStorage();
-        renderMyTracksList();
-      }, renderMyTracksList);
-    });
-    info.appendChild(nm);
-    info.appendChild(meta);
-    row.appendChild(info);
-
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'row-icon-btn';
-    loadBtn.innerHTML = '&#9998;';
-    loadBtn.title = 'Im Viewer einblenden';
-    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadTrackIntoViewer(track); });
-    row.appendChild(loadBtn);
-
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'row-icon-btn';
-    exportBtn.innerHTML = '&#8681;';
-    exportBtn.title = 'Exportieren / Teilen';
-    exportBtn.addEventListener('click', (ev) => {
-      openGpxExportMenu(ev, () => buildTrackGpxXml(track));
-    });
-    row.appendChild(exportBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'row-icon-btn';
-    delBtn.innerHTML = '&times;';
-    delBtn.title = 'Track löschen';
-    delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteTrack(track.id); });
-    row.appendChild(delBtn);
-
-    return row;
-  }
-
-  function renderTrackGroupNode(node, container){
-    node.children.forEach(child => {
-      const descendants = collectAllTracksInNode(child);
-      const collapsed = collapsedTrackGroups.has(child.path);
-
-      const groupEl = document.createElement('div');
-      groupEl.className = 'group';
-
-      const header = document.createElement('div');
-      header.className = 'group-header' + (collapsed ? ' collapsed' : '');
-
-      const twist = document.createElement('span');
-      twist.className = 'twist';
-      twist.textContent = '▾';
-      header.appendChild(twist);
-
-      const spacer = document.createElement('span');
-      spacer.style.width = '15px';
-      header.appendChild(spacer);
-
-      const nameEl = document.createElement('span');
-      nameEl.className = 'group-name';
-      nameEl.textContent = child.label;
-      nameEl.title = 'Doppelklick: Gruppe umbenennen';
-      header.appendChild(nameEl);
-
-      const countEl = document.createElement('span');
-      countEl.className = 'group-count';
-      countEl.textContent = descendants.length;
-      header.appendChild(countEl);
-
-      const groupDelBtn = document.createElement('button');
-      groupDelBtn.className = 'row-icon-btn group-del-btn';
-      groupDelBtn.innerHTML = '&times;';
-      groupDelBtn.title = 'Ganze Gruppe löschen';
-      groupDelBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        if (!confirm(`"${child.label}" mit ${descendants.length} Track(s) (inkl. Untergruppen) wirklich löschen?`)) return;
-        descendants.forEach(t => deleteTrack(t.id));
-      });
-      header.appendChild(groupDelBtn);
-
-      header.addEventListener('click', (e) => {
-        if (e.target === nameEl) return;
-        if (collapsedTrackGroups.has(child.path)) collapsedTrackGroups.delete(child.path);
-        else collapsedTrackGroups.add(child.path);
-        renderMyTracksList();
-      });
-
-      nameEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
-          const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
-          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
-          myTracks.forEach(t => {
-            if (t.group === child.path) t.group = newPath;
-            else if (t.group.startsWith(child.path + '/')) t.group = newPath + t.group.slice(child.path.length);
-          });
-          saveTracksToStorage();
-          renderMyTracksList();
-        }, renderMyTracksList);
-      });
-
-      header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
-      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
-      header.addEventListener('drop', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        header.classList.remove('drop-target');
-        const trackId = e.dataTransfer.getData('text/x-track-id');
-        if (!trackId) return;
-        moveTrackToGroup(trackId, child.path);
-      });
-
-      groupEl.appendChild(header);
-
-      groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
-      groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
-      groupEl.addEventListener('drop', (e) => {
-        e.preventDefault();
-        groupEl.classList.remove('drop-target-box');
-        const trackId = e.dataTransfer.getData('text/x-track-id');
-        if (!trackId) return;
-        moveTrackToGroup(trackId, child.path);
-      });
-
-      const childWrap = document.createElement('div');
-      childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
-      child.items.forEach(track => childWrap.appendChild(buildTrackRow(track)));
-      renderTrackGroupNode(child, childWrap);
-
-      groupEl.appendChild(childWrap);
-      container.appendChild(groupEl);
-    });
-  }
-
-  function renderMyTracksList(){
-    const scrollPos = myTracksListEl.scrollTop;
-    myTracksListEl.innerHTML = '';
-    if (myTracks.length === 0){
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.innerHTML = '<div>Noch keine gespeicherten Tracks.<br>Tracks hier importieren oder im Viewer speichern.</div>';
-      myTracksListEl.appendChild(empty);
-      return;
-    }
-    const root = buildTrackGroupTreeData();
-    renderTrackGroupNode(root, myTracksListEl);
-    myTracksListEl.scrollTop = scrollPos;
-  }
-
-  function extractTrackPointsFromGpx(xml){
-    return Array.from(xml.querySelectorAll('trk trkpt')).map(el => [parseFloat(el.getAttribute('lat')), parseFloat(el.getAttribute('lon'))]);
-  }
-
-  document.getElementById('btn-import-track').addEventListener('click', () => {
-    document.getElementById('input-import-track').click();
-  });
-  document.getElementById('input-import-track').addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files);
-    e.target.value = '';
-    if (!files.length) return;
-    let importedCount = 0;
-    for (const file of files){
-      const text = await file.text();
-      const xml = parseGpxText(text);
-      if (!xml) continue;
-      const points = extractTrackPointsFromGpx(xml);
-      if (points.length < 2) continue;
-      const id = 'track' + (myTrackCounter++);
-      myTracks.push({ id, name: file.name.replace(/\.gpx$/i, ''), group: 'Import', points, color: null, distanceKm: null, durationMs: null });
-      importedCount++;
-    }
-    saveTracksToStorage();
-    renderMyTracksList();
-    if (importedCount === 0) alert('Keine gültigen Tracks in der/den Datei(en) gefunden.');
-  });
-
-  }
   loadViewerList();
 
 })();
