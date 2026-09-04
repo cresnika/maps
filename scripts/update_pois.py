@@ -9,9 +9,6 @@ from pathlib import Path
 # KONFIGURATION
 # ============================================================
 
-# Alpenregion:
-# Süddeutschland, Österreich, Schweiz, Liechtenstein,
-# Norditalien, Slowenien, Westkroatien, Ostfrankreich
 SOUTH = 43.0
 WEST = 4.0
 NORTH = 49.5
@@ -19,7 +16,7 @@ EAST = 17.0
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-OUTPUT_FILE = Path("data/places.json")
+OUTPUT_FILE = Path("data/mountain_passes.json")
 
 
 # ============================================================
@@ -101,13 +98,11 @@ for element in osm_data.get("elements", []):
 
     place = {
         "id": element["id"],
-        "type": "mountain_pass",
         "name": name,
         "lat": lat,
         "lng": lon
     }
 
-    # Höhe
     if tags.get("ele"):
         try:
             place["ele"] = float(
@@ -119,11 +114,9 @@ for element in osm_data.get("elements", []):
         except ValueError:
             pass
 
-    # Deutsche Bezeichnung, falls vorhanden
     if tags.get("name:de"):
         place["name_de"] = tags["name:de"]
 
-    # Wikidata, falls vorhanden
     if tags.get("wikidata"):
         place["wikidata"] = tags["wikidata"]
 
@@ -146,6 +139,9 @@ places.sort(
 
 output = {
     "version": 1,
+
+    "type": "mountain_pass",
+
     "generatedAt": datetime.now(
         timezone.utc
     ).isoformat(),
@@ -169,6 +165,12 @@ OUTPUT_FILE.parent.mkdir(
 )
 
 
+print()
+print("DEBUG:")
+print(f"OUTPUT_FILE = {OUTPUT_FILE}")
+print(f"ABSOLUTER PFAD = {OUTPUT_FILE.resolve()}")
+print()
+
 with OUTPUT_FILE.open(
     "w",
     encoding="utf-8"
@@ -178,7 +180,7 @@ with OUTPUT_FILE.open(
         output,
         file,
         ensure_ascii=False,
-        indent=2
+        separators=(",", ":")
     )
 
 
@@ -187,9 +189,15 @@ print("========================================")
 print("POI-Update abgeschlossen")
 print("========================================")
 print(
+    f"Typ: mountain_pass"
+)
+print(
     f"Gefundene Gebirgspässe: {len(places)}"
 )
 print(
     f"Datei: {OUTPUT_FILE}"
+)
+print(
+    f"Gebiet: {SOUTH},{WEST} → {NORTH},{EAST}"
 )
 print("========================================")
