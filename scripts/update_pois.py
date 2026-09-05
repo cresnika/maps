@@ -52,7 +52,12 @@ POI_TYPES = [
         "name": "Mountain Passes",
         "type": "mountain_pass",
         "output": "mountain_passes.json",
-        "query": 'node["mountain_pass"="yes"]'
+        "query": 'node["mountain_pass"="yes"]',
+        "road_filter": (
+            '^(motorway|trunk|primary|secondary|tertiary|'
+            'unclassified|residential|service)$'
+        ),
+        "road_distance_m": 50
     },
 
     {
@@ -132,6 +137,37 @@ print()
 # OVERPASS QUERY
 # ============================================================
 
+def build_mountain_pass_query(
+    south,
+    west,
+    north,
+    east,
+    road_filter,
+    distance_m
+):
+    """
+    Lädt alle mountain_pass=yes-Knoten und zusätzlich nur
+    relevante highway-Wege im Umkreis der Pässe.
+
+    Wichtig:
+    Es gibt NICHT einen Request pro Pass. Die komplette Prüfung
+    erfolgt in einer einzigen Overpass-Abfrage.
+    """
+    return f"""
+[out:json][timeout:120];
+
+node["mountain_pass"="yes"]({south},{west},{north},{east})->.passes;
+
+(
+  .passes;
+  way(around.passes:{distance_m})
+    ["highway"~"{road_filter}"];
+);
+
+out geom;
+"""
+
+
 def build_query(
     osm_query,
     south,
@@ -160,16 +196,43 @@ def query_overpass(
     south,
     west,
     north,
-    east
+    east,
+    poi_config=None
 ):
 
-    query = build_query(
-        osm_query,
-        south,
-        west,
-        north,
-        east
-    )
+    if poi_type == "mountain_pass":
+        # Eine einzige Overpass-Abfrage für alle Pässe + nahe Straßen.
+        # Keine Einzelanfragen pro Pass.
+        query = build_mountain_pass_query(
+            south,
+            west,
+            north,
+            east,
+            road_filter=(
+                poi_config.get(
+                    "road_filter",
+                    '^(motorway|trunk|primary|secondary|tertiary|'
+                    'unclassified|residential|service)$'
+                )
+                if poi_config
+                else
+                '^(motorway|trunk|primary|secondary|tertiary|'
+                'unclassified|residential|service)$'
+            ),
+            distance_m=(
+                poi_config.get("road_distance_m", 50)
+                if poi_config
+                else 50
+            )
+        )
+    else:
+        query = build_query(
+            osm_query,
+            south,
+            west,
+            north,
+            east
+        )
 
     data = urllib.parse.urlencode({
         "data": query
@@ -383,6 +446,169 @@ def query_overpass(
         f"POI-Typ '{poi_type}' konnte "
         f"nicht geladen werden."
     )
+
+
+# ============================================================
+# MOUNTAIN-PASS FILTER
+# ============================================================
+
+def point_to_segment_distance_m(
+    point_lat,
+    point_lon,
+    lat1,
+    lon1,
+    lat2,
+    lon2
+):
+    """
+    Näherungsweise Punkt-zu-Segment-Distanz in Metern.
+
+    Für die hier verwendete Distanz von maximal 50 m ist eine
+    lokale equirectangular Projektion ausreichend genau.
+    """
+    import math
+
+    earth_radius_m = 6371000.0
+    lat0 = math.radians(point_lat)
+
+    def project(lat, lon):
+        x = (
+            math.radians(lon)
+            * earth_radius_m
+            * math.cos(lat0)
+        )
+        y = (
+            math.radians(lat)
+            * earth_radius_m
+        )
+        return x, y
+
+    px, py = project(point_lat, point_lon)
+    ax, ay = project(lat1, lon1)
+    bx, by = project(lat2, lon2)
+
+    dx = bx - ax
+    dy = by - ay
+
+    segment_length_sq = dx * dx + dy * dy
+
+    if segment_length_sq == 0:
+        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+
+    t = (
+        (px - ax) * dx +
+        (py - ay) * dy
+    ) / segment_length_sq
+
+    t = max(0.0, min(1.0, t))
+
+    closest_x = ax + t * dx
+    closest_y = ay + t * dy
+
+    return (
+        (px - closest_x) ** 2 +
+        (py - closest_y) ** 2
+    ) ** 0.5
+
+
+def filter_mountain_pass_elements(
+    elements,
+    max_distance_m=50
+):
+    """
+    Behält nur mountain_pass=yes-Knoten, die tatsächlich
+    maximal max_distance_m von einer relevanten Straße entfernt
+    sind.
+
+    Die Straßen werden aus derselben Overpass-Antwort verwendet.
+    Dadurch entstehen keine zusätzlichen Requests.
+    """
+    passes = []
+    roads = []
+
+    for element in elements:
+        element_type = element.get("type")
+
+        if element_type == "node":
+            tags = element.get("tags", {})
+
+            if tags.get("mountain_pass") == "yes":
+                passes.append(element)
+
+        elif element_type == "way":
+            tags = element.get("tags", {})
+            geometry = element.get("geometry", [])
+
+            if (
+                tags.get("highway") and
+                geometry
+            ):
+                roads.append(geometry)
+
+    print(
+        f"Mountain Passes gefunden: {len(passes)}"
+    )
+
+    print(
+        f"Relevante Straßenabschnitte: {len(roads)}"
+    )
+
+    filtered = []
+
+    for index, pass_node in enumerate(passes, start=1):
+        pass_lat = pass_node.get("lat")
+        pass_lon = pass_node.get("lon")
+
+        if pass_lat is None or pass_lon is None:
+            continue
+
+        closest_distance = float("inf")
+
+        for geometry in roads:
+            previous = None
+
+            for point in geometry:
+                lat = point.get("lat")
+                lon = point.get("lon")
+
+                if lat is None or lon is None:
+                    continue
+
+                if previous is not None:
+                    distance = point_to_segment_distance_m(
+                        pass_lat,
+                        pass_lon,
+                        previous[0],
+                        previous[1],
+                        lat,
+                        lon
+                    )
+
+                    if distance < closest_distance:
+                        closest_distance = distance
+
+                        if closest_distance <= max_distance_m:
+                            break
+
+                previous = (lat, lon)
+
+            if closest_distance <= max_distance_m:
+                break
+
+        if closest_distance <= max_distance_m:
+            filtered.append(pass_node)
+
+    print(
+        f"Mountain Passes an Straßen: "
+        f"{len(filtered)}"
+    )
+
+    print(
+        f"Verworfen wegen > {max_distance_m} m Abstand: "
+        f"{len(passes) - len(filtered)}"
+    )
+
+    return filtered
 
 
 # ============================================================
@@ -727,6 +953,15 @@ for poi_config in POI_TYPES:
         EAST
     )
 
+
+    if poi_config["type"] == "mountain_pass":
+        elements = filter_mountain_pass_elements(
+            elements,
+            max_distance_m=poi_config.get(
+                "road_distance_m",
+                50
+            )
+        )
 
     places = convert_elements(
         elements
