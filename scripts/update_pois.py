@@ -81,39 +81,39 @@ POI_TYPES = [
             'unclassified|residential|service)$'
         ),
         "tile_size": None,
-    },
+#    },
 
-    {
-        "name": "Campingplaetze",
-        "type": "campsite",
-        "output": "campsites.json",
-        "query": 'node["tourism"="camp_site"]',
-        "tile_size": 3.0,
-    },
+#    {
+#        "name": "Campingplaetze",
+#        "type": "campsite",
+#        "output": "campsites.json",
+#        "query": 'node["tourism"="camp_site"]',
+#        "tile_size": 3.0,
+#    },
 
-    {
-        "name": "Aussichtspunkte",
-        "type": "viewpoint",
-        "output": "viewpoints.json",
-        "query": 'node["tourism"="viewpoint"]',
-        "tile_size": 3.0,
-    },
+#    {
+#        "name": "Aussichtspunkte",
+#        "type": "viewpoint",
+#        "output": "viewpoints.json",
+#        "query": 'node["tourism"="viewpoint"]',
+#        "tile_size": 3.0,
+#    },
 
-    {
-        "name": "Motorradhaendler",
-        "type": "motorcycle_shop",
-        "output": "motorcycle_shops.json",
-        "query": 'node["shop"="motorcycle"]',
-        "tile_size": 5.0,
-    },
+#    {
+#        "name": "Motorradhaendler",
+#        "type": "motorcycle_shop",
+#        "output": "motorcycle_shops.json",
+#        "query": 'node["shop"="motorcycle"]',
+#        "tile_size": 5.0,
+#    },
 
-    {
-        "name": "Ladestationen",
-        "type": "charging_station",
-        "output": "charging_stations.json",
-        "query": 'node["amenity"="charging_station"]',
-        "tile_size": 4.0,
-    },
+#    {
+#        "name": "Ladestationen",
+#        "type": "charging_station",
+#        "output": "charging_stations.json",
+#        "query": 'node["amenity"="charging_station"]',
+#        "tile_size": 4.0,
+    }
 ]
 
 
