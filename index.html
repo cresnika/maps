@@ -38,34 +38,35 @@
   }
 
   /* ---------- Header ---------- */
-	.header-title {
-	  display: flex;
-	  align-items: baseline;
-	  gap: 10px;
-	}
+  .header-title {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
 
-	.header-title .brand-name {
-	  margin: 0;
-	  font-size: 26px;
-	  font-family: var(--font-display);
-	  font-weight: 700;
-	  text-transform: none;
-	  letter-spacing: 0.01em;
-	}
+  .header-title .brand-name {
+    margin: 0;
+    font-size: 26px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0.01em;
+  }
 
-	.header-title h1 {
-	  margin: 0;
-	  font-family: var(--font-display);
-	  font-weight: 600;
-	  font-size: 26px;
-	  color: var(--accent);
-	  letter-spacing: 0.01em;
-	  line-height: 1;
-	}
+  .header-title h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    color: var(--accent);
+    letter-spacing: 0.01em;
+    line-height: 1;
+  }
 
   /* ---------- Sidebar ---------- */
   #sidebar {
-    width: 340px;
+    width: 400px;
     min-width: 260px;
     max-width: 640px;
     flex-shrink: 0;
@@ -93,15 +94,17 @@
   }
 
   #sidebar-header {
-    padding: 14px 20px 12px;
+    padding: 14px 14px 12px;
     border-bottom: 1px solid var(--border);
-    position: relative;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   #settings-btn {
-    position: absolute;
-    top: 16px;
-    right: 14px;
+    flex-shrink: 0;
+
     width: 30px;
     height: 30px;
     border-radius: 6px;
@@ -110,31 +113,49 @@
     color: var(--text-dim);
     font-size: 15px;
     cursor: pointer;
+
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  #settings-btn:hover { color: var(--text); background: var(--bg-row-hover); }
 
+  #settings-btn:hover {
+    color: var(--text);
+    background: var(--bg-row-hover);
+  }
+  
   #sidebar-close-btn {
     display: none;
-    position: absolute;
-    top: 16px;
-    right: 52px;
+    flex-shrink: 0;
+
     width: 30px;
     height: 30px;
-    border-radius: 6px;
+
+    padding: 0;
     border: none;
+    border-radius: 6px;
+
     background: var(--bg-sidebar-raised);
     color: var(--text-dim);
-    font-size: 15px;
+
     cursor: pointer;
+
     align-items: center;
     justify-content: center;
   }
-  #sidebar-close-btn:hover { color: var(--text); background: var(--bg-row-hover); }
 
-  #hamburger-btn {
+  #sidebar-close-btn svg {
+    display: block;
+    width: 28px;
+    height: 28px;
+  }
+
+  #sidebar-close-btn:hover {
+    color: var(--text);
+    background: var(--bg-row-hover);
+  }
+
+#hamburger-btn {
     display: none;
     position: fixed;
     top: 14px;
@@ -620,6 +641,7 @@
 
   .waypoint-marker-icon {
     color: var(--accent);
+    opacity: 1;
   }
 
   .waypoint-marker {
@@ -1124,7 +1146,7 @@
     line-height: 30px;
     text-align: center;
     color: var(--accent);
-    /* opacity: 0.7;   */
+    opacity: 0.8;
     --icon-outline: #070707;
   }
 
@@ -1194,13 +1216,15 @@
 
   <aside id="sidebar">
 	<div id="sidebar-header">
-	  <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">⚙</button>
-	  <button id="sidebar-close-btn" aria-label="Menü schließen">✕</button>
-
+	  <button id="sidebar-close-btn" aria-label="Menü schließen">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+	      <path fill="currentColor" d="M320 96C443.7 96 544 196.3 544 320C544 443.7 443.7 544 320 544C196.3 544 96 443.7 96 320C96 196.3 196.3 96 320 96zM320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM228.7 308.7C222.5 314.9 222.5 325.1 228.7 331.3L300.7 403.3C306.9 409.5 317.1 409.5 323.3 403.3C329.5 397.1 329.5 386.9 323.3 380.7L278.6 336L400 336C408.8 336 416 328.8 416 320C416 311.2 408.8 304 400 304L278.6 304L323.3 259.3C329.5 253.1 329.5 242.9 323.3 236.7C317.1 230.5 306.9 230.5 300.7 236.7L228.7 308.7z"/>
+      </svg>
+    </button>
 	  <div class="header-title">
-		<p class="brand-name">Alex's</p>
 		<h1>Routenplaner</h1>
 	  </div>
+	  <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">⚙</button>
 	</div>
 
     <div class="tab-bar">
@@ -1752,7 +1776,6 @@
             map.removeLayer(poi.layer);
           }
         });
-        console.log('Layer hinzugefügt:', poi.description);
         return container;
     };
   poi.control.addTo(map);  
@@ -1884,7 +1907,7 @@
   function waypointSvg(index) {
     return `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="waypoint-svg">
-        <path fill="currentColor" opacity="0.8" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
+        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
         <path fill="#fff" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
         <text 
           x="320"
