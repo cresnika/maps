@@ -11,11 +11,6 @@ from pathlib import Path
 # KONFIGURATION
 # ============================================================
 
-SOUTH = 43.0
-WEST = 4.0
-NORTH = 49.5
-EAST = 17.0
-
 DATA_DIR = Path("data")
 
 OVERPASS_SERVERS = [
@@ -24,40 +19,53 @@ OVERPASS_SERVERS = [
 ]
 
 MAX_RETRIES = 5
-
-# Pause nach jeder erfolgreichen Abfrage (Sekunden)
 REQUEST_DELAY = 6
-
-# Overpass-internes Timeout (Sekunden) - muss kleiner sein als
-# der urllib-Timeout weiter unten
 OVERPASS_TIMEOUT = 120
+
+
+# ============================================================
+# REGIONEN
+# ============================================================
+#
+# Statt einer riesigen Bounding-Box ueber halb Europa definieren
+# wir mehrere kleinere, sich grob an Laendergrenzen orientierende
+# Regionen. Ueberschneidungen sind unproblematisch, Duplikate
+# werden beim Zusammenfuehren anhand der OSM-ID entfernt.
+#
+# ============================================================
+
+REGIONS = [
+    {
+        "name": "DACH + Alpen",
+        "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
+    },
+    {
+        "name": "Frankreich",
+        "south": 41.3, "west": -5.2, "north": 51.1, "east": 9.6,
+    },
+    {
+        "name": "Italien (inkl. Sardinien & Sizilien)",
+        "south": 35.4, "west": 6.6, "north": 47.1, "east": 18.6,
+    },
+    {
+        "name": "Kroatien & Slowenien",
+        "south": 42.3, "west": 13.3, "north": 46.9, "east": 19.5,
+    },
+]
 
 
 # ============================================================
 # POI-KATEGORIEN
 # ============================================================
 #
-# Jede Kategorie bekommt eine eigene JSON-Datei.
-#
-# query:
-#   OSM-Tags, nach denen gesucht wird (für "normale" Kategorien).
-#
-# output:
-#   Name der erzeugten JSON-Datei.
-#
-# type:
-#   Interner Typ für die spätere Verwendung in index.html.
+# Hotels, Restaurants und Tankstellen sind bewusst NICHT mehr
+# hier drin - die Datenmenge ueber 4 Regionen hinweg wuerde die
+# Laufzeit sprengen (siehe Chat). Diese Kategorien werden
+# stattdessen live im Client abgefragt (Viewport + Mindestzoom).
 #
 # tile_size:
-#   Kantenlänge der Grid-Kacheln in Grad, in die das
-#   Gesamtgebiet für diese Kategorie aufgeteilt wird, bevor
-#   Overpass abgefragt wird. Kleinere Kacheln = kleinere,
-#   schnellere Einzelabfragen, aber mehr Requests insgesamt.
-#   None = keine Kachelung, gesamtes Gebiet in einem Request.
-#
-# road_filter (nur mountain_pass):
-#   Regex der highway-Typen, die als "Straße" zählen. Damit
-#   fallen z.B. reine Wanderwege (highway=path/footway) raus.
+#   Kantenlaenge der Grid-Kacheln in Grad PRO REGION. None =
+#   die ganze Region in einem Request.
 #
 # ============================================================
 
@@ -72,37 +80,11 @@ POI_TYPES = [
             '^(motorway|trunk|primary|secondary|tertiary|'
             'unclassified|residential|service)$'
         ),
-        # Diese Abfrage ist sehr leicht (keine Geometrie nötig),
-        # daher reicht ein einziger Request für das Gesamtgebiet.
         "tile_size": None,
     },
 
     {
-        "name": "Hotels",
-        "type": "hotel",
-        "output": "hotels.json",
-        "query": 'node["tourism"="hotel"]',
-        "tile_size": 2.0,
-    },
-
-    {
-        "name": "Restaurants",
-        "type": "restaurant",
-        "output": "restaurants.json",
-        "query": 'node["amenity"="restaurant"]',
-        "tile_size": 2.0,
-    },
-
-    {
-        "name": "Tankstellen",
-        "type": "fuel",
-        "output": "fuel.json",
-        "query": 'node["amenity"="fuel"]',
-        "tile_size": 2.0,
-    },
-
-    {
-        "name": "Campingplätze",
+        "name": "Campingplaetze",
         "type": "campsite",
         "output": "campsites.json",
         "query": 'node["tourism"="camp_site"]',
@@ -118,11 +100,11 @@ POI_TYPES = [
     },
 
     {
-        "name": "Motorradhändler",
+        "name": "Motorradhaendler",
         "type": "motorcycle_shop",
         "output": "motorcycle_shops.json",
         "query": 'node["shop"="motorcycle"]',
-        "tile_size": 3.0,
+        "tile_size": 5.0,
     },
 
     {
@@ -130,7 +112,7 @@ POI_TYPES = [
         "type": "charging_station",
         "output": "charging_stations.json",
         "query": 'node["amenity"="charging_station"]',
-        "tile_size": 3.0,
+        "tile_size": 4.0,
     },
 ]
 
@@ -144,8 +126,9 @@ print("========================================")
 print("OSM POI DATABASE UPDATE")
 print("========================================")
 print()
-
-print(f"Gesamtgebiet: {SOUTH},{WEST} -> {NORTH},{EAST}")
+print(f"Regionen: {len(REGIONS)}")
+for region in REGIONS:
+    print(f"  - {region['name']}")
 print(f"Kategorien: {len(POI_TYPES)}")
 print()
 
@@ -155,31 +138,18 @@ print()
 # ============================================================
 
 def generate_tiles(south, west, north, east, tile_size):
-    """
-    Teilt das Gesamtgebiet in ein Grid aus kleineren
-    Bounding-Boxes auf. Das hält einzelne Overpass-Antworten
-    klein und vermeidet Timeouts / Server-Ablehnung bei
-    dicht besiedelten POI-Kategorien.
-
-    tile_size=None -> ein einziges "Tile" = das Gesamtgebiet.
-    """
     if not tile_size:
         return [(south, west, north, east)]
 
     tiles = []
-
     lat = south
     while lat < north:
         lat_end = min(lat + tile_size, north)
-
         lon = west
         while lon < east:
             lon_end = min(lon + tile_size, east)
-
             tiles.append((lat, lon, lat_end, lon_end))
-
             lon = lon_end
-
         lat = lat_end
 
     return tiles
@@ -190,15 +160,6 @@ def generate_tiles(south, west, north, east, tile_size):
 # ============================================================
 
 def build_mountain_pass_query(south, west, north, east, road_filter):
-    """
-    Lädt mountain_pass=yes Knoten, behält aber nur jene, die
-    tatsächlich Mitglied eines Straßen-Ways (highway=...) sind.
-
-    Wichtig: Es wird NUR auf Way-Mitgliedschaft geprüft, nicht
-    auf geometrische Distanz. Es werden auch keine
-    Straßengeometrien zurückgegeben (kein "out geom"), wodurch
-    die Antwort klein und die Abfrage schnell bleibt.
-    """
     return f"""
 [out:json][timeout:{OVERPASS_TIMEOUT}];
 node["mountain_pass"="yes"]({south},{west},{north},{east})->.passes;
@@ -218,7 +179,7 @@ out body;
 
 
 # ============================================================
-# OVERPASS REQUEST (pro Tile)
+# OVERPASS REQUEST (ein Tile)
 # ============================================================
 
 def query_overpass_tile(poi_type, poi_config, south, west, north, east):
@@ -229,10 +190,7 @@ def query_overpass_tile(poi_type, poi_config, south, west, north, east):
             road_filter=poi_config["road_filter"],
         )
     else:
-        query = build_query(
-            poi_config["query"],
-            south, west, north, east,
-        )
+        query = build_query(poi_config["query"], south, west, north, east)
 
     data = urllib.parse.urlencode({"data": query}).encode("utf-8")
 
@@ -240,10 +198,7 @@ def query_overpass_tile(poi_type, poi_config, south, west, north, east):
 
         server = OVERPASS_SERVERS[attempt % len(OVERPASS_SERVERS)]
 
-        print(
-            f"    Versuch {attempt + 1}/{MAX_RETRIES} "
-            f"@ {server}"
-        )
+        print(f"      Versuch {attempt + 1}/{MAX_RETRIES} @ {server}")
 
         request = urllib.request.Request(
             server,
@@ -251,58 +206,59 @@ def query_overpass_tile(poi_type, poi_config, south, west, north, east):
             headers={"User-Agent": "motorcycle-route-planner/1.0"},
         )
 
+        start_time = time.time()
+
         try:
-            # urllib-Timeout deutlich groesser als das
-            # Overpass-interne Timeout wählen, damit Overpass
-            # selbst zuerst sauber abbricht.
             with urllib.request.urlopen(
                 request, timeout=OVERPASS_TIMEOUT + 60
             ) as response:
                 raw = response.read()
 
+            elapsed = time.time() - start_time
+
             osm_data = json.loads(raw.decode("utf-8"))
             elements = osm_data.get("elements", [])
 
-            print(f"    -> {len(elements)} Objekte")
+            print(f"      -> {len(elements)} Objekte in {elapsed:.1f}s")
 
             time.sleep(REQUEST_DELAY)
 
             return elements
 
         except urllib.error.HTTPError as e:
-            print(f"    HTTP {e.code}: {e.reason}")
+            print(f"      HTTP {e.code}: {e.reason}")
 
             if e.code == 429:
                 wait_time = 30 * (attempt + 1)
-                print(f"    Rate Limit. Warte {wait_time}s...")
+                print(f"      Rate Limit. Warte {wait_time}s...")
                 time.sleep(wait_time)
                 continue
 
             if e.code in (502, 503, 504):
                 wait_time = 20 * (attempt + 1)
-                print(f"    Server nicht verfuegbar. Warte {wait_time}s...")
+                print(f"      Server nicht verfuegbar. Warte {wait_time}s...")
                 time.sleep(wait_time)
                 continue
 
             raise
 
         except (urllib.error.URLError, TimeoutError) as e:
-            print(f"    Netzwerkfehler: {e}")
+            print(f"      Netzwerkfehler: {e}")
 
             if attempt < MAX_RETRIES - 1:
                 wait_time = 20 * (attempt + 1)
-                print(f"    Warte {wait_time}s...")
+                print(f"      Warte {wait_time}s...")
                 time.sleep(wait_time)
                 continue
 
             raise
 
         except Exception as e:
-            print(f"    Unerwarteter Fehler: {type(e).__name__}: {e}")
+            print(f"      Unerwarteter Fehler: {type(e).__name__}: {e}")
 
             if attempt < MAX_RETRIES - 1:
                 wait_time = 20 * (attempt + 1)
-                print(f"    Warte {wait_time}s...")
+                print(f"      Warte {wait_time}s...")
                 time.sleep(wait_time)
                 continue
 
@@ -311,27 +267,35 @@ def query_overpass_tile(poi_type, poi_config, south, west, north, east):
     raise RuntimeError(f"POI-Typ '{poi_type}' konnte nicht geladen werden.")
 
 
-def query_overpass(poi_type, poi_config, south, west, north, east):
-    """
-    Fragt eine Kategorie über alle Tiles hinweg ab und führt
-    die Ergebnisse zusammen.
-    """
-    tiles = generate_tiles(south, west, north, east, poi_config.get("tile_size"))
+def query_overpass_region(poi_type, poi_config, region):
+    tiles = generate_tiles(
+        region["south"], region["west"], region["north"], region["east"],
+        poi_config.get("tile_size"),
+    )
 
-    print(f"  {len(tiles)} Tile(s) fuer diese Kategorie")
+    print(f"    {len(tiles)} Tile(s) in Region '{region['name']}'")
 
     all_elements = []
 
     for index, (t_south, t_west, t_north, t_east) in enumerate(tiles, start=1):
         print(
-            f"  Tile {index}/{len(tiles)}: "
+            f"    Tile {index}/{len(tiles)}: "
             f"{t_south:.2f},{t_west:.2f} -> {t_north:.2f},{t_east:.2f}"
         )
-
         elements = query_overpass_tile(
             poi_type, poi_config, t_south, t_west, t_north, t_east
         )
+        all_elements.extend(elements)
 
+    return all_elements
+
+
+def query_overpass_all_regions(poi_type, poi_config):
+    all_elements = []
+
+    for region in REGIONS:
+        print(f"  Region: {region['name']}")
+        elements = query_overpass_region(poi_type, poi_config, region)
         all_elements.extend(elements)
 
     return all_elements
@@ -373,12 +337,7 @@ def convert_elements(elements):
             or "Unbenannter POI"
         )
 
-        place = {
-            "id": osm_id,
-            "name": name,
-            "lat": lat,
-            "lng": lon,
-        }
+        place = {"id": osm_id, "name": name, "lat": lat, "lng": lon}
 
         if tags.get("name:de"):
             place["name_de"] = tags["name:de"]
@@ -415,7 +374,6 @@ def convert_elements(elements):
         }
 
         address = {}
-
         for output_name, osm_tag in address_fields.items():
             if tags.get(osm_tag):
                 address[output_name] = tags[osm_tag]
@@ -443,12 +401,14 @@ def write_json(poi_config, places):
         "type": poi_config["type"],
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "source": "OpenStreetMap",
-        "bounds": {
-            "south": SOUTH,
-            "west": WEST,
-            "north": NORTH,
-            "east": EAST,
-        },
+        "regions": [
+            {
+                "name": r["name"],
+                "south": r["south"], "west": r["west"],
+                "north": r["north"], "east": r["east"],
+            }
+            for r in REGIONS
+        ],
         "places": places,
     }
 
@@ -474,11 +434,7 @@ for poi_config in POI_TYPES:
     print(f"STARTE: {poi_config['name']}")
     print("========================================")
 
-    elements = query_overpass(
-        poi_config["type"],
-        poi_config,
-        SOUTH, WEST, NORTH, EAST,
-    )
+    elements = query_overpass_all_regions(poi_config["type"], poi_config)
 
     places = convert_elements(elements)
 
@@ -489,7 +445,7 @@ for poi_config in POI_TYPES:
     print()
     print("----------------------------------------")
     print(f"{poi_config['name']} abgeschlossen")
-    print(f"Objekte: {len(places)}")
+    print(f"Objekte (nach Dedup): {len(places)}")
     print(f"Datei: {output_file}")
     print("----------------------------------------")
 
@@ -505,12 +461,9 @@ print("OSM POI UPDATE ABGESCHLOSSEN")
 print("========================================")
 print(f"Kategorien: {len(POI_TYPES)}")
 print(f"Gesamtzahl POIs: {total_places}")
-print(f"Gebiet: {SOUTH},{WEST} -> {NORTH},{EAST}")
 print()
 print("Erzeugte Dateien:")
-
 for poi_config in POI_TYPES:
     print(f"  - data/{poi_config['output']}")
-
 print()
 print("========================================")
