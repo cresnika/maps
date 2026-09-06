@@ -51,6 +51,10 @@ REGIONS = [
         "name": "Kroatien & Slowenien",
         "south": 42.3, "west": 13.3, "north": 46.9, "east": 19.5,
     },
+    {
+        "name": "Spanien (Festland + Balearen)",
+        "south": 36.0, "west": -9.5, "north": 43.8, "east": 4.4,
+    },
 ]
 
 
