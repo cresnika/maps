@@ -1038,10 +1038,97 @@
     font-size: 24px;
     line-height: 30px;
     text-align: center;
-    color:#252525;
+    color: var(--accent);
   }
 
   .mountain-pass-popup {
+    min-width: 140px;
+    font-size: 14px;
+    line-height: 1.5;
+    color:#252525;
+  }
+
+  /* ---------- MAP extern POI ---------- */
+    .extern-poi-control {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .extern-poi-label svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    color: #777;
+    --icon-outline: #ccc;
+  }
+
+  .extern-poi-popup-label svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    color: #686767;
+    --icon-outline: rgb(17, 17, 17);
+  }
+  .extern-poi-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    background: rgba(7, 7, 7, 0.8);
+    border-radius: 60px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: #d3d3d3;
+  }
+
+  .extern-poi-switch input {
+    display: none;
+  }
+
+  .extern-poi-slider {
+    position: relative;
+    width: 34px;
+    height: 18px;
+    background: #aaa;
+    border-radius: 18px;
+    transition: 0.2s;
+  }
+
+  .extern-poi-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .extern-poi-switch input:checked + .extern-poi-slider {
+    background: #dd9a1e;
+  }
+
+  .extern-poi-switch input:checked + .extern-poi-slider::after {
+    transform: translateX(16px);
+  }
+
+  .extern-poi-marker {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 30px;
+    text-align: center;
+    color: var(--accent);
+    /* opacity: 0.7;   */
+    --icon-outline: #070707;
+  }
+
+  .extern-poi-popup {
     min-width: 140px;
     font-size: 14px;
     line-height: 1.5;
@@ -1447,81 +1534,95 @@
   let pickingMode = false;
   let calculatedRouteLayer = null;
   let routeCalculationController = null;
-  let mountainPassLayer = L.layerGroup();
-  let mountainPassesVisible = false;
-  let mountainPassData = null;
-  let mountainPassLoadPromise = null;
 
-  const mountainPassSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" fill="currentColor">
-	      <path opacity=".4" d="M97 500.2L201.9 306L259.5 378L262.1 380.6C265 382.9 268.5 384.1 272.3 384C277.2 383.9 281.9 381.6 284.9 377.6L328.1 320L445.9 320L543.2 500.2C544.5 502.7 544.4 505.7 543 508.1C541.6 510.5 538.9 512 536.1 512L104 512C101.9 512 99.9 511.2 98.4 509.7L97.1 508.1C95.7 505.7 95.6 502.7 96.9 500.2z"/>
-	      <path d="M320 64C334.7 64 348.2 72.1 355.2 85L571.2 485C577.9 497.4 577.6 512.4 570.4 524.5L567.4 528.8C561 537 551.6 542.3 541.2 543.6L536 543.9L104 543.9L98.8 543.6C88.5 542.2 79.1 536.9 72.6 528.8L69.6 524.5C63.3 513.9 62.2 501.1 66.6 489.8L68.8 485L284.8 85L287.7 80.4C295.2 70.2 307.2 64 320 64zM97 500.2C95.7 502.7 95.7 505.7 97.2 508.1L98.5 509.7C100 511.1 102 512 104.1 512L536.1 512C538.9 512 541.5 510.5 543 508.1C544.4 505.7 544.5 502.7 543.2 500.2L445.8 320L328 320L284.8 377.6C281.8 381.6 277.2 383.9 272.2 384C268.5 384.1 264.9 382.8 262 380.6L259.5 378L201.9 306L97 500.2zM320 96C317.6 96 315.4 97.1 313.9 98.9L312.6 101L218.4 275.3L220.5 277.9L271.6 341.7L307.2 294.3L309.8 291.6C312.6 289.2 316.2 287.9 320 287.9L428.5 287.9L327.1 100.1C325.7 97.5 323 95.9 320 95.9z"/>
-      </svg>`;
-
-  const mountainPassIcon = L.divIcon({
-    className: 'mountain-pass-marker',
-    html: mountainPassSvg,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -14]
-  });
-
-  async function loadMountainPasses() {
-    if (!mountainPassesVisible) {
+  //#region external POI
+  let extPOIs = [
+    {
+        description: 'Tankstellen',
+        icon: L.divIcon({
+                  className: 'extern-poi-marker',
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                            <path fill="currentColor" d="M112 128L112 560L368 560L368 128C368 101.5 346.5 80 320 80L160 80C133.5 80 112 101.5 112 128zM160 160C160 142.3 174.3 128 192 128L288 128C305.7 128 320 142.3 320 160L320 224C320 241.7 305.7 256 288 256L192 256C174.3 256 160 241.7 160 224L160 160zM512 151.5L512 232C512 254.1 529.9 272 552 272L560 272L560 213.1C560 201.9 555.3 191.2 547 183.6L512 151.5z"/>
+                            <path fill="var(--icon-outline, currentColor)" d="M320 80C346.5 80 368 101.5 368 128L368 560L112 560L112 128C112 101.5 133.5 80 160 80L320 80zM96 128L96 560L88 560C83.6 560 80 563.6 80 568C80 572.4 83.6 576 88 576L392 576C396.4 576 400 572.4 400 568C400 563.6 396.4 560 392 560L384 560L384 352L392 352C422.9 352 448 377.1 448 408L448 448C448 483.3 476.7 512 512 512C547.3 512 576 483.3 576 448L576 213.1C576 197.4 569.4 182.4 557.8 171.8L477.4 98.1C474.1 95.1 469.1 95.3 466.1 98.6C463.1 101.9 463.3 106.9 466.6 109.9L496 136.9L496 232C496 262.9 521.1 288 552 288L560 288L560 448C560 474.5 538.5 496 512 496C485.5 496 464 474.5 464 448L464 408C464 368.2 431.8 336 392 336L384 336L384 128C384 92.7 355.3 64 320 64L160 64C124.7 64 96 92.7 96 128zM512 232L512 151.5L547 183.6C555.3 191.2 560 201.9 560 213.1L560 272L552 272C529.9 272 512 254.1 512 232zM192 144L288 144C296.8 144 304 151.2 304 160L304 224C304 232.8 296.8 240 288 240L192 240C183.2 240 176 232.8 176 224L176 160C176 151.2 183.2 144 192 144zM160 160L160 224C160 241.7 174.3 256 192 256L288 256C305.7 256 320 241.7 320 224L320 160C320 142.3 305.7 128 288 128L192 128C174.3 128 160 142.3 160 160z"/>
+                          </svg>`,
+                  iconSize: [30, 30],
+                  iconAnchor: [15, 15],
+                  popupAnchor: [0, -14]
+                }),
+        layer: L.layerGroup(),
+        visible: false,
+        poiData: null,
+        loadPromise: null,
+        dataFilename: 'data/fuel.json',
+        control: null
+    },
+    {
+        description: 'Gebirgspässe',
+        icon: L.divIcon({
+                  className: 'extern-poi-marker',
+                  html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path fill="currentColor" d="M97 500.2L201.9 306L259.5 378L262.1 380.6C265 382.9 268.5 384.1 272.3 384C277.2 383.9 281.9 381.6 284.9 377.6L328.1 320L445.9 320L543.2 500.2C544.5 502.7 544.4 505.7 543 508.1C541.6 510.5 538.9 512 536.1 512L104 512C101.9 512 99.9 511.2 98.4 509.7L97.1 508.1C95.7 505.7 95.6 502.7 96.9 500.2z"/>
+                          <path fill="var(--icon-outline, currentColor)" d="M320 64C334.7 64 348.2 72.1 355.2 85L571.2 485C577.9 497.4 577.6 512.4 570.4 524.5L567.4 528.8C561 537 551.6 542.3 541.2 543.6L536 543.9L104 543.9L98.8 543.6C88.5 542.2 79.1 536.9 72.6 528.8L69.6 524.5C63.3 513.9 62.2 501.1 66.6 489.8L68.8 485L284.8 85L287.7 80.4C295.2 70.2 307.2 64 320 64zM97 500.2C95.7 502.7 95.7 505.7 97.2 508.1L98.5 509.7C100 511.1 102 512 104.1 512L536.1 512C538.9 512 541.5 510.5 543 508.1C544.4 505.7 544.5 502.7 543.2 500.2L445.8 320L328 320L284.8 377.6C281.8 381.6 277.2 383.9 272.2 384C268.5 384.1 264.9 382.8 262 380.6L259.5 378L201.9 306L97 500.2zM320 96C317.6 96 315.4 97.1 313.9 98.9L312.6 101L218.4 275.3L220.5 277.9L271.6 341.7L307.2 294.3L309.8 291.6C312.6 289.2 316.2 287.9 320 287.9L428.5 287.9L327.1 100.1C325.7 97.5 323 95.9 320 95.9z"/>
+                        </svg>`,
+                  iconSize: [30, 30],
+                  iconAnchor: [15, 15],
+                  popupAnchor: [0, -14]
+                }),
+        layer: L.layerGroup(),
+        visible: false,
+        poiData: null,
+        loadPromise: null,
+        dataFilename: 'data/mountain_passes.json',
+        control: null
+    }
+  ];  
+ 
+  async function loadExternPOI(poi) {
+    if (!poi.visible) {
       return;
     }
 
-    /*
-    * Die JSON-Datei wird nur einmal geladen.
-    * Danach bleibt sie im Speicher und wird nicht bei jedem
-    * Verschieben der Karte erneut heruntergeladen.
-    */
-    if (!mountainPassData) {
-      if (!mountainPassLoadPromise) {
-        mountainPassLoadPromise = fetch('data/mountain_passes.json')
+    if (!poi.poiData) {
+      if (!poi.loadPromise) {
+        poi.loadPromise = fetch(poi.dataFilename)
           .then(response => {
             if (!response.ok) {
               throw new Error(`HTTP ${response.status}`);
             }
-
             return response.json();
           })
           .then(data => {
             if (!data || !Array.isArray(data.places)) {
-              throw new Error('Ungültiges Gebirgspässe-Format');
+              throw new Error('Ungültiges POI-Format');
             }
 
-            mountainPassData = data;
+            poi.poiData = data;
             return data;
           })
           .finally(() => {
-            mountainPassLoadPromise = null;
+            poi.loadPromise = null;
           });
       }
-
-      try {
-        await mountainPassLoadPromise;
-      } catch (error) {
-        console.warn(
-          'Gebirgspässe konnten nicht geladen werden:',
-          error
-        );
-        return;
-      }
     }
 
-    /*
-    * Falls der Schalter während des Ladens wieder deaktiviert wurde,
-    * nichts mehr anzeigen.
-    */
-    if (!mountainPassesVisible) {
+    try {
+      await poi.loadPromise;
+    } catch (error) {
+      console.warn(poi.description + 
+        ' konnten nicht geladen werden:',
+        error
+      );
       return;
     }
-    renderMountainPasses();
+    if (!poi.visible) {
+      return;
+    }
+
+    renderextPOI(poi);
   }
 
-  function renderMountainPasses() {
-    if (!mountainPassesVisible || !mountainPassData) {
+  function renderextPOI(poi) {
+    if (!poi.visible || !poi.poiData) {
       return;
     }
 
@@ -1531,7 +1632,7 @@
     * Prüfen, ob der aktuelle Kartenausschnitt überhaupt
     * innerhalb des Datenbereichs liegt.
     */
-    const dataBounds = mountainPassData.bounds;
+    const dataBounds = poi.poiData.bounds;
 
     if (dataBounds) {
       const intersects =
@@ -1541,74 +1642,62 @@
         mapBounds.getWest() <= dataBounds.east;
 
       if (!intersects) {
-        mountainPassLayer.clearLayers();
+        poi.layer.clearLayers();
         return;
       }
     }
 
-    mountainPassLayer.clearLayers();
+    poi.layer.clearLayers();
 
     let visibleCount = 0;
 
-    for (const pass of mountainPassData.places) {
-      if (
-        typeof pass.lat !== 'number' ||
-        typeof pass.lng !== 'number'
-      ) {
+    for (const place of poi.poiData.places) {
+      if (typeof place.lat !== 'number' || typeof place.lng !== 'number') {
         continue;
       }
 
-      /*
-      * Nur Pässe innerhalb des aktuell sichtbaren Kartenausschnitts
-      * als Leaflet-Marker erzeugen.
-      */
-      if (!mapBounds.contains([pass.lat, pass.lng])) {
+      if (!mapBounds.contains([place.lat, place.lng])) {
         continue;
       }
 
-      const name =
-        pass.name ||
-        pass.name_de ||
-        'Gebirgspass';
+      const name = place.name || place.name_de || poi.description;
 
       const elevation =
-        pass.ele !== undefined &&
-        pass.ele !== null &&
-        pass.ele !== ''
-          ? `${pass.ele} m`
+        place.ele !== undefined &&
+        place.ele !== null &&
+        place.ele !== ''
+          ? `${place.ele} m`
           : '';
 
       const marker = L.marker(
-        [pass.lat, pass.lng],
+        [place.lat, place.lng],
         {
-          icon: mountainPassIcon,
+          icon: poi.icon,
           keyboard: false
         }
       );
 
-      let popup = `
-        <div class="mountain-pass-popup">
-          <strong class="mountain-pass-label-dark">${mountainPassSvg} ${escapeHtml(name)}</strong>
-      `;
+      let popup = `<div class="extern-poi-popup">
+                   <strong class="extern-poi-popup-label">${poi.icon.options.html} ${escapeHtml(name)}</strong>`;
 
       if (elevation) {
         popup += `<br>${escapeHtml(String(elevation))}`;
       }
 
       if (
-        pass.name_de &&
-        pass.name_de !== name
+        place.name_de &&
+        place.name_de !== name
       ) {
         popup += `
           <br>
-          <small>${escapeHtml(pass.name_de)}</small>
+          <small>${escapeHtml(place.name_de)}</small>
         `;
       }
 
-      if (pass.wikidata) {
+      if (place.wikidata) {
         popup += `
           <br>
-          <small>Wikidata: ${escapeHtml(pass.wikidata)}</small>
+          <small>Wikidata: ${escapeHtml(place.wikidata)}</small>
         `;
       }
 
@@ -1617,66 +1706,58 @@
       `;
 
       marker.bindPopup(popup);
-      marker.addTo(mountainPassLayer);
+      marker.addTo(poi.layer);
 
       visibleCount++;
     }
 
-    console.log(
-      `Gebirgspässe: ${visibleCount} im aktuellen Kartenausschnitt`
-    );
+    console.log(poi.description + `: ${visibleCount} im aktuellen Kartenausschnitt`);
   }
 
-  const mountainPassControl = L.control({
-    position: 'topright'
-  });
+  extPOIs.forEach(poi => {
+    if (!poi.control) {
+        poi.control = L.control({ position: 'topright' });
+    }
 
-  mountainPassControl.onAdd = function() {
+    poi.control.onAdd = function() {
+        const container = L.DomUtil.create(
+          'div',
+          'leaflet-bar extern-poi-control'
+        );
 
-    const container = L.DomUtil.create(
-      'div',
-      'leaflet-bar mountain-pass-control'
-    );
+        container.innerHTML = `
+          <label class="extern-poi-switch">
+            <span class="extern-poi-label">${poi.icon.options.html} ${poi.description}</span>
+            <input type="checkbox" id="extern-poi-toggle">
+            <span class="extern-poi-slider"></span>
+          </label>
+        `;
 
-    container.innerHTML = `
-      <label class="mountain-pass-switch">
-        <span class="mountain-pass-label">${mountainPassSvg} Gebirgspässe</span>
-        <input type="checkbox" id="mountain-pass-toggle">
-        <span class="mountain-pass-slider"></span>
-      </label>
-    `;
+        /*
+        * Verhindert, dass Klicks auf den Switch gleichzeitig
+        * als Kartenklick interpretiert werden.
+        */
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
 
-    /*
-    * Verhindert, dass Klicks auf den Switch gleichzeitig
-    * als Kartenklick interpretiert werden.
-    */
-    L.DomEvent.disableClickPropagation(container);
-    L.DomEvent.disableScrollPropagation(container);
+        const checkbox = container.querySelector('#extern-poi-toggle');
+        checkbox.addEventListener('change', () => {
+          poi.visible = checkbox.checked;
 
-    const checkbox =
-      container.querySelector('#mountain-pass-toggle');
-
-    checkbox.addEventListener('change', () => {
-
-      mountainPassesVisible = checkbox.checked;
-
-      if (mountainPassesVisible) {
-
-        mountainPassLayer.addTo(map);
-
-        loadMountainPasses();
-
-      } else {
-
-        mountainPassLayer.clearLayers();
-        map.removeLayer(mountainPassLayer);
-      }
-    });
-
-    return container;
-  };
-
-  mountainPassControl.addTo(map);
+          if (poi.visible) {
+            poi.layer.addTo(map);
+            loadExternPOI(poi);
+          } else {
+            poi.layer.clearLayers();
+            map.removeLayer(poi.layer);
+          }
+        });
+        console.log('Layer hinzugefügt:', poi.description);
+        return container;
+    };
+  poi.control.addTo(map);  
+});
+  //#endregion
 
   async function reverseGeocodeWaypoint(wp) {
     const lat = wp.lat;
@@ -1803,9 +1884,9 @@
   function waypointSvg(index) {
     return `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="waypoint-svg">
-        <path fill="currentColor" opacity="0.6" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
+        <path fill="currentColor" opacity="0.8" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
         <path fill="#fff" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
-        <text
+        <text 
           x="320"
           y="300"
           text-anchor="middle"
@@ -1905,26 +1986,6 @@
     return wp;
   }
 
-/*
-  function createWaypoint(latlng, label){
-    const id = 'wp' + (waypointCounter++);
-    const marker = L.marker(latlng, { draggable: true, icon: waypointIcon(0) }).addTo(planningLayer);
-    const wp = { id, lat: latlng.lat, lng: latlng.lng, label: label || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)), marker, segmentPreference: 'recommended', avoidHighways: false };
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
-      wp.lat = pos.lat;
-      wp.lng = pos.lng;
-      maybeAutoRecalculateRoute();
-    });
-    marker.on('click', (e) => {
-      if (e.originalEvent && e.originalEvent.shiftKey){
-        e.originalEvent.stopPropagation();
-        removeWaypoint(wp.id);
-      }
-    });
-    return wp;
-  }
-*/
   // When 2+ waypoints already exist, insert a newly added point wherever it
   // adds the least detour to the existing route, instead of always at the end.
   function bestInsertionIndex(latlng){
@@ -2220,9 +2281,9 @@
   });
 
   map.on('moveend', () => {
-    if (mountainPassesVisible) {
-      renderMountainPasses();
-    }
+    extPOIs.forEach(poi => {
+      if (poi.visible) { renderextPOI(poi); }
+    })
   });
 
 
