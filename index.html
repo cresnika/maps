@@ -983,7 +983,7 @@
   }
 
   /* ---------- MAP extern POI ---------- */
-    .extern-poi-control {
+  .extern-poi-control {
     background: transparent;
     border: none;
     box-shadow: none;
@@ -993,17 +993,18 @@
     width: 20px;
     height: 20px;
     vertical-align: middle;
-    color: #777;
-    --icon-outline: #ccc;
+    color: var(--text-faint);
+    --icon-outline: var(--text);
   }
 
   .extern-poi-popup-label svg {
     width: 20px;
     height: 20px;
     vertical-align: middle;
-    color: #686767;
-    --icon-outline: rgb(17, 17, 17);
+    color: var(--text);
+    --icon-outline: black;
   }
+
   .extern-poi-switch {
     display: flex;
     align-items: center;
@@ -1057,9 +1058,21 @@
     font-size: 24px;
     line-height: 30px;
     text-align: center;
-    color: var(--accent);
+    color: var(--poi-color, var(--accent));
     opacity: 0.8;
     --icon-outline: #070707;
+  }
+
+  .extern-poi-marker-fuels {
+    --poi-color: #006eff;
+  }
+
+  .extern-poi-marker-mountain-passes {
+    --poi-color: rgb(255, 176, 29);
+  }
+
+  .extern-poi-marker-hotels {
+    --poi-color: #3fdd00;
   }
 
   .extern-poi-popup {
@@ -1115,6 +1128,36 @@
   .poi-popup-btn:hover { background: var(--accent); border-color: var(--accent); color: #1b2420; }
   .poi-popup-actions + .poi-popup-actions { margin-top: 4px; }
   .poi-popup-btn-wide { width: 100%; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%) translateY(20px);
+
+    background: rgba(40, 40, 40, 0.92);
+    color: #fff;
+
+    padding: 10px 18px;
+    border-radius: 8px;
+
+    font-size: 14px;
+    z-index: 9999;
+
+    opacity: 0;
+    pointer-events: none;
+
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
 </style>
 </head>
 <body>
@@ -1368,6 +1411,24 @@
 (function(){
   "use strict";
 
+  // ---------- Toast ----------
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  document.body.appendChild(toast);
+
+  let toastTimeout;
+
+  function showToast(message, duration = 2500) {
+    toast.textContent = message;
+    toast.classList.add('show');
+
+    clearTimeout(toastTimeout);
+
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('show');
+    }, duration);
+  }
+
   // ---------- Tab switching ----------
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1477,20 +1538,30 @@
 
   //#region external POI
   let extPOIs = [
-    {
+  {
         description: 'Gebirgspässe',
-        icon: L.divIcon({
-                  className: 'extern-poi-marker',
+        mapicon: L.divIcon({
+                  className: 'extern-poi-marker extern-poi-marker-mountain-passes',
+                  html: `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                            <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                            <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                            <path fill="var(--icon-outline)" opacity="0.4" d="M97.04,265.07h189.92l-44.53-82.49h-44.76l-19.12,25.5c-2.11,2.81-5.39,4.45-8.91,4.5-3.05.05-6-1.17-8.11-3.37l-.84-.98-19.4-24.98-44.15,81.79-.09.05Z"/>
+                            <path fill="var(--icon-outline)" d="M192,62.58c6.89,0,13.22,3.8,16.5,9.84l101.24,187.48c3.14,5.81,3,12.84-.37,18.51l-1.41,2.02c-3,3.84-7.41,6.33-12.28,6.94l-2.44.14H90.76l-2.44-.14c-4.83-.61-9.23-3.09-12.28-6.94l-1.41-2.02c-3.37-5.67-3.52-12.7-.37-18.51l101.24-187.48,1.36-2.16c3.52-4.78,9.09-7.69,15.14-7.69ZM197.62,182.57l-19.12,25.5c-2.11,2.81-5.39,4.45-8.91,4.5-3.05.05-6-1.17-8.11-3.37l-.84-.98-19.4-24.98-44.15,81.79h189.92l-44.53-82.49h-44.76l-.09.05ZM152.86,161.62l16.45,21.14,13.69-18.19.84-1.03c2.11-2.2,5.06-3.47,8.16-3.47h38.25l-38.25-70.87-39.09,72.42h-.05Z"/>
+                          </svg>`,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 24],
+                  popupAnchor: [0, -11]
+                }),
+        labelicon: L.divIcon({
                   html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                          <path fill="currentColor" d="M97 500.2L201.9 306L259.5 378L262.1 380.6C265 382.9 268.5 384.1 272.3 384C277.2 383.9 281.9 381.6 284.9 377.6L328.1 320L445.9 320L543.2 500.2C544.5 502.7 544.4 505.7 543 508.1C541.6 510.5 538.9 512 536.1 512L104 512C101.9 512 99.9 511.2 98.4 509.7L97.1 508.1C95.7 505.7 95.6 502.7 96.9 500.2z"/>
-                          <path fill="var(--icon-outline, currentColor)" d="M320 64C334.7 64 348.2 72.1 355.2 85L571.2 485C577.9 497.4 577.6 512.4 570.4 524.5L567.4 528.8C561 537 551.6 542.3 541.2 543.6L536 543.9L104 543.9L98.8 543.6C88.5 542.2 79.1 536.9 72.6 528.8L69.6 524.5C63.3 513.9 62.2 501.1 66.6 489.8L68.8 485L284.8 85L287.7 80.4C295.2 70.2 307.2 64 320 64zM97 500.2C95.7 502.7 95.7 505.7 97.2 508.1L98.5 509.7C100 511.1 102 512 104.1 512L536.1 512C538.9 512 541.5 510.5 543 508.1C544.4 505.7 544.5 502.7 543.2 500.2L445.8 320L328 320L284.8 377.6C281.8 381.6 277.2 383.9 272.2 384C268.5 384.1 264.9 382.8 262 380.6L259.5 378L201.9 306L97 500.2zM320 96C317.6 96 315.4 97.1 313.9 98.9L312.6 101L218.4 275.3L220.5 277.9L271.6 341.7L307.2 294.3L309.8 291.6C312.6 289.2 316.2 287.9 320 287.9L428.5 287.9L327.1 100.1C325.7 97.5 323 95.9 320 95.9z"/>
+                            <path opacity=".4" fill="var(--text)" d="M117.9 496L523.1 496L428.1 320L332.6 320L291.8 374.4C287.3 380.4 280.3 383.9 272.8 384C266.3 384.1 260 381.5 255.5 376.8L253.7 374.7L212.3 321.4L118.1 495.9z"/>
+                            <path fill="var(--icon-outline)" d="M320.5 64C335.2 64 348.7 72.1 355.7 85L571.7 485C578.4 497.4 578.1 512.4 570.9 524.5L567.9 528.8C561.5 537 552.1 542.3 541.7 543.6L536.5 543.9L104.5 543.9L99.3 543.6C89 542.3 79.6 537 73.1 528.8L70.1 524.5C62.9 512.4 62.6 497.4 69.3 485L285.3 85L288.2 80.4C295.7 70.2 307.6 64 320.5 64zM332.5 320L291.7 374.4C287.2 380.4 280.2 383.9 272.7 384C266.2 384.1 259.9 381.5 255.4 376.8L253.6 374.7L212.2 321.4L118 495.9L523.2 495.9L428.2 319.9L332.7 319.9zM237 275.3L272.1 320.4L301.3 281.6L303.1 279.4C307.6 274.7 313.9 272 320.5 272L402.1 272L320.5 120.8L237.1 275.3z"/>
                         </svg>`,
-                  iconSize: [30, 30],
-                  iconAnchor: [15, 15],
-                  popupAnchor: [0, -14]
                 }),
         layer: L.layerGroup(),
         visible: false,
+        zoomLimit: 6,
+        zoomVisibility: false,
         poiData: null,
         loadPromise: null,
         dataFilename: 'data/mountain_passes.json',
@@ -1498,21 +1569,62 @@
     },
     {
         description: 'Tankstellen',
-        icon: L.divIcon({
-                  className: 'extern-poi-marker',
+        mapicon: L.divIcon({
+                  className: 'extern-poi-marker extern-poi-marker-fuels',
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                            <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                            <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                            <path fill="var(--icon-outline)" d="M122.32,184.45v108.39h94.84v-108.39h-94.84ZM284.9,137.75v19.6c0,7.49,6.05,13.55,13.55,13.55v-14.78c0-3.81-1.61-7.41-4.4-9.99l-9.15-8.38Z"/>
+                            <path fill="var(--icon-outline)" d="M203.61,103.16c7.49,0,13.55,6.05,13.55,13.55v54.19h-94.84v-54.19c0-7.49,6.05-13.55,13.55-13.55h67.74ZM217.16,184.45v108.39h-94.84v-108.39h94.84ZM108.77,116.71v176.13c-3.73,0-6.77,3.05-6.77,6.77s3.05,6.77,6.77,6.77h121.94c3.73,0,6.77-3.05,6.77-6.77s-3.05-6.77-6.77-6.77v-67.74h6.77c11.22,0,20.32,9.1,20.32,20.32v6.77c0,14.95,12.15,27.1,27.1,27.1s27.1-12.15,27.1-27.1v-96.07c0-7.58-3.18-14.86-8.81-19.98l-34.04-31.2c-2.75-2.54-7.03-2.33-9.57.42s-2.33,7.03.42,9.57l11.35,10.42v32.01c0,14.95,12.15,27.1,27.1,27.1v67.74c0,7.49-6.05,13.55-13.55,13.55s-13.55-6.05-13.55-13.55v-6.77c0-18.71-15.16-33.87-33.87-33.87h-6.77v-94.84c0-14.95-12.15-27.1-27.1-27.1h-67.74c-14.95,0-27.1,12.15-27.1,27.1ZM298.45,170.9c-7.49,0-13.55-6.05-13.55-13.55v-19.6l9.15,8.38c2.79,2.58,4.4,6.18,4.4,9.99v14.78Z"/>
+	                        </svg>`,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 24],
+                  popupAnchor: [0, -11]
+                }),
+        labelicon: L.divIcon({
                   html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                            <path fill="currentColor" d="M112 128L112 560L368 560L368 128C368 101.5 346.5 80 320 80L160 80C133.5 80 112 101.5 112 128zM160 160C160 142.3 174.3 128 192 128L288 128C305.7 128 320 142.3 320 160L320 224C320 241.7 305.7 256 288 256L192 256C174.3 256 160 241.7 160 224L160 160zM512 151.5L512 232C512 254.1 529.9 272 552 272L560 272L560 213.1C560 201.9 555.3 191.2 547 183.6L512 151.5z"/>
-                            <path fill="var(--icon-outline, currentColor)" d="M320 80C346.5 80 368 101.5 368 128L368 560L112 560L112 128C112 101.5 133.5 80 160 80L320 80zM96 128L96 560L88 560C83.6 560 80 563.6 80 568C80 572.4 83.6 576 88 576L392 576C396.4 576 400 572.4 400 568C400 563.6 396.4 560 392 560L384 560L384 352L392 352C422.9 352 448 377.1 448 408L448 448C448 483.3 476.7 512 512 512C547.3 512 576 483.3 576 448L576 213.1C576 197.4 569.4 182.4 557.8 171.8L477.4 98.1C474.1 95.1 469.1 95.3 466.1 98.6C463.1 101.9 463.3 106.9 466.6 109.9L496 136.9L496 232C496 262.9 521.1 288 552 288L560 288L560 448C560 474.5 538.5 496 512 496C485.5 496 464 474.5 464 448L464 408C464 368.2 431.8 336 392 336L384 336L384 128C384 92.7 355.3 64 320 64L160 64C124.7 64 96 92.7 96 128zM512 232L512 151.5L547 183.6C555.3 191.2 560 201.9 560 213.1L560 272L552 272C529.9 272 512 254.1 512 232zM192 144L288 144C296.8 144 304 151.2 304 160L304 224C304 232.8 296.8 240 288 240L192 240C183.2 240 176 232.8 176 224L176 160C176 151.2 183.2 144 192 144zM160 160L160 224C160 241.7 174.3 256 192 256L288 256C305.7 256 320 241.7 320 224L320 160C320 142.3 305.7 128 288 128L192 128C174.3 128 160 142.3 160 160z"/>
+                            <path opacity=".4" fill="var(--text)" d="M128 288L128 544L352 544L352 288L128 288zM512 177.7L512 224C512 241.7 526.3 256 544 256L544 221.1C544 212.1 540.2 203.6 533.6 197.5L512 177.7z"/>
+                            <path fill="var(--icon-outline)" d="M320 96C337.7 96 352 110.3 352 128L352 256L128 256L128 128C128 110.3 142.3 96 160 96L320 96zM352 288L352 544L128 544L128 288L352 288zM96 128L96 544C87.2 544 80 551.2 80 560C80 568.8 87.2 576 96 576L384 576C392.8 576 400 568.8 400 560C400 551.2 392.8 544 384 544L384 384L400 384C426.5 384 448 405.5 448 432L448 448C448 483.3 476.7 512 512 512C547.3 512 576 483.3 576 448L576 221.1C576 203.2 568.5 186 555.2 173.9L474.8 100.2C468.3 94.2 458.2 94.7 452.2 101.2C446.2 107.7 446.7 117.8 453.2 123.8L480 148.4L480 224C480 259.3 508.7 288 544 288L544 448C544 465.7 529.7 480 512 480C494.3 480 480 465.7 480 448L480 432C480 387.8 444.2 352 400 352L384 352L384 128C384 92.7 355.3 64 320 64L160 64C124.7 64 96 92.7 96 128zM544 256C526.3 256 512 241.7 512 224L512 177.7L533.6 197.5C540.2 203.6 544 212.1 544 221.1L544 256z"/>
                           </svg>`,
-                  iconSize: [30, 30],
-                  iconAnchor: [15, 15],
-                  popupAnchor: [0, -14]
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 24],
+                  popupAnchor: [0, -11]
                 }),
         layer: L.layerGroup(),
         visible: false,
+        zoomLimit: 11,
+        zoomVisibility: false,
         poiData: null,
         loadPromise: null,
         dataFilename: 'data/fuel.json',
+        control: null
+    },
+    {
+        description: 'Hotels',
+        mapicon: L.divIcon({
+                  className: 'extern-poi-marker extern-poi-marker-hotels',
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                              <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                              <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                              <path fill="var(--icon-outline)" d="M116.44,109.44v97.78h85.56v-61.11h73.33c20.24,0,36.67,16.42,36.67,36.67v97.78h-24.44v-36.67H116.44v36.67h-24.44V109.44h24.44ZM134.78,170.56c0-13.48,10.96-24.44,24.44-24.44s24.44,10.96,24.44,24.44-10.96,24.44-24.44,24.44-24.44-10.96-24.44-24.44Z"/>
+                          </svg>`,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 24],
+                  popupAnchor: [0, -11]
+                }),
+        labelicon: L.divIcon({
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                            <path opacity=".4" fill="var(--text)" d="M272 256C272 291.3 243.3 320 208 320C172.7 320 144 291.3 144 256C144 220.7 172.7 192 208 192C243.3 192 272 220.7 272 256zM320 224C320 206.3 334.3 192 352 192L512 192C565 192 608 235 608 288L608 352L320 352L320 224z"/>
+                            <path fill="var(--icon-outline)" d="M64 96C81.7 96 96 110.3 96 128L96 352L608 352L608 512C608 529.7 593.7 544 576 544C558.3 544 544 529.7 544 512L544 448L96 448L96 512C96 529.7 81.7 544 64 544C46.3 544 32 529.7 32 512L32 128C32 110.3 46.3 96 64 96z"/>
+                          </svg>`,
+                }),
+        layer: L.layerGroup(),
+        visible: false,
+        zoomLimit: 11,
+        zoomVisibility: false,
+        poiData: null,
+        loadPromise: null,
+        dataFilename: '',    // "data/hotels.json" leave blanc for designtime loading
         control: null
     },
   ];  
@@ -1523,25 +1635,31 @@
     }
 
     if (!poi.poiData) {
-      if (!poi.loadPromise) {
-        poi.loadPromise = fetch(poi.dataFilename)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-            if (!data || !Array.isArray(data.places)) {
-              throw new Error('Ungültiges POI-Format');
-            }
+      // if (!poi.dataFilename) {
+      //   showToast('loading online requested');
+      // }
+      // else
+      {
+        if (!poi.loadPromise) {
+          poi.loadPromise = fetch(poi.dataFilename)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (!data || !Array.isArray(data.places)) {
+                throw new Error('Ungültiges POI-Format');
+              }
 
-            poi.poiData = data;
-            return data;
-          })
-          .finally(() => {
-            poi.loadPromise = null;
-          });
+              poi.poiData = data;
+              return data;
+            })
+            .finally(() => {
+              poi.loadPromise = null;
+            });
+        }
       }
     }
 
@@ -1562,8 +1680,15 @@
   }
 
   function renderextPOI(poi) {
+    poi.zoomVisibility = map.getZoom() >= poi.zoomLimit;
+
     if (!poi.visible || !poi.poiData) {
       return;
+    }
+
+    if (!poi.zoomVisibility) {
+        poi.layer.clearLayers();
+        return;
     }
 
     const mapBounds = map.getBounds();
@@ -1612,13 +1737,13 @@
       const marker = L.marker(
         [place.lat, place.lng],
         {
-          icon: poi.icon,
+          icon: poi.mapicon,
           keyboard: false
         }
       );
 
       let popup = `<div class="extern-poi-popup">
-                   <strong class="extern-poi-popup-label">${poi.icon.options.html} ${escapeHtml(name)}</strong>`;
+                   <strong class="extern-poi-popup-label">${poi.labelicon.options.html} ${escapeHtml(name)}</strong>`;
 
       if (elevation) {
         popup += `<br>${escapeHtml(String(elevation))}`;
@@ -1667,7 +1792,7 @@
 
         container.innerHTML = `
           <label class="extern-poi-switch">
-            <span class="extern-poi-label">${poi.icon.options.html} ${poi.description}</span>
+            <span class="extern-poi-label">${poi.labelicon.options.html} ${poi.description}</span>
             <input type="checkbox" id="extern-poi-toggle">
             <span class="extern-poi-slider"></span>
           </label>
@@ -1683,6 +1808,10 @@
         const checkbox = container.querySelector('#extern-poi-toggle');
         checkbox.addEventListener('change', () => {
           poi.visible = checkbox.checked;
+
+          if (poi.visible && (map.getZoom() < poi.zoomLimit)) {
+            showToast('Zoomen um ' + poi.description + ' anzuzeigen');
+          }
 
           if (poi.visible) {
             poi.layer.addTo(map);
@@ -4991,7 +5120,7 @@
   });
 
   loadRoutesFromStorage().then(renderRoutesList);
-
+ 
   loadViewerList();
 
 })();
