@@ -91,7 +91,7 @@ POI_TYPES = [
         "type": "fuel",
         "output": "fuel.json",
         "query": 'node["amenity"="fuel"]',
-        "tile_size": none,
+        "tile_size": None,
     },
 #    {
 #        "name": "Campingplaetze",
