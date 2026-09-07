@@ -983,6 +983,14 @@
   }
 
   /* ---------- MAP extern POI ---------- */
+  .extern-poi-control.leaflet-bar {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+  }
+
   .extern-poi-control {
     background: transparent;
     border: none;
@@ -1007,6 +1015,7 @@
   #extern-poi-loading-icon.hidden {
     display: none;
   }
+  
   .extern-poi-popup-label svg {
     width: 20px;
     height: 20px;
@@ -1632,12 +1641,12 @@
         dataFilename: '', // 'data/fuel.json',
         control: null,
         overpassQuery: 'nwr["amenity"="fuel"]',
-        tileSizeDeg: 0.1,
+        tileSizeDeg: 0.3,
         cache: new Map(),
         pendingTiles: new Set()
     },
     {
-        description: 'Hotels Unterkünfte',
+        description: 'Hotels',
         mapicon: L.divIcon({
                   className: 'extern-poi-marker extern-poi-marker-hotels',
                   html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
@@ -1671,7 +1680,7 @@
         dataFilename: '',    // "data/hotels.json" leave blanc for designtime loading
         control: null,
         overpassQuery: 'nwr["tourism"="hotel"]',
-        tileSizeDeg: 0.1,
+        tileSizeDeg: 0.3,
         cache: new Map(),
         pendingTiles: new Set()
     },
