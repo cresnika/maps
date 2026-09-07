@@ -46,7 +46,7 @@ REGIONS = [
     {
         "name": "Italien (inkl. Sardinien & Sizilien)",
         "south": 35.4, "west": 6.6, "north": 47.1, "east": 18.6,
-    }
+    },
     # {
     #     "name": "Kroatien & Slowenien",
     #     "south": 42.3, "west": 13.3, "north": 46.9, "east": 19.5,
@@ -92,7 +92,7 @@ POI_TYPES = [
         "output": "fuel.json",
         "query": 'node["amenity"="fuel"]',
         "tile_size": none,
-#    },
+    },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
