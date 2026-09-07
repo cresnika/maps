@@ -144,7 +144,7 @@ POI_TYPES = [
             '^(motorway|trunk|primary|secondary|tertiary|'
             'unclassified|residential|service)$'
         ),
-        "tile_size": None,
+        "tile_size": 3.0,
     },
     # {
     #     "name": "Tankstellen",
