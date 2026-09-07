@@ -37,8 +37,21 @@ OVERPASS_TIMEOUT = 120
 REGIONS = [
     {
         "name": "Österreich",
-        "south": 46.369542083899, "west": 9.525223464166924, "north": 49.0237861867675, "east": 17.165528039959487,
+        "north": 49.0237861867675, "east": 17.165528039959487, "south": 46.369542083899, "west": 9.525223464166924, 
     },
+    {
+        "name": "Italien",
+        "north": 47.09731041300716, "east": 18.55654119051602, "south": 36.634347031948394, "west": 6.622642225252252, 
+    },
+    {
+        "name": "Schweiz",
+        "north": 47.80980842423389, "east": 10.496977600927035, "south": 45.81623534018711, "west": 5.950011033798339, 
+    },
+    {
+        "name": "Deutschland",
+        "north": 55.06055867850519, "east": 15.050592435538157, "south": 47.26371645002933, "west": 5.860528922469316, 
+    },
+
     # {
     #     "name": "DACH + Alpen",
     #     "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
@@ -96,7 +109,7 @@ POI_TYPES = [
         "type": "fuel",
         "output": "fuel.json",
         "query": 'nwr["amenity"="fuel"]',
-        "tile_size": 2.0,
+        "tile_size": None,
     },
 #    {
 #        "name": "Campingplaetze",
