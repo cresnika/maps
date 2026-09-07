@@ -37,21 +37,44 @@ OVERPASS_TIMEOUT = 120
 REGIONS = [
     {
         "name": "Österreich",
-        "north": 49.0237861867675, "east": 17.165528039959487, "south": 46.369542083899, "west": 9.525223464166924, 
+         "south": 46.369542083899, "west": 9.525223464166924, "north": 49.0237861867675, "east": 17.165528039959487,
     },
     {
         "name": "Italien",
-        "north": 47.09731041300716, "east": 18.55654119051602, "south": 36.634347031948394, "west": 6.622642225252252, 
+         "south": 36.634347031948394, "west": 6.622642225252252, "north": 47.09731041300716, "east": 18.55654119051602,
     },
     {
         "name": "Schweiz",
-        "north": 47.80980842423389, "east": 10.496977600927035, "south": 45.81623534018711, "west": 5.950011033798339, 
+         "south": 45.81623534018711, "west": 5.950011033798339, "north": 47.80980842423389, "east": 10.496977600927035,
     },
     {
         "name": "Deutschland",
-        "north": 55.06055867850519, "east": 15.050592435538157, "south": 47.26371645002933, "west": 5.860528922469316, 
+        "south": 47.26371645002933, "west": 5.860528922469316, "north": 55.06055867850519, "east": 15.050592435538157,
     },
-
+    {
+        "name": "Frankreich",
+        "south": 41.303, "west": -5.142, "north": 51.124, "east": 9.560, 
+    },
+    {
+        "name": "Korsika",
+        "south": 41.333, "west": 8.533, "north": 43.027, "east":9.560,
+    },
+    {
+        "name": "Portugal",
+        "south": 36.838, "west": -9.526, "north": 42.154, "east": -6.190,
+    },
+    {
+        "name": "Spanien",
+        "south": 27.638, "west": -18.161, "north": 43.792, "east": 4.327,
+    },
+    {
+        "name": "Slowenien",
+        "south": 45.421, "west": 13.375, "north": 46.877, "east": 16.610,
+    },
+    {
+        "name": "Kroatien",
+        "south": 42.392, "west": 13.489, "north": 46.555, "east": 19.448,
+    }
     # {
     #     "name": "DACH + Alpen",
     #     "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
@@ -93,24 +116,24 @@ REGIONS = [
 
 POI_TYPES = [
 
-    # {
-    #     "name": "Mountain Passes",
-    #     "type": "mountain_pass",
-    #     "output": "mountain_passes.json",
-    #     "query": None,
-    #     "road_filter": (
-    #         '^(motorway|trunk|primary|secondary|tertiary|'
-    #         'unclassified|residential|service)$'
-    #     ),
-    #     "tile_size": None,
-    # },
     {
-        "name": "Tankstellen",
-        "type": "fuel",
-        "output": "fuel.json",
-        "query": 'nwr["amenity"="fuel"]',
+        "name": "Mountain Passes",
+        "type": "mountain_pass",
+        "output": "mountain_passes.json",
+        "query": None,
+        "road_filter": (
+            '^(motorway|trunk|primary|secondary|tertiary|'
+            'unclassified|residential|service)$'
+        ),
         "tile_size": None,
     },
+    # {
+    #     "name": "Tankstellen",
+    #     "type": "fuel",
+    #     "output": "fuel.json",
+    #     "query": 'nwr["amenity"="fuel"]',
+    #     "tile_size": None,
+    # },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
