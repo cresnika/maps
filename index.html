@@ -989,14 +989,24 @@
     box-shadow: none;
   }
 
+  .extern-poi-label {
+    vertical-align: middle;
+    color: var(--text);
+  }
+
   .extern-poi-label svg {
     width: 20px;
     height: 20px;
-    vertical-align: middle;
+    vertical-align: text-top;
     color: var(--text-faint);
     --icon-outline: var(--text);
+    margin-left: 3px;
+    margin-bottom: 3px;
   }
-
+  
+  #extern-poi-loading-icon.hidden {
+    display: none;
+  }
   .extern-poi-popup-label svg {
     width: 20px;
     height: 20px;
@@ -1537,6 +1547,15 @@
   let routeCalculationController = null;
 
   //#region external POI
+  const OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+  ];
+  const MAX_RETRIES = 4;
+  const REQUEST_TIMEOUT_MS = 30000; // pro Versuch, etwas ueber Overpass-internem [timeout:25]
+
+  const TILE_FETCH_DELAY_MS = 250;
+
   let extPOIs = [
   {
         description: 'Gebirgspässe',
@@ -1560,12 +1579,19 @@
                 }),
         layer: L.layerGroup(),
         visible: false,
+        _loadingActive: false,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
         zoomLimit: 6,
         zoomVisibility: false,
         poiData: null,
         loadPromise: null,
         dataFilename: 'data/mountain_passes.json',
-        control: null
+        control: null,
     },
     {
         description: 'Tankstellen',
@@ -1592,15 +1618,26 @@
                 }),
         layer: L.layerGroup(),
         visible: false,
+        _loadingActive: false,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
         zoomLimit: 11,
         zoomVisibility: false,
         poiData: null,
         loadPromise: null,
-        dataFilename: 'data/fuel.json',
-        control: null
+        dataFilename: '', // 'data/fuel.json',
+        control: null,
+        overpassQuery: 'nwr["amenity"="fuel"]',
+        tileSizeDeg: 0.1,
+        cache: new Map(),
+        pendingTiles: new Set()
     },
     {
-        description: 'Hotels',
+        description: 'Hotels Unterkünfte',
         mapicon: L.divIcon({
                   className: 'extern-poi-marker extern-poi-marker-hotels',
                   html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
@@ -1620,46 +1657,277 @@
                 }),
         layer: L.layerGroup(),
         visible: false,
+        _loadingActive: false,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
         zoomLimit: 11,
         zoomVisibility: false,
         poiData: null,
         loadPromise: null,
         dataFilename: '',    // "data/hotels.json" leave blanc for designtime loading
-        control: null
+        control: null,
+        overpassQuery: 'nwr["tourism"="hotel"]',
+        tileSizeDeg: 0.1,
+        cache: new Map(),
+        pendingTiles: new Set()
     },
   ];  
  
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function tileKey(tx, ty) {
+    return `${tx}_${ty}`;
+  }
+
+  function tileIndexFor(lat, lon, tileSizeDeg) {
+    return {
+      tx: Math.floor(lon / tileSizeDeg),
+      ty: Math.floor(lat / tileSizeDeg),
+    };
+  }
+
+  function tileBounds(tx, ty, tileSizeDeg) {
+    return {
+      south: ty * tileSizeDeg,
+      west: tx * tileSizeDeg,
+      north: (ty + 1) * tileSizeDeg,
+      east: (tx + 1) * tileSizeDeg,
+    };
+  }
+
+  function tilesForBounds(bounds, tileSizeDeg) {
+    const sw = tileIndexFor(bounds.getSouth(), bounds.getWest(), tileSizeDeg);
+    const ne = tileIndexFor(bounds.getNorth(), bounds.getEast(), tileSizeDeg);
+
+    const tiles = [];
+    for (let ty = sw.ty; ty <= ne.ty; ty++) {
+      for (let tx = sw.tx; tx <= ne.tx; tx++) {
+        tiles.push({ tx, ty });
+      }
+    }
+    return tiles;
+  }
+
+  function elementToPlace(element) {
+    if (!['node', 'way', 'relation'].includes(element.type)) {
+      return null;
+    }
+
+    let lat, lon;
+    if (element.type === 'node') {
+      lat = element.lat;
+      lon = element.lon;
+    } else if (element.center) {
+      lat = element.center.lat;
+      lon = element.center.lon;
+    } else {
+      return null;
+    }
+
+    if (lat == null || lon == null) {
+      return null;
+    }
+
+    const tags = element.tags || {};
+    const name = tags.name || tags['name:de'] || tags['name:en'] || 'Unbenannter POI';
+
+    const place = {
+      id: element.id,
+      osm_type: element.type,
+      name,
+      lat,
+      lng: lon,
+    };
+
+    if (tags['name:de']) place.name_de = tags['name:de'];
+    if (tags['name:en']) place.name_en = tags['name:en'];
+
+    if (tags.ele) {
+      const ele = parseFloat(String(tags.ele).replace(',', '.').replace('m', '').trim());
+      if (!Number.isNaN(ele)) place.ele = ele;
+    }
+
+    if (tags.wikidata) place.wikidata = tags.wikidata;
+    if (tags.website) place.website = tags.website;
+    if (tags.phone) place.phone = tags.phone;
+    if (tags.opening_hours) place.opening_hours = tags.opening_hours;
+
+    return place;
+  }
+
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+ 
+  async function fetchOverpassTile(poi, tx, ty) {
+    const b = tileBounds(tx, ty, poi.tileSizeDeg);
+
+    const query = `[out:json][timeout:25];
+                   ${poi.overpassQuery}(${b.south},${b.west},${b.north},${b.east});
+                   out center;`;
+
+    let lastError = null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const server = OVERPASS_SERVERS[attempt % OVERPASS_SERVERS.length];
+
+      try {
+        const response = await fetchWithTimeout(server, {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(query),
+        }, REQUEST_TIMEOUT_MS);
+
+        if (response.status === 429) {
+          const waitMs = 5000 * (attempt + 1);
+          console.warn(`Overpass Rate-Limit (${server}), warte ${waitMs}ms...`);
+          await sleep(waitMs);
+          continue;
+        }
+
+        if ([502, 503, 504].includes(response.status)) {
+          const waitMs = 3000 * (attempt + 1);
+          console.warn(`Overpass überlastet (${response.status}, ${server}), warte ${waitMs}ms...`);
+          await sleep(waitMs);
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Overpass HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const elements = data.elements || [];
+
+        return elements.map(elementToPlace).filter(Boolean);
+
+      } catch (error) {
+        lastError = error;
+
+        if (error.name === 'AbortError') {
+          console.warn(`Overpass Timeout (${server}), Versuch ${attempt + 1}/${MAX_RETRIES}`);
+        } else {
+          console.warn(`Overpass Netzwerkfehler (${server}), Versuch ${attempt + 1}/${MAX_RETRIES}:`, error);
+        }
+
+        if (attempt < MAX_RETRIES - 1) {
+          await sleep(3000 * (attempt + 1));
+        }
+      }
+    }
+
+    throw lastError || new Error('Overpass: alle Versuche fehlgeschlagen');
+  }
+
+  function mergeDynamicCache(poi) {
+    const merged = new Map();
+
+    for (const places of poi.cache.values()) {
+      for (const place of places) {
+        merged.set(`${place.osm_type}/${place.id}`, place);
+      }
+    }
+
+    poi.poiData = { places: Array.from(merged.values()) };
+  }
+
+  async function loadDynamicExternPOI(poi) {
+    const bounds = map.getBounds();
+    const tiles = tilesForBounds(bounds, poi.tileSizeDeg);
+
+    const missing = tiles.filter(({ tx, ty }) => {
+      const key = tileKey(tx, ty);
+      return !poi.cache.has(key) && !poi.pendingTiles.has(key);
+    });
+
+    if (missing.length === 0) {
+      if (!poi.poiData) {
+        mergeDynamicCache(poi);
+      }
+      if (poi.visible) {
+        renderextPOI(poi);
+      }
+      return;
+    }
+
+    for (const { tx, ty } of missing) {
+      const key = tileKey(tx, ty);
+      poi.pendingTiles.add(key);
+
+      try {
+        const places = await fetchOverpassTile(poi, tx, ty);
+        poi.cache.set(key, places);
+      } catch (error) {
+        console.warn(`${poi.description}: Kachel ${key} konnte nicht geladen werden:`, error);
+      } finally {
+        poi.pendingTiles.delete(key);
+      }
+
+      if (!poi.visible) {
+        return;
+      }
+
+      mergeDynamicCache(poi);
+      renderextPOI(poi);
+
+      await sleep(TILE_FETCH_DELAY_MS);
+    }
+  }
+
   async function loadExternPOI(poi) {
     if (!poi.visible) {
       return;
     }
+    
+    if (!poi.dataFilename) {
+      if (poi.zoomLimit >= map.getZoom()) {
+            // showToast('Zoomen um ' + poi.description + ' anzuzeigen');
+      }
+      else {
+        // showToast('suche ' + poi.description);
+      }
+
+      poi.loadingActive = true;
+      await loadDynamicExternPOI(poi);
+      poi.loadingActive = false;
+
+      return;
+    }
 
     if (!poi.poiData) {
-      // if (!poi.dataFilename) {
-      //   showToast('loading online requested');
-      // }
-      // else
-      {
-        if (!poi.loadPromise) {
-          poi.loadPromise = fetch(poi.dataFilename)
-            .then(response => {
-              if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-              }
-              return response.json();
-            })
-            .then(data => {
-              if (!data || !Array.isArray(data.places)) {
-                throw new Error('Ungültiges POI-Format');
-              }
+      if (!poi.loadPromise) {
+        poi.loadingActive = true;
+        poi.loadPromise = fetch(poi.dataFilename)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (!data || !Array.isArray(data.places)) {
+              throw new Error('Ungültiges POI-Format');
+            }
 
-              poi.poiData = data;
-              return data;
-            })
-            .finally(() => {
-              poi.loadPromise = null;
-            });
-        }
+            poi.poiData = data;
+            return data;
+          })
+          .finally(() => {
+            poi.loadPromise = null;
+            poi.loadingActive = false;
+          });
       }
     }
 
@@ -1789,14 +2057,27 @@
           'div',
           'leaflet-bar extern-poi-control'
         );
+        const htmlIcon = L.divIcon({
+                              html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                                        <path fill="var(--text)" d="M128 560C128 568.8 135.2 576 144 576L496 576C504.8 576 512 568.8 512 560C512 551.2 504.8 544 496 544L480 544L480 502.4C480 453 457.2 406.4 418.2 376.1L346 320L418.2 263.9C457.2 233.6 480 187 480 137.6L480 96L496 96C504.8 96 512 88.8 512 80C512 71.2 504.8 64 496 64L144 64C135.2 64 128 71.2 128 80C128 88.8 135.2 96 144 96L160 96L160 137.6C160 187 182.8 233.6 221.8 263.9L294 320L221.8 376.1C182.8 406.4 160 453.1 160 502.4L160 544L144 544C135.2 544 128 551.2 128 560zM192 544L192 502.4C192 462.9 210.2 425.6 241.4 401.4L320 340.3L398.6 401.4C429.8 425.6 448 462.9 448 502.4L448 544L192 544zM241.4 238.6C225.3 226.1 212.6 210 204.1 192L435.8 192C427.3 210 414.7 226.1 398.5 238.6L319.9 299.7L241.3 238.6zM194 160C192.7 152.7 192 145.2 192 137.6L192 96L448 96L448 137.6C448 145.2 447.3 152.7 446 160L194 160z"/>
+                                     </svg>`,
+                            });
 
         container.innerHTML = `
           <label class="extern-poi-switch">
-            <span class="extern-poi-label">${poi.labelicon.options.html} ${poi.description}</span>
+            <span class="extern-poi-label">${poi.labelicon.options.html}</span>
+            <span class="extern-poi-label">${poi.description}</span>
+            <span class="extern-poi-label" id="${poi.description}-load-icon" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
             <input type="checkbox" id="extern-poi-toggle">
             <span class="extern-poi-slider"></span>
-          </label>
-        `;
+          </label>`;
+        // container.innerHTML = `
+        //   <label class="extern-poi-switch">
+        //     <span class="extern-poi-label">${poi.labelicon.options.html} ${poi.description}</span>
+        //     <input type="checkbox" id="extern-poi-toggle">
+        //     <span class="extern-poi-slider"></span>
+        //   </label>
+        // `;
 
         /*
         * Verhindert, dass Klicks auf den Switch gleichzeitig
@@ -1819,6 +2100,7 @@
           } else {
             poi.layer.clearLayers();
             map.removeLayer(poi.layer);
+            poi.loadingActive = false;
           }
         });
         return container;
@@ -2348,12 +2630,19 @@
     addWaypoint(await snapToRoadIfZoomedOut(e.latlng));
   });
 
-  map.on('moveend', () => {
-    extPOIs.forEach(poi => {
-      if (poi.visible) { renderextPOI(poi); }
-    })
-  });
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  }
 
+  map.on('moveend', debounce(() => {
+    extPOIs.forEach(poi => {
+      if (poi.visible) { loadExternPOI(poi); }
+    })
+  }, 400));
 
   // -- Cursor feedback while Ctrl/Shift is held --
   document.addEventListener('keydown', (e) => {
