@@ -36,17 +36,21 @@ OVERPASS_TIMEOUT = 120
 
 REGIONS = [
     {
-        "name": "DACH + Alpen",
-        "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
+        "name": "Österreich",
+        "south": 46.369542083899, "west": 9.525223464166924, "north": 49.0237861867675, "east": 17.165528039959487,
     },
+    # {
+    #     "name": "DACH + Alpen",
+    #     "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
+    # },
     # {
     #     "name": "Frankreich",
     #     "south": 41.3, "west": -5.2, "north": 51.1, "east": 9.6,
     # },
-    {
-        "name": "Italien (inkl. Sardinien & Sizilien)",
-        "south": 35.4, "west": 6.6, "north": 47.1, "east": 18.6,
-    },
+    # {
+    #     "name": "Italien (inkl. Sardinien & Sizilien)",
+    #     "south": 35.4, "west": 6.6, "north": 47.1, "east": 18.6,
+    # },
     # {
     #     "name": "Kroatien & Slowenien",
     #     "south": 42.3, "west": 13.3, "north": 46.9, "east": 19.5,
@@ -66,6 +70,7 @@ REGIONS = [
 # hier drin - die Datenmenge ueber 4 Regionen hinweg wuerde die
 # Laufzeit sprengen (siehe Chat). Diese Kategorien werden
 # stattdessen live im Client abgefragt (Viewport + Mindestzoom).
+# Tankstellen sind hier gerade nur zum Testen aktiv.
 #
 # tile_size:
 #   Kantenlaenge der Grid-Kacheln in Grad PRO REGION. None =
@@ -90,14 +95,14 @@ POI_TYPES = [
         "name": "Tankstellen",
         "type": "fuel",
         "output": "fuel.json",
-        "query": 'node["amenity"="fuel"]',
-        "tile_size": None,
+        "query": 'nwr["amenity"="fuel"]',
+        "tile_size": 2.0,
     },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
 #        "output": "campsites.json",
-#        "query": 'node["tourism"="camp_site"]',
+#        "query": 'nwr["tourism"="camp_site"]',
 #        "tile_size": 3.0,
 #    },
 
@@ -105,7 +110,7 @@ POI_TYPES = [
 #        "name": "Aussichtspunkte",
 #        "type": "viewpoint",
 #        "output": "viewpoints.json",
-#        "query": 'node["tourism"="viewpoint"]',
+#        "query": 'nwr["tourism"="viewpoint"]',
 #        "tile_size": 3.0,
 #    },
 
@@ -113,7 +118,7 @@ POI_TYPES = [
 #        "name": "Motorradhaendler",
 #        "type": "motorcycle_shop",
 #        "output": "motorcycle_shops.json",
-#        "query": 'node["shop"="motorcycle"]',
+#        "query": 'nwr["shop"="motorcycle"]',
 #        "tile_size": 5.0,
 #    },
 
@@ -121,7 +126,7 @@ POI_TYPES = [
 #        "name": "Ladestationen",
 #        "type": "charging_station",
 #        "output": "charging_stations.json",
-#        "query": 'node["amenity"="charging_station"]',
+#        "query": 'nwr["amenity"="charging_station"]',
 #        "tile_size": 4.0,
 #    }
 ]
@@ -170,6 +175,13 @@ def generate_tiles(south, west, north, east, tile_size):
 # ============================================================
 
 def build_mountain_pass_query(south, west, north, east, road_filter):
+    """
+    Speziallogik nur fuer Mountain Passes: prueft Way-
+    Mitgliedschaft statt einfach nur nach einem Tag zu filtern.
+    Deshalb eine eigene Funktion statt der generischen
+    build_query() - die Overpass-QL sieht strukturell komplett
+    anders aus (Sets, bn/w-Filter) als ein normaler Tag-Filter.
+    """
     return f"""
 [out:json][timeout:{OVERPASS_TIMEOUT}];
 node["mountain_pass"="yes"]({south},{west},{north},{east})->.passes;
@@ -180,11 +192,16 @@ node.passes(w.roads)->.result;
 
 
 def build_query(osm_query, south, west, north, east):
+    # nwr = node/way/relation. Viele POIs (z.B. Tankstellen,
+    # Campingplaetze) werden in OSM als Flaeche statt als
+    # einzelner Punkt erfasst - "node" allein wuerde die
+    # verpassen. "out center" liefert fuer Flaechen einen
+    # Mittelpunkt statt der vollen Geometrie (bleibt leicht).
     return f"""
 [out:json][timeout:{OVERPASS_TIMEOUT}];
 {osm_query}
     ({south},{west},{north},{east});
-out body;
+out center;
 """
 
 
@@ -318,24 +335,41 @@ def query_overpass_all_regions(poi_type, poi_config):
 def convert_elements(elements):
 
     places = []
-    seen_ids = set()
+    seen_keys = set()
 
     for element in elements:
 
-        if element.get("type") != "node":
+        element_type = element.get("type")
+
+        if element_type not in ("node", "way", "relation"):
             continue
 
         osm_id = element.get("id")
 
-        if osm_id is None or osm_id in seen_ids:
+        if osm_id is None:
             continue
 
-        seen_ids.add(osm_id)
+        # IDs sind nur INNERHALB eines Elementtyps eindeutig -
+        # ein Node 12345 und ein Way 12345 koennen beide
+        # existieren. Daher (type, id) als Dedup-Schluessel.
+        dedup_key = (element_type, osm_id)
+
+        if dedup_key in seen_keys:
+            continue
+
+        seen_keys.add(dedup_key)
 
         tags = element.get("tags", {})
 
-        lat = element.get("lat")
-        lon = element.get("lon")
+        if element_type == "node":
+            lat = element.get("lat")
+            lon = element.get("lon")
+        else:
+            # Way/Relation: "out center" liefert einen
+            # Mittelpunkt statt lat/lon direkt am Element.
+            center = element.get("center", {})
+            lat = center.get("lat")
+            lon = center.get("lon")
 
         if lat is None or lon is None:
             continue
@@ -347,7 +381,13 @@ def convert_elements(elements):
             or "Unbenannter POI"
         )
 
-        place = {"id": osm_id, "name": name, "lat": lat, "lng": lon}
+        place = {
+            "id": osm_id,
+            "osm_type": element_type,
+            "name": name,
+            "lat": lat,
+            "lng": lon,
+        }
 
         if tags.get("name:de"):
             place["name_de"] = tags["name:de"]
