@@ -95,22 +95,6 @@ REGIONS = [
         "south": 42.392, "west": 13.489, "north": 46.555, "east": 19.448,
     }
     # {
-    #     "name": "DACH + Alpen",
-    #     "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
-    # },
-    # {
-    #     "name": "Frankreich",
-    #     "south": 41.3, "west": -5.2, "north": 51.1, "east": 9.6,
-    # },
-    # {
-    #     "name": "Italien (inkl. Sardinien & Sizilien)",
-    #     "south": 35.4, "west": 6.6, "north": 47.1, "east": 18.6,
-    # },
-    # {
-    #     "name": "Kroatien & Slowenien",
-    #     "south": 42.3, "west": 13.3, "north": 46.9, "east": 19.5,
-    # },
-    # {
     #     "name": "Spanien (Festland + Balearen)",
     #     "south": 36.0, "west": -9.5, "north": 43.8, "east": 4.4,
     # },
@@ -135,24 +119,24 @@ REGIONS = [
 
 POI_TYPES = [
 
+    # {
+    #     "name": "Mountain Passes",
+    #     "type": "mountain_pass",
+    #     "output": "mountain_passes.json",
+    #     "query": None,
+    #     "road_filter": (
+    #         '^(motorway|trunk|primary|secondary|tertiary|'
+    #         'unclassified|residential|service)$'
+    #     ),
+    #     "tile_size": 3.0,
+    # },
     {
-        "name": "Mountain Passes",
-        "type": "mountain_pass",
-        "output": "mountain_passes.json",
-        "query": None,
-        "road_filter": (
-            '^(motorway|trunk|primary|secondary|tertiary|'
-            'unclassified|residential|service)$'
-        ),
+        "name": "Tankstellen",
+        "type": "fuel",
+        "output": "fuel.json",
+        "query": 'nwr[amenity=fuel]',
         "tile_size": 3.0,
     },
-    # {
-    #     "name": "Tankstellen",
-    #     "type": "fuel",
-    #     "output": "fuel.json",
-    #     "query": 'nwr["amenity"="fuel"]',
-    #     "tile_size": None,
-    # },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
