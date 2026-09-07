@@ -93,11 +93,11 @@ REGIONS = [
     {
         "name": "Kroatien",
         "south": 42.392, "west": 13.489, "north": 46.555, "east": 19.448,
+    },
+    {
+        "name": "Balearen",
+        "south": 38.640, "west": 1.150, "north": 40.100, "east": 4.330,    
     }
-    # {
-    #     "name": "Spanien (Festland + Balearen)",
-    #     "south": 36.0, "west": -9.5, "north": 43.8, "east": 4.4,
-    # },
 ]
 
 
