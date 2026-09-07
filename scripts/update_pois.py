@@ -123,7 +123,7 @@ POI_TYPES = [
 #        "output": "charging_stations.json",
 #        "query": 'node["amenity"="charging_station"]',
 #        "tile_size": 4.0,
-    }
+#    }
 ]
 
 
