@@ -1,5 +1,6 @@
 import json
 import time
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +23,24 @@ MAX_RETRIES = 5
 REQUEST_DELAY = 6
 OVERPASS_TIMEOUT = 120
 
+SCRIPT_START = time.time()
+
+
+def elapsed_time():
+    seconds = int(time.time() - SCRIPT_START)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if hours:
+        return f"{hours}h {minutes:02d}m {seconds:02d}s"
+    if minutes:
+        return f"{minutes}m {seconds:02d}s"
+    return f"{seconds}s"
+
+
+def debug(message):
+    print(f"[{elapsed_time()}] {message}", flush=True)
+
 
 # ============================================================
 # REGIONEN
@@ -37,21 +56,44 @@ OVERPASS_TIMEOUT = 120
 REGIONS = [
     {
         "name": "Österreich",
-        "north": 49.0237861867675, "east": 17.165528039959487, "south": 46.369542083899, "west": 9.525223464166924, 
+         "south": 46.369542083899, "west": 9.525223464166924, "north": 49.0237861867675, "east": 17.165528039959487,
     },
     {
         "name": "Italien",
-        "north": 47.09731041300716, "east": 18.55654119051602, "south": 36.634347031948394, "west": 6.622642225252252, 
+         "south": 36.634347031948394, "west": 6.622642225252252, "north": 47.09731041300716, "east": 18.55654119051602,
     },
     {
         "name": "Schweiz",
-        "north": 47.80980842423389, "east": 10.496977600927035, "south": 45.81623534018711, "west": 5.950011033798339, 
+         "south": 45.81623534018711, "west": 5.950011033798339, "north": 47.80980842423389, "east": 10.496977600927035,
     },
     {
         "name": "Deutschland",
-        "north": 55.06055867850519, "east": 15.050592435538157, "south": 47.26371645002933, "west": 5.860528922469316, 
+        "south": 47.26371645002933, "west": 5.860528922469316, "north": 55.06055867850519, "east": 15.050592435538157,
     },
-
+    {
+        "name": "Frankreich",
+        "south": 41.303, "west": -5.142, "north": 51.124, "east": 9.560, 
+    },
+    {
+        "name": "Korsika",
+        "south": 41.333, "west": 8.533, "north": 43.027, "east":9.560,
+    },
+    {
+        "name": "Portugal",
+        "south": 36.838, "west": -9.526, "north": 42.154, "east": -6.190,
+    },
+    {
+        "name": "Spanien",
+        "south": 27.638, "west": -18.161, "north": 43.792, "east": 4.327,
+    },
+    {
+        "name": "Slowenien",
+        "south": 45.421, "west": 13.375, "north": 46.877, "east": 16.610,
+    },
+    {
+        "name": "Kroatien",
+        "south": 42.392, "west": 13.489, "north": 46.555, "east": 19.448,
+    }
     # {
     #     "name": "DACH + Alpen",
     #     "south": 45.6, "west": 4.0, "north": 49.9, "east": 17.2,
@@ -93,24 +135,24 @@ REGIONS = [
 
 POI_TYPES = [
 
+    {
+        "name": "Mountain Passes",
+        "type": "mountain_pass",
+        "output": "mountain_passes.json",
+        "query": None,
+        "road_filter": (
+            '^(motorway|trunk|primary|secondary|tertiary|'
+            'unclassified|residential|service)$'
+        ),
+        "tile_size": 3.0,
+    },
     # {
-    #     "name": "Mountain Passes",
-    #     "type": "mountain_pass",
-    #     "output": "mountain_passes.json",
-    #     "query": None,
-    #     "road_filter": (
-    #         '^(motorway|trunk|primary|secondary|tertiary|'
-    #         'unclassified|residential|service)$'
-    #     ),
+    #     "name": "Tankstellen",
+    #     "type": "fuel",
+    #     "output": "fuel.json",
+    #     "query": 'nwr["amenity"="fuel"]',
     #     "tile_size": None,
     # },
-    {
-        "name": "Tankstellen",
-        "type": "fuel",
-        "output": "fuel.json",
-        "query": 'nwr["amenity"="fuel"]',
-        "tile_size": None,
-    },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
@@ -156,10 +198,14 @@ print("========================================")
 print()
 print(f"Regionen: {len(REGIONS)}")
 for region in REGIONS:
-    print(f"  - {region['name']}")
-print(f"Kategorien: {len(POI_TYPES)}")
-print()
+    debug(
+        f"  - {region['name']} "
+        f"({region['south']:.3f},{region['west']:.3f} -> "
+        f"{region['north']:.3f},{region['east']:.3f})"
+    )
 
+debug(f"Kategorien: {len(POI_TYPES)}")
+debug("")
 
 # ============================================================
 # TILING
@@ -223,23 +269,31 @@ out center;
 # ============================================================
 
 def query_overpass_tile(poi_type, poi_config, south, west, north, east):
-
+    debug(
+        f"      Overpass Request vorbereitet: "
+        f"{south:.3f},{west:.3f} -> {north:.3f},{east:.3f}"
+    )
     if poi_type == "mountain_pass":
         query = build_mountain_pass_query(
             south, west, north, east,
             road_filter=poi_config["road_filter"],
         )
     else:
-        query = build_query(poi_config["query"], south, west, north, east)
+        query = build_query(
+            poi_config["query"],
+            south, west, north, east
+        )
 
     data = urllib.parse.urlencode({"data": query}).encode("utf-8")
-
+    debug(f"      Query-Größe: {len(data) / 1024:.1f} KB")
     for attempt in range(MAX_RETRIES):
-
         server = OVERPASS_SERVERS[attempt % len(OVERPASS_SERVERS)]
-
-        print(f"      Versuch {attempt + 1}/{MAX_RETRIES} @ {server}")
-
+        debug(
+            f"      -> Starte Request "
+            f"(Versuch {attempt + 1}/{MAX_RETRIES})"
+        )
+        debug(f"      -> Server: {server}")
+        debug(f"      -> Timeout: {OVERPASS_TIMEOUT}s")
         request = urllib.request.Request(
             server,
             data=data,
@@ -247,99 +301,214 @@ def query_overpass_tile(poi_type, poi_config, south, west, north, east):
         )
 
         start_time = time.time()
-
         try:
+            debug("      -> Warte auf Overpass-Antwort...")
             with urllib.request.urlopen(
-                request, timeout=OVERPASS_TIMEOUT + 60
+                request,
+                timeout=OVERPASS_TIMEOUT + 60
             ) as response:
+                debug(
+                    f"      -> HTTP {response.status} "
+                    f"{response.reason}"
+                )
+                debug("      -> Antwort wird gelesen...")
                 raw = response.read()
-
             elapsed = time.time() - start_time
-
+            debug(
+                f"      -> Download abgeschlossen: "
+                f"{len(raw) / 1024 / 1024:.2f} MB "
+                f"in {elapsed:.1f}s"
+            )
+            debug("      -> JSON wird geparst...")
             osm_data = json.loads(raw.decode("utf-8"))
             elements = osm_data.get("elements", [])
-
-            print(f"      -> {len(elements)} Objekte in {elapsed:.1f}s")
-
+            debug(
+                f"      -> {len(elements):,} Objekte "
+                f"in {elapsed:.1f}s"
+            )
+            debug(
+                f"      -> Request erfolgreich "
+                f"(Gesamtlaufzeit: {elapsed_time()})"
+            )
+            debug(
+                f"      -> Warte {REQUEST_DELAY}s "
+                f"vor nächstem Request..."
+            )
             time.sleep(REQUEST_DELAY)
-
             return elements
-
         except urllib.error.HTTPError as e:
-            print(f"      HTTP {e.code}: {e.reason}")
-
+            elapsed = time.time() - start_time
+            debug(
+                f"      !! HTTP Fehler nach {elapsed:.1f}s: "
+                f"{e.code}: {e.reason}"
+            )
             if e.code == 429:
                 wait_time = 30 * (attempt + 1)
-                print(f"      Rate Limit. Warte {wait_time}s...")
+                debug(
+                    f"      !! Rate Limit!"
+                )
+                debug(
+                    f"      -> Warte {wait_time}s "
+                    f"vor erneutem Versuch..."
+                )
                 time.sleep(wait_time)
                 continue
-
             if e.code in (502, 503, 504):
                 wait_time = 20 * (attempt + 1)
-                print(f"      Server nicht verfuegbar. Warte {wait_time}s...")
+                debug(
+                    f"      !! Server nicht verfügbar!"
+                )
+                debug(
+                    f"      -> Warte {wait_time}s "
+                    f"vor erneutem Versuch..."
+                )
                 time.sleep(wait_time)
                 continue
-
             raise
-
         except (urllib.error.URLError, TimeoutError) as e:
-            print(f"      Netzwerkfehler: {e}")
-
+            elapsed = time.time() - start_time
+            debug(
+                f"      !! Netzwerkfehler nach "
+                f"{elapsed:.1f}s: {e}"
+            )
             if attempt < MAX_RETRIES - 1:
                 wait_time = 20 * (attempt + 1)
-                print(f"      Warte {wait_time}s...")
+                debug(
+                    f"      -> Warte {wait_time}s "
+                    f"vor erneutem Versuch..."
+                )
                 time.sleep(wait_time)
                 continue
-
             raise
-
         except Exception as e:
-            print(f"      Unerwarteter Fehler: {type(e).__name__}: {e}")
-
+            elapsed = time.time() - start_time
+            debug(
+                f"      !! Unerwarteter Fehler nach "
+                f"{elapsed:.1f}s"
+            )
+            debug(
+                f"      !! {type(e).__name__}: {e}"
+            )
             if attempt < MAX_RETRIES - 1:
                 wait_time = 20 * (attempt + 1)
-                print(f"      Warte {wait_time}s...")
+                debug(
+                    f"      -> Warte {wait_time}s "
+                    f"vor erneutem Versuch..."
+                )
                 time.sleep(wait_time)
                 continue
-
             raise
-
-    raise RuntimeError(f"POI-Typ '{poi_type}' konnte nicht geladen werden.")
+    raise RuntimeError(
+        f"POI-Typ '{poi_type}' konnte nicht geladen werden."
+    )
 
 
 def query_overpass_region(poi_type, poi_config, region):
+    region_start = time.time()
     tiles = generate_tiles(
-        region["south"], region["west"], region["north"], region["east"],
+        region["south"],
+        region["west"],
+        region["north"],
+        region["east"],
         poi_config.get("tile_size"),
     )
-
-    print(f"    {len(tiles)} Tile(s) in Region '{region['name']}'")
-
+    debug(
+        f"    Region '{region['name']}': "
+        f"{len(tiles)} Tile(s)"
+    )
     all_elements = []
-
-    for index, (t_south, t_west, t_north, t_east) in enumerate(tiles, start=1):
-        print(
-            f"    Tile {index}/{len(tiles)}: "
-            f"{t_south:.2f},{t_west:.2f} -> {t_north:.2f},{t_east:.2f}"
+    for index, (t_south, t_west, t_north, t_east) in enumerate(
+        tiles,
+        start=1
+    ):
+        tile_start = time.time()
+        debug(
+            f"    ----------------------------------------"
+        )
+        debug(
+            f"    Tile {index}/{len(tiles)} "
+            f"({index / len(tiles) * 100:.1f}%)"
+        )
+        debug(
+            f"    Bounding Box: "
+            f"{t_south:.3f},{t_west:.3f} -> "
+            f"{t_north:.3f},{t_east:.3f}"
         )
         elements = query_overpass_tile(
-            poi_type, poi_config, t_south, t_west, t_north, t_east
+            poi_type,
+            poi_config,
+            t_south,
+            t_west,
+            t_north,
+            t_east
         )
         all_elements.extend(elements)
-
+        tile_elapsed = time.time() - tile_start
+        debug(
+            f"    Tile {index}/{len(tiles)} fertig: "
+            f"{len(elements):,} Objekte "
+            f"in {tile_elapsed:.1f}s"
+        )
+        debug(
+            f"    Bisher in Region: "
+            f"{len(all_elements):,} Objekte"
+        )
+    region_elapsed = time.time() - region_start
+    debug(
+        f"    Region '{region['name']}' fertig"
+    )
+    debug(
+        f"    -> {len(all_elements):,} Objekte"
+    )
+    debug(
+        f"    -> Laufzeit: {region_elapsed:.1f}s"
+    )
     return all_elements
-
 
 def query_overpass_all_regions(poi_type, poi_config):
     all_elements = []
-
-    for region in REGIONS:
-        print(f"  Region: {region['name']}")
-        elements = query_overpass_region(poi_type, poi_config, region)
+    total_regions = len(REGIONS)
+    debug(
+        f"  Starte {total_regions} Regionen..."
+    )
+    for region_index, region in enumerate(
+        REGIONS,
+        start=1
+    ):
+        debug("")
+        debug(
+            f"  ========================================"
+        )
+        debug(
+            f"  REGION {region_index}/{total_regions} "
+            f"({region_index / total_regions * 100:.1f}%)"
+        )
+        debug(
+            f"  {region['name']}"
+        )
+        debug(
+            f"  ========================================"
+        )
+        elements = query_overpass_region(
+            poi_type,
+            poi_config,
+            region
+        )
         all_elements.extend(elements)
-
+        debug(
+            f"  Gesamtfortschritt: "
+            f"{region_index}/{total_regions} Regionen"
+        )
+        debug(
+            f"  Gesamtobjekte bisher: "
+            f"{len(all_elements):,}"
+        )
+    debug("")
+    debug(
+        f"  Alle Regionen abgeschlossen: "
+        f"{len(all_elements):,} Rohobjekte"
+    )
     return all_elements
-
 
 # ============================================================
 # OSM DATEN AUFBEREITEN
@@ -347,10 +516,28 @@ def query_overpass_all_regions(poi_type, poi_config):
 
 def convert_elements(elements):
 
+    convert_start = time.time()
+
+    debug(
+        f"Starte Datenaufbereitung: "
+        f"{len(elements):,} Rohobjekte"
+    )
+
     places = []
     seen_keys = set()
 
-    for element in elements:
+    total = len(elements)
+
+    for index, element in enumerate(elements, start=1):
+
+        # Alle 5.000 Elemente Fortschritt ausgeben
+        if index % 5000 == 0 or index == total:
+
+            debug(
+                f"  Aufbereitung: "
+                f"{index:,}/{total:,} "
+                f"({index / total * 100:.1f}%)"
+            )
 
         element_type = element.get("type")
 
@@ -362,9 +549,6 @@ def convert_elements(elements):
         if osm_id is None:
             continue
 
-        # IDs sind nur INNERHALB eines Elementtyps eindeutig -
-        # ein Node 12345 und ein Way 12345 koennen beide
-        # existieren. Daher (type, id) als Dedup-Schluessel.
         dedup_key = (element_type, osm_id)
 
         if dedup_key in seen_keys:
@@ -378,8 +562,6 @@ def convert_elements(elements):
             lat = element.get("lat")
             lon = element.get("lon")
         else:
-            # Way/Relation: "out center" liefert einen
-            # Mittelpunkt statt lat/lon direkt am Element.
             center = element.get("center", {})
             lat = center.get("lat")
             lon = center.get("lon")
@@ -411,7 +593,10 @@ def convert_elements(elements):
         if tags.get("ele"):
             try:
                 place["ele"] = float(
-                    str(tags["ele"]).replace(",", ".").replace("m", "").strip()
+                    str(tags["ele"])
+                    .replace(",", ".")
+                    .replace("m", "")
+                    .strip()
                 )
             except ValueError:
                 pass
@@ -437,6 +622,7 @@ def convert_elements(elements):
         }
 
         address = {}
+
         for output_name, osm_tag in address_fields.items():
             if tags.get(osm_tag):
                 address[output_name] = tags[osm_tag]
@@ -446,7 +632,24 @@ def convert_elements(elements):
 
         places.append(place)
 
-    places.sort(key=lambda p: p.get("name", "").lower())
+    debug("Sortiere Ergebnisse...")
+
+    places.sort(
+        key=lambda p: p.get("name", "").lower()
+    )
+
+    elapsed = time.time() - convert_start
+
+    debug(
+        f"Datenaufbereitung abgeschlossen: "
+        f"{len(places):,} eindeutige POIs "
+        f"in {elapsed:.1f}s"
+    )
+
+    debug(
+        f"Entfernte Duplikate: "
+        f"{len(elements) - len(seen_keys):,}"
+    )
 
     return places
 
@@ -517,16 +720,21 @@ for poi_config in POI_TYPES:
 # FERTIG
 # ============================================================
 
-print()
-print()
-print("========================================")
-print("OSM POI UPDATE ABGESCHLOSSEN")
-print("========================================")
-print(f"Kategorien: {len(POI_TYPES)}")
-print(f"Gesamtzahl POIs: {total_places}")
-print()
-print("Erzeugte Dateien:")
+total_elapsed = time.time() - SCRIPT_START
+
+debug("")
+debug("")
+debug("========================================")
+debug("OSM POI UPDATE ABGESCHLOSSEN")
+debug("========================================")
+debug(f"Kategorien: {len(POI_TYPES)}")
+debug(f"Gesamtzahl POIs: {total_places:,}")
+debug(f"Gesamtlaufzeit: {total_elapsed / 60:.1f} Minuten")
+debug("")
+debug("Erzeugte Dateien:")
+
 for poi_config in POI_TYPES:
-    print(f"  - data/{poi_config['output']}")
-print()
-print("========================================")
+    debug(f"  - data/{poi_config['output']}")
+
+debug("")
+debug("========================================")
