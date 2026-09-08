@@ -396,25 +396,67 @@
   map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
 
   const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap Mitwirkende'
-  });
-  const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    attribution: '&copy; OpenStreetMap Mitwirkende &copy; CARTO'
-  });
+                                    maxZoom: 19,
+                                    attribution: '&copy; OpenStreetMap Mitwirkende'
+                                  });
   const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17,
-    attribution: '&copy; OpenStreetMap Mitwirkende, SRTM | Kartendarstellung: &copy; OpenTopoMap (CC-BY-SA)'
-  });
+                                maxZoom: 17,
+                                attribution: '&copy; OpenStreetMap Mitwirkende, SRTM | Kartendarstellung: &copy; OpenTopoMap (CC-BY-SA)'
+                              });
+  // const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png?key=DEIN_CARTO_KEY',
+  //                                   {
+  //                                       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  //                                       subdomains: 'abcd',
+  //                                       maxZoom: 20
+  //                                   }
+  //                               );
+  // const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=DEIN_CARTO_KEY',
+  //                                     {
+  //                                         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  //                                         subdomains: 'abcd',
+  //                                         maxZoom: 20
+  //                                     }
+  //                                 );
+  // const STADIA_KEY = '67fc4d85-c0e8-4711-970b-5b362148d148';
+  // const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${STADIA_KEY}`,
+  const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,
+                                      {
+                                          maxZoom: 20,
+                                          attribution:
+                                              '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+                                              '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+                                              '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+                                      }
+                                  );
+  const stadiaOutdoors = L.tileLayer(`https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png`,
+                                        {
+                                            maxZoom: 20,
+                                            attribution:
+                                                '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+                                                '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+                                                '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+                                        }
+                                    );
 
   osmStandard.addTo(map);
 
   L.control.layers({
-    'OpenStreetMap (Standard)': osmStandard,
-    'Hell / reduziert (Carto)': cartoLight,
-    'Topographisch (OpenTopoMap)': openTopo
-  }, null, { collapsed: true, position: 'topright' }).addTo(map);
+      // 'Google-artig / reduziert': cartoLight,
+      // 'Google-artig / detailliert': cartoVoyager,
+      'OpenStreetMap (Standard)': osmStandard,
+      'Stadia – Outdoor / Calimoto': stadiaOutdoors,
+      'Topographisch': openTopo,
+      'Stadia – Hell / reduziert': stadiaSmooth,
+  }, null, {
+      collapsed: true,
+      position: 'topright'
+  }).addTo(map);
+
+  // L.control.layers({
+  //   'OpenStreetMap (Standard)': osmStandard,
+  //   'Hell / reduziert (Carto)': cartoLight,
+  //   'Topographisch (OpenTopoMap)': openTopo
+  // }, null, { collapsed: true, position: 'topright' }).addTo(map);
 
   // ============================================================
   // Route planning (Tab "Planung")
@@ -555,14 +597,52 @@
         zoomVisibility: false,
         poiData: null,
         loadPromise: null,
-        dataFilename: '',    // "data/hotels.json" leave blanc for designtime loading
+        dataFilename: 'data/hotels.json',
         control: null,
         overpassQuery: 'nwr["tourism"="hotel"]',
         tileSizeDeg: 0.3,
         cache: new Map(),
         pendingTiles: new Set()
     },
-  ];  
+      {
+        description: 'Pensionen',
+        mapicon: L.divIcon({
+                  className: 'extern-poi-marker extern-poi-marker-guesthouses',
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                              <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                              <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                              <path fill="var(--icon-outline)" d="M116.44,109.44v97.78h85.56v-61.11h73.33c20.24,0,36.67,16.42,36.67,36.67v97.78h-24.44v-36.67H116.44v36.67h-24.44V109.44h24.44ZM134.78,170.56c0-13.48,10.96-24.44,24.44-24.44s24.44,10.96,24.44,24.44-10.96,24.44-24.44,24.44-24.44-10.96-24.44-24.44Z"/>
+                          </svg>`,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 24],
+                  popupAnchor: [0, -12]
+                }),
+        labelicon: L.divIcon({
+                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                            <path opacity=".4" fill="var(--text)" d="M272 256C272 291.3 243.3 320 208 320C172.7 320 144 291.3 144 256C144 220.7 172.7 192 208 192C243.3 192 272 220.7 272 256zM320 224C320 206.3 334.3 192 352 192L512 192C565 192 608 235 608 288L608 352L320 352L320 224z"/>
+                            <path fill="var(--icon-outline)" d="M64 96C81.7 96 96 110.3 96 128L96 352L608 352L608 512C608 529.7 593.7 544 576 544C558.3 544 544 529.7 544 512L544 448L96 448L96 512C96 529.7 81.7 544 64 544C46.3 544 32 529.7 32 512L32 128C32 110.3 46.3 96 64 96z"/>
+                          </svg>`,
+                }),
+        layer: null,
+        visible: false,
+        _loadingActive: false,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
+        zoomLimit: 4,
+        zoomVisibility: false,
+        poiData: null,
+        loadPromise: null,
+        dataFilename: 'data/guesthouses.json',
+        control: null,
+        overpassQuery: 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
+        tileSizeDeg: 0.3,
+        cache: new Map(),
+        pendingTiles: new Set()
+    },];  
  
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -799,12 +879,14 @@
         poi.loadPromise = fetch(poi.dataFilename)
           .then(response => {
             if (!response.ok) {
+              showToast('Fehler bim laden von ' + poi.description);
               throw new Error(`HTTP ${response.status}`);
             }
             return response.json();
           })
           .then(data => {
             if (!data || !Array.isArray(data.places)) {
+              showToast('Fehler bim laden von ' + poi.description);
               throw new Error('Ungültiges POI-Format');
             }
 
@@ -1539,7 +1621,6 @@
   }
 
   function saveAppState() {
-    console.log('Saving actual route');
     const state = {
       version: 1,
       savedAt: new Date().toISOString(),
@@ -1557,7 +1638,6 @@
   const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
   
   function restoreAppState() {
-    console.log('Restoring stored route');
     let raw;
     try {
       raw = localStorage.getItem(STORAGE_KEY);
@@ -2363,7 +2443,6 @@
 
   function savePoisToStorage(){
     const data = pois.map(p => ({ name: p.name, group: p.group, lat: p.lat, lng: p.lng, visible: p.visible, color: p.color }));
-    console.log('savePoisToStorage: ' + JSON.stringify(data));
     dbSet(POI_STORE_NAME, data);
   }
 

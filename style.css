@@ -1127,6 +1127,11 @@ body {
     --poi-color: #3fdd00;
   }
 
+
+  .extern-poi-marker-guesthouses {
+    --poi-color: #2b9900;
+  }
+  
   .extern-poi-popup {
     min-width: 140px;
     font-size: 14px;
