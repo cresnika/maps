@@ -1,7 +1,7 @@
+import hashlib
 import json
-import time
-import sys
 import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14,6 +14,7 @@ from pathlib import Path
 # ============================================================
 
 DATA_DIR = Path("data")
+TILE_CACHE_DIR = DATA_DIR / ".tile_cache"
 
 OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
@@ -23,9 +24,14 @@ OVERPASS_SERVERS = [
 MAX_RETRIES = 5
 REQUEST_DELAY = 6
 OVERPASS_TIMEOUT = 120
+TILE_SIZE = 2.0
 
 SCRIPT_START = time.time()
 
+
+# ============================================================
+# LOGGING
+# ============================================================
 
 def elapsed_time():
     seconds = int(time.time() - SCRIPT_START)
@@ -46,65 +52,91 @@ def debug(message):
 # ============================================================
 # REGIONEN
 # ============================================================
-#
-# Statt einer riesigen Bounding-Box ueber halb Europa definieren
-# wir mehrere kleinere, sich grob an Laendergrenzen orientierende
-# Regionen. Ueberschneidungen sind unproblematisch, Duplikate
-# werden beim Zusammenfuehren anhand der OSM-ID entfernt.
-#
-# ============================================================
 
 REGIONS = [
     {
         "name": "Österreich",
-         "south": 46.369542083899, "west": 9.525223464166924, "north": 49.0237861867675, "east": 17.165528039959487,
+        "south": 46.369542083899,
+        "west": 9.525223464166924,
+        "north": 49.0237861867675,
+        "east": 17.165528039959487,
     },
     {
         "name": "Italien",
-         "south": 36.634347031948394, "west": 6.622642225252252, "north": 47.09731041300716, "east": 18.55654119051602,
+        "south": 36.634347031948394,
+        "west": 6.622642225252252,
+        "north": 47.09731041300716,
+        "east": 18.55654119051602,
     },
     {
         "name": "Schweiz",
-         "south": 45.81623534018711, "west": 5.950011033798339, "north": 47.80980842423389, "east": 10.496977600927035,
+        "south": 45.81623534018711,
+        "west": 5.950011033798339,
+        "north": 47.80980842423389,
+        "east": 10.496977600927035,
     },
     {
         "name": "Deutschland",
-        "south": 47.26371645002933, "west": 5.860528922469316, "north": 55.06055867850519, "east": 15.050592435538157,
+        "south": 47.26371645002933,
+        "west": 5.860528922469316,
+        "north": 55.06055867850519,
+        "east": 15.050592435538157,
     },
     {
         "name": "Frankreich",
-        "south": 41.303, "west": -5.142, "north": 51.124, "east": 9.560, 
+        "south": 41.303,
+        "west": -5.142,
+        "north": 51.124,
+        "east": 9.560,
     },
     {
         "name": "Korsika",
-        "south": 41.333, "west": 8.533, "north": 43.027, "east":9.560,
+        "south": 41.333,
+        "west": 8.533,
+        "north": 43.027,
+        "east": 9.560,
     },
     {
         "name": "Portugal",
-        "south": 36.838, "west": -9.526, "north": 42.154, "east": -6.190,
+        "south": 36.838,
+        "west": -9.526,
+        "north": 42.154,
+        "east": -6.190,
     },
     {
         "name": "Spanien",
-        "south": 27.638, "west": -18.161, "north": 43.792, "east": 4.327,
+        "south": 27.638,
+        "west": -18.161,
+        "north": 43.792,
+        "east": 4.327,
     },
     {
         "name": "Slowenien",
-        "south": 45.421, "west": 13.375, "north": 46.877, "east": 16.610,
+        "south": 45.421,
+        "west": 13.375,
+        "north": 46.877,
+        "east": 16.610,
     },
     {
         "name": "Kroatien",
-        "south": 42.392, "west": 13.489, "north": 46.555, "east": 19.448,
+        "south": 42.392,
+        "west": 13.489,
+        "north": 46.555,
+        "east": 19.448,
     },
     {
         "name": "Balearen",
-        "south": 38.640, "west": 1.150, "north": 40.100, "east": 4.330,    
-    }
+        "south": 38.640,
+        "west": 1.150,
+        "north": 40.100,
+        "east": 4.330,
+    },
 ]
+
 
 def get_combined_region_bounds(regions):
     """
-    Ermittelt eine gemeinsame Bounding-Box für alle Regionen.
-
+    Ermittelt die gemeinsame Bounding-Box aller Regionen.
     Dadurch werden überlappende Regionen nicht mehrfach abgefragt.
     """
 
@@ -114,21 +146,10 @@ def get_combined_region_bounds(regions):
     east = max(region["east"] for region in regions)
 
     return south, west, north, east
-    
+
+
 # ============================================================
 # POI-KATEGORIEN
-# ============================================================
-#
-# Hotels, Restaurants und Tankstellen sind bewusst NICHT mehr
-# hier drin - die Datenmenge ueber 4 Regionen hinweg wuerde die
-# Laufzeit sprengen (siehe Chat). Diese Kategorien werden
-# stattdessen live im Client abgefragt (Viewport + Mindestzoom).
-# Tankstellen sind hier gerade nur zum Testen aktiv.
-#
-# tile_size:
-#   Kantenlaenge der Grid-Kacheln in Grad PRO REGION. None =
-#   die ganze Region in einem Request.
-#
 # ============================================================
 
 POI_TYPES = [
@@ -138,124 +159,114 @@ POI_TYPES = [
     #     "output": "mountain_passes.json",
     #     "query": None,
     #     "road_filter": (
-    #         '^(motorway|trunk|primary|secondary|tertiary|'
-    #         'unclassified|residential|service)$'
+    #         "^(motorway|trunk|primary|secondary|tertiary|"
+    #         "unclassified|residential|service)$"
     #     ),
-    #     "tile_size": 2.0,
+    #     "tile_size": TILE_SIZE,
     # },
     {
         "name": "Tankstellen",
         "type": "fuel",
         "output": "fuel.json",
-        "query": 'nwr[amenity=fuel]',
-        "tile_size": 2.0,
+        "query": 'nwr["amenity"="fuel"]',
+        "tile_size": TILE_SIZE,
     },
-#    {
-#        "name": "Campingplaetze",
-#        "type": "campsite",
-#        "output": "campsites.json",
-#        "query": 'nwr["tourism"="camp_site"]',
-#        "tile_size": 2.0,
-#    },
 
-#    {
-#        "name": "Aussichtspunkte",
-#        "type": "viewpoint",
-#        "output": "viewpoints.json",
-#        "query": 'nwr["tourism"="viewpoint"]',
-#        "tile_size": 2.0,
-#    },
+    # {
+    #     "name": "Campingplaetze",
+    #     "type": "campsite",
+    #     "output": "campsites.json",
+    #     "query": 'nwr["tourism"="camp_site"]',
+    #     "tile_size": TILE_SIZE,
+    # },
 
-#    {
-#        "name": "Motorradhaendler",
-#        "type": "motorcycle_shop",
-#        "output": "motorcycle_shops.json",
-#        "query": 'nwr["shop"="motorcycle"]',
-#        "tile_size": 2.0,
-#    },
+    # {
+    #     "name": "Aussichtspunkte",
+    #     "type": "viewpoint",
+    #     "output": "viewpoints.json",
+    #     "query": 'nwr["tourism"="viewpoint"]',
+    #     "tile_size": TILE_SIZE,
+    # },
 
-#    {
-#        "name": "Ladestationen",
-#        "type": "charging_station",
-#        "output": "charging_stations.json",
-#        "query": 'nwr["amenity"="charging_station"]',
-#        "tile_size": 2.0,
-#    }
+    # {
+    #     "name": "Motorradhaendler",
+    #     "type": "motorcycle_shop",
+    #     "output": "motorcycle_shops.json",
+    #     "query": 'nwr["shop"="motorcycle"]',
+    #     "tile_size": TILE_SIZE,
+    # },
+
+    # {
+    #     "name": "Ladestationen",
+    #     "type": "charging_station",
+    #     "output": "charging_stations.json",
+    #     "query": 'nwr["amenity"="charging_station"]',
+    #     "tile_size": TILE_SIZE,
+    # },
 ]
 
 
 # ============================================================
-# git commit helper
+# GIT
 # ============================================================
+
+def git_run(args, check=True):
+    return subprocess.run(
+        ["git", *args],
+        check=check,
+        capture_output=True,
+        text=True,
+    )
+
+
+def commit_and_push(path, commit_message):
+    """
+    Commit + Push für eine einzelne Datei.
+    """
+
+    debug(f"Git: add {path}")
+
+    git_run(["add", str(path)])
+
+    result = git_run(
+        ["diff", "--cached", "--quiet"],
+        check=False,
+    )
+
+    if result.returncode == 0:
+        debug("Git: Keine Änderungen vorhanden.")
+        return False
+
+    debug(f"Git: Commit '{commit_message}'")
+
+    git_run(
+        [
+            "commit",
+            "-m",
+            commit_message,
+        ]
+    )
+
+    debug("Git: Push wird gestartet...")
+
+    git_run(["push"])
+
+    debug("Git: Push erfolgreich.")
+
+    return True
+
+
 def commit_file(output_file, poi_name):
     debug("")
     debug("========================================")
     debug(f"GIT COMMIT: {output_file}")
     debug("========================================")
-    try:
-        debug("Git: Datei wird hinzugefügt...")
-        subprocess.run(
-            ["git", "add", str(output_file)],
-            check=True,
-        )
-        # Prüfen, ob tatsächlich Änderungen vorhanden sind
-        result = subprocess.run(
-            [
-                "git",
-                "diff",
-                "--cached",
-                "--quiet",
-            ],
-            check=False,
-        )
 
-        if result.returncode == 0:
-            debug("Git: Keine Änderungen vorhanden.")
-            return
-        commit_message = (f"Update {poi_name} data")
-        debug(f"Git: Commit '{commit_message}'...")
-        subprocess.run(
-            [
-                "git",
-                "commit",
-                "-m",
-                commit_message,
-            ],
-            check=True,
-        )
-        debug("Git: Commit erfolgreich.")
-        debug("Git: Push wird gestartet...")
-        subprocess.run(
-            [
-                "git",
-                "push",
-            ],
-            check=True,
-        )
-        debug("Git: Push erfolgreich.")
-    except subprocess.CalledProcessError as e:
-        debug(f"Git-Fehler: Command fehlgeschlagen "f"(Exit Code {e.returncode})")
-        raise
-
-# ============================================================
-# START
-# ============================================================
-
-print()
-print("========================================")
-print("OSM POI DATABASE UPDATE")
-print("========================================")
-print()
-print(f"Regionen: {len(REGIONS)}")
-for region in REGIONS:
-    debug(
-        f"  - {region['name']} "
-        f"({region['south']:.3f},{region['west']:.3f} -> "
-        f"{region['north']:.3f},{region['east']:.3f})"
+    commit_and_push(
+        output_file,
+        f"Update {poi_name} data",
     )
 
-debug(f"Kategorien: {len(POI_TYPES)}")
-debug("")
 
 # ============================================================
 # TILING
@@ -266,31 +277,170 @@ def generate_tiles(south, west, north, east, tile_size):
         return [(south, west, north, east)]
 
     tiles = []
+
     lat = south
+
     while lat < north:
         lat_end = min(lat + tile_size, north)
+
         lon = west
+
         while lon < east:
             lon_end = min(lon + tile_size, east)
-            tiles.append((lat, lon, lat_end, lon_end))
+
+            tiles.append(
+                (
+                    lat,
+                    lon,
+                    lat_end,
+                    lon_end,
+                )
+            )
+
             lon = lon_end
+
         lat = lat_end
 
     return tiles
 
 
 # ============================================================
+# TILE CACHE
+# ============================================================
+
+def get_cache_key(poi_type, poi_config):
+    """
+    Erzeugt einen eindeutigen Cache-Key.
+
+    Wenn sich Query, Regionen oder Tile-Größe ändern,
+    wird automatisch ein neuer Cache verwendet.
+    """
+
+    cache_definition = {
+        "poi_type": poi_type,
+        "query": poi_config.get("query"),
+        "road_filter": poi_config.get("road_filter"),
+        "tile_size": poi_config.get("tile_size"),
+        "regions": REGIONS,
+    }
+
+    raw = json.dumps(
+        cache_definition,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+def get_poi_cache_dir(poi_type, poi_config):
+    cache_key = get_cache_key(
+        poi_type,
+        poi_config,
+    )
+
+    cache_dir = (
+        TILE_CACHE_DIR
+        / poi_type
+        / cache_key
+    )
+
+    cache_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    return cache_dir
+
+
+def get_tile_cache_file(
+    cache_dir,
+    tile_index,
+    tile,
+):
+    south, west, north, east = tile
+
+    tile_key = (
+        f"{south:.6f}_"
+        f"{west:.6f}_"
+        f"{north:.6f}_"
+        f"{east:.6f}"
+    )
+
+    safe_key = (
+        tile_key
+        .replace("-", "m")
+        .replace(".", "_")
+    )
+
+    return cache_dir / (
+        f"tile_{tile_index:04d}_{safe_key}.json"
+    )
+
+
+def load_cached_tile(cache_file):
+    if not cache_file.exists():
+        return None
+
+    try:
+        with cache_file.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            data = json.load(file)
+
+        if not isinstance(data, list):
+            debug(
+                f"      !! Ungültiger Tile-Cache: "
+                f"{cache_file}"
+            )
+            return None
+
+        return data
+
+    except Exception as e:
+        debug(
+            f"      !! Tile-Cache konnte nicht "
+            f"gelesen werden: {e}"
+        )
+        return None
+
+
+def save_tile_cache(cache_file, elements):
+    temp_file = cache_file.with_suffix(
+        ".tmp"
+    )
+
+    with temp_file.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            elements,
+            file,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    temp_file.replace(cache_file)
+
+
+# ============================================================
 # OVERPASS QUERY BUILDER
 # ============================================================
 
-def build_mountain_pass_query(south, west, north, east, road_filter):
+def build_mountain_pass_query(
+    south,
+    west,
+    north,
+    east,
+    road_filter,
+):
     """
-    Speziallogik nur fuer Mountain Passes: prueft Way-
-    Mitgliedschaft statt einfach nur nach einem Tag zu filtern.
-    Deshalb eine eigene Funktion statt der generischen
-    build_query() - die Overpass-QL sieht strukturell komplett
-    anders aus (Sets, bn/w-Filter) als ein normaler Tag-Filter.
+    Speziallogik für Mountain Passes.
     """
+
     return f"""
 [out:json][timeout:{OVERPASS_TIMEOUT}];
 node["mountain_pass"="yes"]({south},{west},{north},{east})->.passes;
@@ -300,12 +450,13 @@ node.passes(w.roads)->.result;
 """
 
 
-def build_query(osm_query, south, west, north, east):
-    # nwr = node/way/relation. Viele POIs (z.B. Tankstellen,
-    # Campingplaetze) werden in OSM als Flaeche statt als
-    # einzelner Punkt erfasst - "node" allein wuerde die
-    # verpassen. "out center" liefert fuer Flaechen einen
-    # Mittelpunkt statt der vollen Geometrie (bleibt leicht).
+def build_query(
+    osm_query,
+    south,
+    west,
+    north,
+    east,
+):
     return f"""
 [out:json][timeout:{OVERPASS_TIMEOUT}];
 {osm_query}
@@ -315,211 +466,276 @@ out center;
 
 
 # ============================================================
-# OVERPASS REQUEST (ein Tile)
+# OVERPASS REQUEST
 # ============================================================
 
-def query_overpass_tile(poi_type, poi_config, south, west, north, east):
+def query_overpass_tile(
+    poi_type,
+    poi_config,
+    south,
+    west,
+    north,
+    east,
+):
     debug(
-        f"      Overpass Request vorbereitet: "
-        f"{south:.3f},{west:.3f} -> {north:.3f},{east:.3f}"
+        "      Overpass Request vorbereitet: "
+        f"{south:.3f},{west:.3f} -> "
+        f"{north:.3f},{east:.3f}"
     )
+
     if poi_type == "mountain_pass":
         query = build_mountain_pass_query(
-            south, west, north, east,
+            south,
+            west,
+            north,
+            east,
             road_filter=poi_config["road_filter"],
         )
     else:
         query = build_query(
             poi_config["query"],
-            south, west, north, east
+            south,
+            west,
+            north,
+            east,
         )
 
-    data = urllib.parse.urlencode({"data": query}).encode("utf-8")
-    debug(f"      Query-Größe: {len(data) / 1024:.1f} KB")
+    data = urllib.parse.urlencode(
+        {"data": query}
+    ).encode("utf-8")
+
+    debug(
+        f"      Query-Größe: "
+        f"{len(data) / 1024:.1f} KB"
+    )
+
+    last_error = None
+
     for attempt in range(MAX_RETRIES):
-        server = OVERPASS_SERVERS[attempt % len(OVERPASS_SERVERS)]
+        server = OVERPASS_SERVERS[
+            attempt % len(OVERPASS_SERVERS)
+        ]
+
         debug(
             f"      -> Starte Request "
             f"(Versuch {attempt + 1}/{MAX_RETRIES})"
         )
-        debug(f"      -> Server: {server}")
-        debug(f"      -> Timeout: {OVERPASS_TIMEOUT}s")
+
+        debug(
+            f"      -> Server: {server}"
+        )
+
+        debug(
+            f"      -> Timeout: "
+            f"{OVERPASS_TIMEOUT}s"
+        )
+
         request = urllib.request.Request(
             server,
             data=data,
-            headers={"User-Agent": "motorcycle-route-planner/1.0"},
+            headers={
+                "User-Agent":
+                    "motorcycle-route-planner/1.0"
+            },
         )
 
         start_time = time.time()
+
         try:
-            debug("      -> Warte auf Overpass-Antwort...")
+            debug(
+                "      -> Warte auf "
+                "Overpass-Antwort..."
+            )
+
             with urllib.request.urlopen(
                 request,
-                timeout=OVERPASS_TIMEOUT + 60
+                timeout=OVERPASS_TIMEOUT + 60,
             ) as response:
+
                 debug(
-                    f"      -> HTTP {response.status} "
+                    f"      -> HTTP "
+                    f"{response.status} "
                     f"{response.reason}"
                 )
-                debug("      -> Antwort wird gelesen...")
+
+                debug(
+                    "      -> Antwort wird gelesen..."
+                )
+
                 raw = response.read()
+
             elapsed = time.time() - start_time
+
             debug(
-                f"      -> Download abgeschlossen: "
+                "      -> Download abgeschlossen: "
                 f"{len(raw) / 1024 / 1024:.2f} MB "
                 f"in {elapsed:.1f}s"
             )
-            debug("      -> JSON wird geparst...")
-            osm_data = json.loads(raw.decode("utf-8"))
-            elements = osm_data.get("elements", [])
+
+            debug(
+                "      -> JSON wird geparst..."
+            )
+
+            osm_data = json.loads(
+                raw.decode("utf-8")
+            )
+
+            elements = osm_data.get(
+                "elements",
+                [],
+            )
+
             debug(
                 f"      -> {len(elements):,} Objekte "
                 f"in {elapsed:.1f}s"
             )
+
             debug(
-                f"      -> Request erfolgreich "
+                "      -> Request erfolgreich "
                 f"(Gesamtlaufzeit: {elapsed_time()})"
             )
+
             debug(
                 f"      -> Warte {REQUEST_DELAY}s "
-                f"vor nächstem Request..."
+                "vor nächstem Request..."
             )
+
             time.sleep(REQUEST_DELAY)
+
             return elements
+
         except urllib.error.HTTPError as e:
             elapsed = time.time() - start_time
+
+            last_error = e
+
             debug(
-                f"      !! HTTP Fehler nach {elapsed:.1f}s: "
+                f"      !! HTTP Fehler nach "
+                f"{elapsed:.1f}s: "
                 f"{e.code}: {e.reason}"
             )
+
             if e.code == 429:
                 wait_time = 30 * (attempt + 1)
+
                 debug(
-                    f"      !! Rate Limit!"
+                    "      !! Rate Limit!"
                 )
-                debug(
-                    f"      -> Warte {wait_time}s "
-                    f"vor erneutem Versuch..."
-                )
-                time.sleep(wait_time)
-                continue
-            if e.code in (502, 503, 504):
-                wait_time = 20 * (attempt + 1)
-                debug(
-                    f"      !! Server nicht verfügbar!"
-                )
+
                 debug(
                     f"      -> Warte {wait_time}s "
-                    f"vor erneutem Versuch..."
+                    "vor erneutem Versuch..."
                 )
+
                 time.sleep(wait_time)
                 continue
+
+            if e.code in (
+                502,
+                503,
+                504,
+            ):
+                wait_time = 20 * (
+                    attempt + 1
+                )
+
+                debug(
+                    "      !! Server nicht verfügbar!"
+                )
+
+                debug(
+                    f"      -> Warte {wait_time}s "
+                    "vor erneutem Versuch..."
+                )
+
+                time.sleep(wait_time)
+                continue
+
             raise
-        except (urllib.error.URLError, TimeoutError) as e:
+
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+        ) as e:
+
             elapsed = time.time() - start_time
+
+            last_error = e
+
             debug(
-                f"      !! Netzwerkfehler nach "
+                "      !! Netzwerkfehler nach "
                 f"{elapsed:.1f}s: {e}"
             )
+
             if attempt < MAX_RETRIES - 1:
-                wait_time = 20 * (attempt + 1)
+                wait_time = 20 * (
+                    attempt + 1
+                )
+
                 debug(
                     f"      -> Warte {wait_time}s "
-                    f"vor erneutem Versuch..."
+                    "vor erneutem Versuch..."
                 )
+
                 time.sleep(wait_time)
+
                 continue
-            raise
+
+            break
+
         except Exception as e:
             elapsed = time.time() - start_time
+
+            last_error = e
+
             debug(
-                f"      !! Unerwarteter Fehler nach "
+                "      !! Unerwarteter Fehler nach "
                 f"{elapsed:.1f}s"
             )
+
             debug(
                 f"      !! {type(e).__name__}: {e}"
             )
+
             if attempt < MAX_RETRIES - 1:
-                wait_time = 20 * (attempt + 1)
+                wait_time = 20 * (
+                    attempt + 1
+                )
+
                 debug(
                     f"      -> Warte {wait_time}s "
-                    f"vor erneutem Versuch..."
+                    "vor erneutem Versuch..."
                 )
+
                 time.sleep(wait_time)
+
                 continue
-            raise
+
+            break
+
     raise RuntimeError(
-        f"POI-Typ '{poi_type}' konnte nicht geladen werden."
+        f"Tile konnte nach {MAX_RETRIES} "
+        f"Versuchen nicht geladen werden: "
+        f"{last_error}"
     )
 
 
-def query_overpass_region(poi_type, poi_config, region):
-    region_start = time.time()
-    tiles = generate_tiles(
-        region["south"],
-        region["west"],
-        region["north"],
-        region["east"],
-        poi_config.get("tile_size"),
-    )
-    debug(
-        f"    Region '{region['name']}': "
-        f"{len(tiles)} Tile(s)"
-    )
+# ============================================================
+# GESAMTREGION + TILES
+# ============================================================
+
+def query_overpass_all_regions(
+    poi_type,
+    poi_config,
+):
     all_elements = []
-    for index, (t_south, t_west, t_north, t_east) in enumerate(
-        tiles,
-        start=1
-    ):
-        tile_start = time.time()
-        debug(
-            f"    ----------------------------------------"
-        )
-        debug(
-            f"    Tile {index}/{len(tiles)} "
-            f"({index / len(tiles) * 100:.1f}%)"
-        )
-        debug(
-            f"    Bounding Box: "
-            f"{t_south:.3f},{t_west:.3f} -> "
-            f"{t_north:.3f},{t_east:.3f}"
-        )
-        elements = query_overpass_tile(
-            poi_type,
-            poi_config,
-            t_south,
-            t_west,
-            t_north,
-            t_east
-        )
-        all_elements.extend(elements)
-        tile_elapsed = time.time() - tile_start
-        debug(
-            f"    Tile {index}/{len(tiles)} fertig: "
-            f"{len(elements):,} Objekte "
-            f"in {tile_elapsed:.1f}s"
-        )
-        debug(
-            f"    Bisher in Region: "
-            f"{len(all_elements):,} Objekte"
-        )
-    region_elapsed = time.time() - region_start
-    debug(
-        f"    Region '{region['name']}' fertig"
-    )
-    debug(
-        f"    -> {len(all_elements):,} Objekte"
-    )
-    debug(
-        f"    -> Laufzeit: {region_elapsed:.1f}s"
-    )
-    return all_elements
+    failed_tiles = []
 
-def query_overpass_all_regions(poi_type, poi_config):
-
-    all_elements = []
-
-    south, west, north, east = get_combined_region_bounds(REGIONS)
+    south, west, north, east = (
+        get_combined_region_bounds(
+            REGIONS
+        )
+    )
 
     debug("")
     debug("========================================")
@@ -527,12 +743,14 @@ def query_overpass_all_regions(poi_type, poi_config):
     debug("========================================")
 
     debug(
-        f"Gesamt-Bounding-Box: "
+        "Gesamt-Bounding-Box: "
         f"{south:.4f},{west:.4f} -> "
         f"{north:.4f},{east:.4f}"
     )
 
-    tile_size = poi_config.get("tile_size")
+    tile_size = poi_config.get(
+        "tile_size"
+    )
 
     tiles = generate_tiles(
         south,
@@ -550,20 +768,43 @@ def query_overpass_all_regions(poi_type, poi_config):
         f"Gesamtzahl Tiles: {len(tiles)}"
     )
 
+    cache_dir = get_poi_cache_dir(
+        poi_type,
+        poi_config,
+    )
+
+    debug(
+        f"Tile-Cache: {cache_dir}"
+    )
+
     debug("")
 
     total_tiles = len(tiles)
+    cached_tiles = 0
+    requested_tiles = 0
 
-    for index, (
-        t_south,
-        t_west,
-        t_north,
-        t_east
-    ) in enumerate(tiles, start=1):
+    for index, tile in enumerate(
+        tiles,
+        start=1,
+    ):
+        (
+            t_south,
+            t_west,
+            t_north,
+            t_east,
+        ) = tile
 
         tile_start = time.time()
 
-        percent = index / total_tiles * 100
+        percent = (
+            index / total_tiles * 100
+        )
+
+        cache_file = get_tile_cache_file(
+            cache_dir,
+            index,
+            tile,
+        )
 
         debug("========================================")
         debug(
@@ -573,60 +814,222 @@ def query_overpass_all_regions(poi_type, poi_config):
         debug("========================================")
 
         debug(
-            f"BBOX: "
+            "BBOX: "
             f"{t_south:.4f},{t_west:.4f} -> "
             f"{t_north:.4f},{t_east:.4f}"
         )
 
-        elements = query_overpass_tile(
-            poi_type,
-            poi_config,
-            t_south,
-            t_west,
-            t_north,
-            t_east,
+        # ----------------------------------------------------
+        # CACHE PRÜFEN
+        # ----------------------------------------------------
+
+        cached_elements = load_cached_tile(
+            cache_file
+        )
+
+        if cached_elements is not None:
+            cached_tiles += 1
+
+            all_elements.extend(
+                cached_elements
+            )
+
+            tile_elapsed = (
+                time.time() - tile_start
+            )
+
+            debug(
+                f"Tile {index}/{total_tiles} "
+                "bereits vorhanden -> SKIP"
+            )
+
+            debug(
+                f"  Cache-Objekte: "
+                f"{len(cached_elements):,}"
+            )
+
+            debug(
+                f"  Gesamtobjekte: "
+                f"{len(all_elements):,}"
+            )
+
+            debug(
+                f"  Cache-Laufzeit: "
+                f"{tile_elapsed:.1f}s"
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # TILE ABFRAGEN
+        # ----------------------------------------------------
+
+        requested_tiles += 1
+
+        try:
+            elements = query_overpass_tile(
+                poi_type,
+                poi_config,
+                t_south,
+                t_west,
+                t_north,
+                t_east,
+            )
+
+        except Exception as e:
+            failed_tiles.append(
+                {
+                    "index": index,
+                    "tile": tile,
+                    "error": str(e),
+                }
+            )
+
+            debug("")
+            debug(
+                f"!! TILE {index}/{total_tiles} "
+                "ENDGÜLTIG FEHLGESCHLAGEN"
+            )
+
+            debug(
+                f"!! Fehler: {e}"
+            )
+
+            debug(
+                "!! Tile wird NICHT als erfolgreich "
+                "gespeichert."
+            )
+
+            debug(
+                "!! Es wird beim nächsten Lauf "
+                "erneut versucht."
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # ERFOLGREICHES TILE SPEICHERN
+        # ----------------------------------------------------
+
+        save_tile_cache(
+            cache_file,
+            elements,
+        )
+
+        debug(
+            f"      Tile-Cache gespeichert: "
+            f"{cache_file}"
         )
 
         all_elements.extend(elements)
 
-        tile_elapsed = time.time() - tile_start
-
-        debug(
-            f"Tile {index}/{total_tiles} abgeschlossen"
+        tile_elapsed = (
+            time.time() - tile_start
         )
 
         debug(
-            f"  Objekte dieses Tiles: {len(elements):,}"
+            f"Tile {index}/{total_tiles} "
+            "abgeschlossen"
         )
 
         debug(
-            f"  Objekte insgesamt: {len(all_elements):,}"
+            f"  Objekte dieses Tiles: "
+            f"{len(elements):,}"
         )
 
         debug(
-            f"  Tile-Laufzeit: {tile_elapsed:.1f}s"
+            f"  Objekte insgesamt: "
+            f"{len(all_elements):,}"
         )
 
         debug(
-            f"  Gesamtfortschritt: {percent:.1f}%"
+            f"  Tile-Laufzeit: "
+            f"{tile_elapsed:.1f}s"
         )
+
+        debug(
+            f"  Gesamtfortschritt: "
+            f"{percent:.1f}%"
+        )
+
+        # ----------------------------------------------------
+        # TILE-CACHE PERSISTENT INS REPOSITORY PUSHEN
+        # ----------------------------------------------------
+
+        try:
+            debug(
+                "      Git: Erfolgreiches Tile "
+                "wird persistent gespeichert..."
+            )
+
+            commit_and_push(
+                cache_file,
+                (
+                    f"Checkpoint "
+                    f"{poi_config['name']} "
+                    f"Tile {index}/{total_tiles}"
+                ),
+            )
+
+        except Exception as e:
+            debug(
+                "      !! Git-Push des Tile-"
+                f"Checkpoints fehlgeschlagen: {e}"
+            )
+
+            raise
 
     debug("")
     debug("========================================")
     debug("GESAMTREGION ABGESCHLOSSEN")
     debug("========================================")
+
     debug(
-        f"Rohobjekte insgesamt: {len(all_elements):,}"
+        f"Tiles insgesamt: {total_tiles}"
     )
 
-    return all_elements
+    debug(
+        f"Tiles aus Cache: {cached_tiles}"
+    )
+
+    debug(
+        f"Tiles neu abgefragt: {requested_tiles}"
+    )
+
+    debug(
+        f"Tiles fehlgeschlagen: "
+        f"{len(failed_tiles)}"
+    )
+
+    debug(
+        f"Rohobjekte erfolgreich: "
+        f"{len(all_elements):,}"
+    )
+
+    if failed_tiles:
+        debug("")
+        debug(
+            "Fehlgeschlagene Tiles:"
+        )
+
+        for failed in failed_tiles:
+            index = failed["index"]
+            tile = failed["tile"]
+
+            debug(
+                f"  Tile {index}: "
+                f"{tile[0]:.4f},{tile[1]:.4f} -> "
+                f"{tile[2]:.4f},{tile[3]:.4f}"
+            )
+
+    return all_elements, failed_tiles
+
 
 # ============================================================
 # OSM DATEN AUFBEREITEN
 # ============================================================
 
 def convert_elements(elements):
-
     convert_start = time.time()
 
     debug(
@@ -639,20 +1042,30 @@ def convert_elements(elements):
 
     total = len(elements)
 
-    for index, element in enumerate(elements, start=1):
+    for index, element in enumerate(
+        elements,
+        start=1,
+    ):
+        if (
+            index % 5000 == 0
+            or index == total
+        ):
+            if total:
+                debug(
+                    "  Aufbereitung: "
+                    f"{index:,}/{total:,} "
+                    f"({index / total * 100:.1f}%)"
+                )
 
-        # Alle 5.000 Elemente Fortschritt ausgeben
-        if index % 5000 == 0 or index == total:
+        element_type = element.get(
+            "type"
+        )
 
-            debug(
-                f"  Aufbereitung: "
-                f"{index:,}/{total:,} "
-                f"({index / total * 100:.1f}%)"
-            )
-
-        element_type = element.get("type")
-
-        if element_type not in ("node", "way", "relation"):
+        if element_type not in (
+            "node",
+            "way",
+            "relation",
+        ):
             continue
 
         osm_id = element.get("id")
@@ -660,20 +1073,30 @@ def convert_elements(elements):
         if osm_id is None:
             continue
 
-        dedup_key = (element_type, osm_id)
+        dedup_key = (
+            element_type,
+            osm_id,
+        )
 
         if dedup_key in seen_keys:
             continue
 
         seen_keys.add(dedup_key)
 
-        tags = element.get("tags", {})
+        tags = element.get(
+            "tags",
+            {},
+        )
 
         if element_type == "node":
             lat = element.get("lat")
             lon = element.get("lon")
         else:
-            center = element.get("center", {})
+            center = element.get(
+                "center",
+                {},
+            )
+
             lat = center.get("lat")
             lon = center.get("lon")
 
@@ -696,10 +1119,14 @@ def convert_elements(elements):
         }
 
         if tags.get("name:de"):
-            place["name_de"] = tags["name:de"]
+            place["name_de"] = (
+                tags["name:de"]
+            )
 
         if tags.get("name:en"):
-            place["name_en"] = tags["name:en"]
+            place["name_en"] = (
+                tags["name:en"]
+            )
 
         if tags.get("ele"):
             try:
@@ -713,16 +1140,24 @@ def convert_elements(elements):
                 pass
 
         if tags.get("wikidata"):
-            place["wikidata"] = tags["wikidata"]
+            place["wikidata"] = (
+                tags["wikidata"]
+            )
 
         if tags.get("website"):
-            place["website"] = tags["website"]
+            place["website"] = (
+                tags["website"]
+            )
 
         if tags.get("phone"):
-            place["phone"] = tags["phone"]
+            place["phone"] = (
+                tags["phone"]
+            )
 
         if tags.get("opening_hours"):
-            place["opening_hours"] = tags["opening_hours"]
+            place["opening_hours"] = (
+                tags["opening_hours"]
+            )
 
         address_fields = {
             "street": "addr:street",
@@ -734,31 +1169,44 @@ def convert_elements(elements):
 
         address = {}
 
-        for output_name, osm_tag in address_fields.items():
+        for (
+            output_name,
+            osm_tag,
+        ) in address_fields.items():
+
             if tags.get(osm_tag):
-                address[output_name] = tags[osm_tag]
+                address[output_name] = (
+                    tags[osm_tag]
+                )
 
         if address:
             place["address"] = address
 
         places.append(place)
 
-    debug("Sortiere Ergebnisse...")
-
-    places.sort(
-        key=lambda p: p.get("name", "").lower()
+    debug(
+        "Sortiere Ergebnisse..."
     )
 
-    elapsed = time.time() - convert_start
+    places.sort(
+        key=lambda p: p.get(
+            "name",
+            "",
+        ).lower()
+    )
+
+    elapsed = (
+        time.time() - convert_start
+    )
 
     debug(
-        f"Datenaufbereitung abgeschlossen: "
+        "Datenaufbereitung abgeschlossen: "
         f"{len(places):,} eindeutige POIs "
         f"in {elapsed:.1f}s"
     )
 
     debug(
-        f"Entfernte Duplikate: "
+        "Entfernte Duplikate: "
         f"{len(elements) - len(seen_keys):,}"
     )
 
@@ -769,32 +1217,101 @@ def convert_elements(elements):
 # JSON SCHREIBEN
 # ============================================================
 
-def write_json(poi_config, places):
-
-    output_file = DATA_DIR / poi_config["output"]
+def write_json(
+    poi_config,
+    places,
+    failed_tiles,
+):
+    output_file = (
+        DATA_DIR
+        / poi_config["output"]
+    )
 
     output = {
         "version": 1,
         "type": poi_config["type"],
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatedAt": (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        ),
         "source": "OpenStreetMap",
+        "complete": not bool(
+            failed_tiles
+        ),
+        "failedTiles": len(
+            failed_tiles
+        ),
         "regions": [
             {
                 "name": r["name"],
-                "south": r["south"], "west": r["west"],
-                "north": r["north"], "east": r["east"],
+                "south": r["south"],
+                "west": r["west"],
+                "north": r["north"],
+                "east": r["east"],
             }
             for r in REGIONS
         ],
         "places": places,
     }
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    with output_file.open("w", encoding="utf-8") as file:
-        json.dump(output, file, ensure_ascii=False, separators=(",", ":"))
+    temp_file = output_file.with_suffix(
+        ".tmp"
+    )
+
+    with temp_file.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            output,
+            file,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    temp_file.replace(output_file)
 
     return output_file
+
+
+# ============================================================
+# START
+# ============================================================
+
+print()
+print("========================================")
+print("OSM POI DATABASE UPDATE")
+print("========================================")
+print()
+
+print(
+    f"Regionen: {len(REGIONS)}"
+)
+
+for region in REGIONS:
+    debug(
+        f"  - {region['name']} "
+        f"({region['south']:.3f},"
+        f"{region['west']:.3f} -> "
+        f"{region['north']:.3f},"
+        f"{region['east']:.3f})"
+    )
+
+debug(
+    f"Kategorien: {len(POI_TYPES)}"
+)
+
+debug(
+    f"Tile-Größe: {TILE_SIZE}°"
+)
+
+debug("")
 
 
 # ============================================================
@@ -808,28 +1325,72 @@ for poi_config in POI_TYPES:
     print()
     print()
     print("========================================")
-    print(f"STARTE: {poi_config['name']}")
+    print(
+        f"STARTE: {poi_config['name']}"
+    )
     print("========================================")
 
-    elements = query_overpass_all_regions(poi_config["type"], poi_config)
+    poi_start = time.time()
 
-    places = convert_elements(elements)
+    elements, failed_tiles = (
+        query_overpass_all_regions(
+            poi_config["type"],
+            poi_config,
+        )
+    )
 
-    output_file = write_json(poi_config, places)
+    places = convert_elements(
+        elements
+    )
+
+    output_file = write_json(
+        poi_config,
+        places,
+        failed_tiles,
+    )
 
     debug(
         f"JSON geschrieben: {output_file}"
     )
-    
+
     total_places += len(places)
-    
-    commit_file(output_file, poi_config["name"])
-    
+
+    # --------------------------------------------------------
+    # JSON COMMIT + PUSH
+    # --------------------------------------------------------
+
+    commit_file(
+        output_file,
+        poi_config["name"],
+    )
+
+    poi_elapsed = (
+        time.time() - poi_start
+    )
+
     print()
     print("----------------------------------------")
-    print(f"{poi_config['name']} abgeschlossen")
-    print(f"Objekte (nach Dedup): {len(places)}")
-    print(f"Datei: {output_file}")
+    print(
+        f"{poi_config['name']} abgeschlossen"
+    )
+    print(
+        f"POIs: {len(places):,}"
+    )
+    print(
+        f"Datei: {output_file}"
+    )
+    print(
+        f"Fehlgeschlagene Tiles: "
+        f"{len(failed_tiles)}"
+    )
+    print(
+        f"Status: "
+        f"{'VOLLSTÄNDIG' if not failed_tiles else 'TEILWEISE'}"
+    )
+    print(
+        f"Laufzeit: "
+        f"{poi_elapsed / 60:.1f} Minuten"
+    )
     print("----------------------------------------")
 
 
@@ -837,21 +1398,33 @@ for poi_config in POI_TYPES:
 # FERTIG
 # ============================================================
 
-total_elapsed = time.time() - SCRIPT_START
+total_elapsed = (
+    time.time() - SCRIPT_START
+)
 
 debug("")
 debug("")
 debug("========================================")
 debug("OSM POI UPDATE ABGESCHLOSSEN")
 debug("========================================")
-debug(f"Kategorien: {len(POI_TYPES)}")
-debug(f"Gesamtzahl POIs: {total_places:,}")
-debug(f"Gesamtlaufzeit: {total_elapsed / 60:.1f} Minuten")
+debug(
+    f"Kategorien: {len(POI_TYPES)}"
+)
+debug(
+    f"Gesamtzahl POIs: "
+    f"{total_places:,}"
+)
+debug(
+    f"Gesamtlaufzeit: "
+    f"{total_elapsed / 60:.1f} Minuten"
+)
 debug("")
 debug("Erzeugte Dateien:")
 
 for poi_config in POI_TYPES:
-    debug(f"  - data/{poi_config['output']}")
+    debug(
+        f"  - data/{poi_config['output']}"
+    )
 
 debug("")
 debug("========================================")
