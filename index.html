@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
@@ -260,6 +260,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
+<script src="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css" rel="stylesheet"/>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js"></script>
+
 <script>
 (function(){
   "use strict";
@@ -389,74 +393,59 @@
 
 
   // ---------- Map setup ----------
-  const map = L.map('map', { zoomControl: true }).setView([47.2, 9.6], 9);
+  const map = L.map('map', {
+      zoomControl: true,
+      maxZoom: 20,
+      preferCanvas: true
+  }).setView([47.2, 9.6], 9);
 
   // Reliably suppress the browser's native right-click menu on the map,
   // independent of Leaflet's own internal listener-presence check.
   map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
 
   const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                    maxZoom: 19,
                                     attribution: '&copy; OpenStreetMap Mitwirkende'
                                   });
   const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                                maxZoom: 17,
                                 attribution: '&copy; OpenStreetMap Mitwirkende, SRTM | Kartendarstellung: &copy; OpenTopoMap (CC-BY-SA)'
                               });
-  // const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png?key=DEIN_CARTO_KEY',
-  //                                   {
-  //                                       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  //                                       subdomains: 'abcd',
-  //                                       maxZoom: 20
-  //                                   }
-  //                               );
-  // const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=DEIN_CARTO_KEY',
-  //                                     {
-  //                                         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  //                                         subdomains: 'abcd',
-  //                                         maxZoom: 20
-  //                                     }
-  //                                 );
-  // const STADIA_KEY = '67fc4d85-c0e8-4711-970b-5b362148d148';
-  // const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${STADIA_KEY}`,
   const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,
                                       {
-                                          maxZoom: 20,
                                           attribution:
                                               '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
                                               '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
                                               '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
                                       }
                                   );
-  const stadiaOutdoors = L.tileLayer(`https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png`,
-                                        {
-                                            maxZoom: 20,
-                                            attribution:
-                                                '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
-                                                '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
-                                                '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-                                        }
-                                    );
+  const stadiaOutdoors = L.maplibreGL({
+                  style: 'https://tiles.stadiamaps.com/styles/outdoors.json',
+                  attribution:
+                      '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+                      '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+                      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+              });
+  const motorcycleStyle = L.maplibreGL({
+                  style: 'styles/motorcycle.json',
+                  attribution:
+                      '&copy; Stadia Maps ' +
+                      '&copy; OpenMapTiles ' +
+                      '&copy; OpenStreetMap'
+              });
 
-  osmStandard.addTo(map);
+  motorcycleStyle.addTo(map);
 
   L.control.layers({
       // 'Google-artig / reduziert': cartoLight,
       // 'Google-artig / detailliert': cartoVoyager,
-      'OpenStreetMap (Standard)': osmStandard,
       'Stadia – Outdoor / Calimoto': stadiaOutdoors,
+      'OpenStreetMap': osmStandard,
       'Topographisch': openTopo,
       'Stadia – Hell / reduziert': stadiaSmooth,
+      'Mein eigener Stil': motorcycleStyle,
   }, null, {
       collapsed: true,
       position: 'topright'
   }).addTo(map);
-
-  // L.control.layers({
-  //   'OpenStreetMap (Standard)': osmStandard,
-  //   'Hell / reduziert (Carto)': cartoLight,
-  //   'Topographisch (OpenTopoMap)': openTopo
-  // }, null, { collapsed: true, position: 'topright' }).addTo(map);
 
   // ============================================================
   // Route planning (Tab "Planung")
@@ -470,14 +459,15 @@
   let routeCalculationController = null;
 
   document.getElementById('avoid-tollways').addEventListener('change', () => {
-    maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-  });
+          maybeAutoRecalculateRoute();
+          saveAppStateDebounced();
+        });
 
   document.getElementById('avoid-ferries').addEventListener('change', () => {
-    maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-  });
+          maybeAutoRecalculateRoute();
+          saveAppStateDebounced();
+        });
+
   //#region external POI
   const OVERPASS_SERVERS = [
     "https://overpass-api.de/api/interpreter",
