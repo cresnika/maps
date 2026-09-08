@@ -211,14 +211,25 @@ POI_TYPES = [
 # ============================================================
 
 def git_run(args, check=True):
-    return subprocess.run(
+    result = subprocess.run(
         ["git", *args],
-        check=check,
+        check=False,
         capture_output=True,
         text=True,
     )
-
-
+    if result.stdout.strip():
+        debug(f"Git stdout: {result.stdout.strip()}")
+    if result.stderr.strip():
+        debug(f"Git stderr: {result.stderr.strip()}")
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            result.args,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return result
+    
 def commit_and_push(path, commit_message):
     """
     Commit + Push für eine einzelne Datei.
