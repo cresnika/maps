@@ -213,20 +213,20 @@ POI_TYPES = [
     #     "query": 'nwr["amenity"="fuel"]',
     #     "tile_size": TILE_SIZE,
     # },
-    # {
-    #     "name": "Hotels",
-    #     "type": "hotels",
-    #     "output": "hotels.json",
-    #     "query": 'nwr["tourism"="hotel"]',
-    #     "tile_size": TILE_SIZE,
-    # },
-    # {
-    #     "name": "Pensionen",
-    #     "type": "guesthouse",
-    #     "output": "guesthouses.json",
-    #     "query": 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
-    #     "tile_size": TILE_SIZE,
-    # },
+    {
+        "name": "Hotels",
+        "type": "hotels",
+        "output": "hotels.json",
+        "query": 'nwr["tourism"="hotel"]',
+        "tile_size": TILE_SIZE,
+    },
+    {
+        "name": "Pensionen",
+        "type": "guesthouse",
+        "output": "guesthouses.json",
+        "query": 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
+        "tile_size": TILE_SIZE,
+    },
 
 
     
