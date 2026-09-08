@@ -118,7 +118,6 @@ REGIONS = [
 # ============================================================
 
 POI_TYPES = [
-
     # {
     #     "name": "Mountain Passes",
     #     "type": "mountain_pass",
