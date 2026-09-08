@@ -1,6 +1,7 @@
 import json
 import time
 import sys
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -100,7 +101,20 @@ REGIONS = [
     }
 ]
 
+def get_combined_region_bounds(regions):
+    """
+    Ermittelt eine gemeinsame Bounding-Box für alle Regionen.
 
+    Dadurch werden überlappende Regionen nicht mehrfach abgefragt.
+    """
+
+    south = min(region["south"] for region in regions)
+    west = min(region["west"] for region in regions)
+    north = max(region["north"] for region in regions)
+    east = max(region["east"] for region in regions)
+
+    return south, west, north, east
+    
 # ============================================================
 # POI-KATEGORIEN
 # ============================================================
@@ -127,21 +141,21 @@ POI_TYPES = [
     #         '^(motorway|trunk|primary|secondary|tertiary|'
     #         'unclassified|residential|service)$'
     #     ),
-    #     "tile_size": 3.0,
+    #     "tile_size": 2.0,
     # },
     {
         "name": "Tankstellen",
         "type": "fuel",
         "output": "fuel.json",
         "query": 'nwr[amenity=fuel]',
-        "tile_size": 3.0,
+        "tile_size": 2.0,
     },
 #    {
 #        "name": "Campingplaetze",
 #        "type": "campsite",
 #        "output": "campsites.json",
 #        "query": 'nwr["tourism"="camp_site"]',
-#        "tile_size": 3.0,
+#        "tile_size": 2.0,
 #    },
 
 #    {
@@ -149,7 +163,7 @@ POI_TYPES = [
 #        "type": "viewpoint",
 #        "output": "viewpoints.json",
 #        "query": 'nwr["tourism"="viewpoint"]',
-#        "tile_size": 3.0,
+#        "tile_size": 2.0,
 #    },
 
 #    {
@@ -157,7 +171,7 @@ POI_TYPES = [
 #        "type": "motorcycle_shop",
 #        "output": "motorcycle_shops.json",
 #        "query": 'nwr["shop"="motorcycle"]',
-#        "tile_size": 5.0,
+#        "tile_size": 2.0,
 #    },
 
 #    {
@@ -165,10 +179,63 @@ POI_TYPES = [
 #        "type": "charging_station",
 #        "output": "charging_stations.json",
 #        "query": 'nwr["amenity"="charging_station"]',
-#        "tile_size": 4.0,
+#        "tile_size": 2.0,
 #    }
 ]
 
+
+# ============================================================
+# git commit helper
+# ============================================================
+def commit_file(output_file, poi_name):
+    debug("")
+    debug("========================================")
+    debug(f"GIT COMMIT: {output_file}")
+    debug("========================================")
+    try:
+        debug("Git: Datei wird hinzugefügt...")
+        subprocess.run(
+            ["git", "add", str(output_file)],
+            check=True,
+        )
+        # Prüfen, ob tatsächlich Änderungen vorhanden sind
+        result = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--cached",
+                "--quiet",
+            ],
+            check=False,
+        )
+
+        if result.returncode == 0:
+            debug("Git: Keine Änderungen vorhanden.")
+            return
+        commit_message = (f"Update {poi_name} data")
+        debug(f"Git: Commit '{commit_message}'...")
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                commit_message,
+            ],
+            check=True,
+        )
+        debug("Git: Commit erfolgreich.")
+        debug("Git: Push wird gestartet...")
+        subprocess.run(
+            [
+                "git",
+                "push",
+            ],
+            check=True,
+        )
+        debug("Git: Push erfolgreich.")
+    except subprocess.CalledProcessError as e:
+        debug(f"Git-Fehler: Command fehlgeschlagen "f"(Exit Code {e.returncode})")
+        raise
 
 # ============================================================
 # START
@@ -449,48 +516,109 @@ def query_overpass_region(poi_type, poi_config, region):
     return all_elements
 
 def query_overpass_all_regions(poi_type, poi_config):
+
     all_elements = []
-    total_regions = len(REGIONS)
+
+    south, west, north, east = get_combined_region_bounds(REGIONS)
+
+    debug("")
+    debug("========================================")
+    debug("GESAMTREGION")
+    debug("========================================")
+
     debug(
-        f"  Starte {total_regions} Regionen..."
+        f"Gesamt-Bounding-Box: "
+        f"{south:.4f},{west:.4f} -> "
+        f"{north:.4f},{east:.4f}"
     )
-    for region_index, region in enumerate(
-        REGIONS,
-        start=1
-    ):
-        debug("")
+
+    tile_size = poi_config.get("tile_size")
+
+    tiles = generate_tiles(
+        south,
+        west,
+        north,
+        east,
+        tile_size,
+    )
+
+    debug(
+        f"Tile-Größe: {tile_size}°"
+    )
+
+    debug(
+        f"Gesamtzahl Tiles: {len(tiles)}"
+    )
+
+    debug("")
+
+    total_tiles = len(tiles)
+
+    for index, (
+        t_south,
+        t_west,
+        t_north,
+        t_east
+    ) in enumerate(tiles, start=1):
+
+        tile_start = time.time()
+
+        percent = index / total_tiles * 100
+
+        debug("========================================")
         debug(
-            f"  ========================================"
+            f"TILE {index}/{total_tiles} "
+            f"({percent:.1f}%)"
         )
+        debug("========================================")
+
         debug(
-            f"  REGION {region_index}/{total_regions} "
-            f"({region_index / total_regions * 100:.1f}%)"
+            f"BBOX: "
+            f"{t_south:.4f},{t_west:.4f} -> "
+            f"{t_north:.4f},{t_east:.4f}"
         )
-        debug(
-            f"  {region['name']}"
-        )
-        debug(
-            f"  ========================================"
-        )
-        elements = query_overpass_region(
+
+        elements = query_overpass_tile(
             poi_type,
             poi_config,
-            region
+            t_south,
+            t_west,
+            t_north,
+            t_east,
         )
+
         all_elements.extend(elements)
+
+        tile_elapsed = time.time() - tile_start
+
         debug(
-            f"  Gesamtfortschritt: "
-            f"{region_index}/{total_regions} Regionen"
+            f"Tile {index}/{total_tiles} abgeschlossen"
         )
+
         debug(
-            f"  Gesamtobjekte bisher: "
-            f"{len(all_elements):,}"
+            f"  Objekte dieses Tiles: {len(elements):,}"
         )
+
+        debug(
+            f"  Objekte insgesamt: {len(all_elements):,}"
+        )
+
+        debug(
+            f"  Tile-Laufzeit: {tile_elapsed:.1f}s"
+        )
+
+        debug(
+            f"  Gesamtfortschritt: {percent:.1f}%"
+        )
+
     debug("")
+    debug("========================================")
+    debug("GESAMTREGION ABGESCHLOSSEN")
+    debug("========================================")
     debug(
-        f"  Alle Regionen abgeschlossen: "
-        f"{len(all_elements):,} Rohobjekte"
+        f"Rohobjekte insgesamt: {len(all_elements):,}"
     )
+
     return all_elements
 
 # ============================================================
@@ -689,8 +817,14 @@ for poi_config in POI_TYPES:
 
     output_file = write_json(poi_config, places)
 
+    debug(
+        f"JSON geschrieben: {output_file}"
+    )
+    
     total_places += len(places)
-
+    
+    commit_file(output_file, poi_config["name"])
+    
     print()
     print("----------------------------------------")
     print(f"{poi_config['name']} abgeschlossen")
