@@ -195,17 +195,17 @@ def get_combined_region_bounds(regions):
 # ============================================================
 
 POI_TYPES = [
-    # {
-    #     "name": "Mountain Passes",
-    #     "type": "mountain_pass",
-    #     "output": "mountain_passes.json",
-    #     "query": None,
-    #     "road_filter": (
-    #         "^(motorway|trunk|primary|secondary|tertiary|"
-    #         "unclassified|residential|service)$"
-    #     ),
-    #     "tile_size": TILE_SIZE,
-    # },
+    {
+        "name": "Mountain Passes",
+        "type": "mountain_pass",
+        "output": "mountain_passes.json",
+        "query": None,
+        "road_filter": (
+            "^(motorway|trunk|primary|secondary|tertiary|"
+            "unclassified|residential|service)$"
+        ),
+        "tile_size": TILE_SIZE,
+    },
     # {
     #     "name": "Tankstellen",
     #     "type": "fuel",
@@ -213,21 +213,23 @@ POI_TYPES = [
     #     "query": 'nwr["amenity"="fuel"]',
     #     "tile_size": TILE_SIZE,
     # },
-    {
-        "name": "Hotels",
-        "type": "hotels",
-        "output": "hotels.json",
-        "query": 'nwr["tourism"="hotel"]',
-        "tile_size": TILE_SIZE,
-    },
-    {
-        "name": "Pensionen",
-        "type": "guesthouse",
-        "output": "guesthouses.json",
-        "query": 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
-        "tile_size": TILE_SIZE,
-    },
+    # {
+    #     "name": "Hotels",
+    #     "type": "hotels",
+    #     "output": "hotels.json",
+    #     "query": 'nwr["tourism"="hotel"]',
+    #     "tile_size": TILE_SIZE,
+    # },
+    # {
+    #     "name": "Pensionen",
+    #     "type": "guesthouse",
+    #     "output": "guesthouses.json",
+    #     "query": 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
+    #     "tile_size": TILE_SIZE,
+    # },
 
+
+    
     # {
     #     "name": "Campingplaetze",
     #     "type": "campsite",
