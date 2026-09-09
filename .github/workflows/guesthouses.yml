@@ -1,0 +1,49 @@
+name: Update Pensionen POI database
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "17 1 * * 0"
+
+concurrency:
+  group: poi-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update-pois:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update POI database
+        run: |
+          python scripts/update_guesthouses.py
+
+      - name: Commit remaining changes
+        run: |
+          git add data/*.json
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen."
+          else
+            git commit -m "Update OSM POI database"
+            git pull --rebase origin main
+            git push
+          fi
