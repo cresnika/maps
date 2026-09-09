@@ -26,6 +26,12 @@ REQUEST_DELAY = 6
 OVERPASS_TIMEOUT = 120
 TILE_SIZE = 2.0
 
+# Git: Nicht nach jedem einzelnen Tile pushen.
+# Commit bleibt pro erfolgreichem Tile erhalten; gepusht wird gebündelt.
+GIT_PUSH_EVERY = 25
+GIT_PUSH_RETRIES = 4
+GIT_PUSH_RETRY_DELAY = 15
+
 SCRIPT_START = time.time()
 
 
@@ -268,6 +274,10 @@ POI_TYPES = [
 # GIT
 # ============================================================
 
+# Anzahl seit dem letzten erfolgreichen Push erzeugter Commits.
+git_unpushed_commits = 0
+
+
 def git_run(args, check=True):
     result = subprocess.run(
         ["git", *args],
@@ -287,11 +297,61 @@ def git_run(args, check=True):
             stderr=result.stderr,
         )
     return result
-    
-def commit_and_push(path, commit_message):
+
+
+def git_push_with_retry():
     """
-    Commit + Push für eine einzelne Datei.
+    Push mit mehreren Versuchen.
+    Temporäre GitHub-Fehler sollen den gesamten POI-Lauf
+    nicht sofort abbrechen.
     """
+    global git_unpushed_commits
+
+    if git_unpushed_commits <= 0:
+        debug("Git: Keine ungesendeten Commits vorhanden.")
+        return True
+
+    for attempt in range(1, GIT_PUSH_RETRIES + 1):
+        debug(
+            f"Git: Push Versuch "
+            f"{attempt}/{GIT_PUSH_RETRIES} "
+            f"({git_unpushed_commits} Commit(s))..."
+        )
+
+        result = git_run(
+            ["push"],
+            check=False,
+        )
+
+        if result.returncode == 0:
+            debug("Git: Push erfolgreich.")
+            git_unpushed_commits = 0
+            return True
+
+        if attempt < GIT_PUSH_RETRIES:
+            wait_time = GIT_PUSH_RETRY_DELAY * attempt
+            debug(
+                f"Git: Push fehlgeschlagen. "
+                f"Neuer Versuch in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+
+    debug(
+        "Git: Push nach mehreren Versuchen "
+        "fehlgeschlagen. Die lokalen Commits bleiben erhalten."
+    )
+    return False
+
+
+def commit_and_push(path, commit_message, push=False):
+    """
+    Datei committen und optional sofort pushen.
+
+    Standardmäßig wird nur committed. Das verhindert einen GitHub-Push
+    nach jedem einzelnen Tile. Der eigentliche Push erfolgt gebündelt.
+    """
+
+    global git_unpushed_commits
 
     debug(f"Git: add {path}")
 
@@ -316,11 +376,15 @@ def commit_and_push(path, commit_message):
         ]
     )
 
-    debug("Git: Push wird gestartet...")
+    git_unpushed_commits += 1
 
-    git_run(["push"])
+    debug(
+        f"Git: Commit erfolgreich. "
+        f"Ungesendete Commits: {git_unpushed_commits}"
+    )
 
-    debug("Git: Push erfolgreich.")
+    if push:
+        return git_push_with_retry()
 
     return True
 
@@ -331,10 +395,17 @@ def commit_file(output_file, poi_name):
     debug(f"GIT COMMIT: {output_file}")
     debug("========================================")
 
-    commit_and_push(
+    committed = commit_and_push(
         output_file,
         f"Update {poi_name} data",
+        push=False,
     )
+
+    if committed:
+        if not git_push_with_retry():
+            raise RuntimeError(
+                f"Git-Push für {output_file} konnte nicht abgeschlossen werden."
+            )
 
 
 # ============================================================
@@ -1022,7 +1093,7 @@ def query_overpass_all_regions(
         )
 
         # ----------------------------------------------------
-        # TILE-CACHE PERSISTENT INS REPOSITORY PUSHEN
+        # TILE-CACHE ALS COMMIT SPEICHERN
         # ----------------------------------------------------
 
         try:
@@ -1031,22 +1102,46 @@ def query_overpass_all_regions(
                 "wird persistent gespeichert..."
             )
 
-            commit_and_push(
+            committed = commit_and_push(
                 cache_file,
                 (
                     f"Checkpoint "
                     f"{poi_config['name']} "
                     f"Tile {index}/{total_tiles}"
                 ),
+                push=False,
             )
+
+            # Nur alle GIT_PUSH_EVERY Commits pushen.
+            if committed and (
+                git_unpushed_commits >= GIT_PUSH_EVERY
+                or index == total_tiles
+            ):
+                debug(
+                    f"      Git: {git_unpushed_commits} "
+                    "Commit(s) gesammelt -> Push..."
+                )
+
+                if not git_push_with_retry():
+                    debug(
+                        "      !! Git-Push momentan nicht möglich. "
+                        "Der Lauf wird fortgesetzt; beim nächsten "
+                        "Push-Versuch werden die offenen Commits "
+                        "erneut übertragen."
+                    )
 
         except Exception as e:
             debug(
-                "      !! Git-Push des Tile-"
-                f"Checkpoints fehlgeschlagen: {e}"
+                "      !! Git-Checkpoint fehlgeschlagen: "
+                f"{e}"
             )
 
-            raise
+            # Der Tile-Cache ist bereits lokal gespeichert.
+            # Ein Git-Problem darf den Overpass-Lauf nicht abbrechen.
+            debug(
+                "      !! Tile bleibt lokal erhalten; "
+                "Lauf wird fortgesetzt."
+            )
 
     debug("")
     debug("========================================")
