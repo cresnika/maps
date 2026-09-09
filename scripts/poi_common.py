@@ -12,8 +12,8 @@ from pathlib import Path
 # ============================================================
 # KONFIGURATION
 # ============================================================
-
-DATA_DIR = Path("data")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
 TILE_CACHE_DIR = DATA_DIR / ".tile_cache"
 
 OVERPASS_SERVERS = [
@@ -58,10 +58,17 @@ def debug(message):
 # REGIONEN
 # ============================================================
 
-def load_regions():
-    with open("regions.json", "r", encoding="utf-8") as file:
-        return json.load(file)
+from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+REGIONS_FILE = SCRIPT_DIR / "regions.json"
+
+def load_regions():
+    with (Path(__file__).resolve().parent / "regions.json").open(
+        "r",
+        encoding="utf-8"
+    ) as file:
+        return json.load(file)
 
 def get_combined_region_bounds(regions):
     """
