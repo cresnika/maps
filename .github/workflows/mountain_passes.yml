@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 6"
 
 concurrency:
-  group: alpenpässe-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-mountain-passes-pois:
 
     runs-on: ubuntu-latest
 

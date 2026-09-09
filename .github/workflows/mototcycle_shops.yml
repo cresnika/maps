@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 1"
 
 concurrency:
-  group: motorradhändler-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-motorcycle-shops-pois:
 
     runs-on: ubuntu-latest
 

@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 5"
 
 concurrency:
-  group: hotels-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-hotels-pois:
 
     runs-on: ubuntu-latest
 

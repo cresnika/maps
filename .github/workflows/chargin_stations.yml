@@ -7,14 +7,14 @@ on:
     - cron: "59 23 * * 0"
 
 concurrency:
-  group: ladestationen-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-charging-stations-pois:
 
     runs-on: ubuntu-latest
 

@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 0"
 
 concurrency:
-  group: sehenswürdigkeiten-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-viewport-pois:
 
     runs-on: ubuntu-latest
 

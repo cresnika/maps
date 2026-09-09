@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 2"
 
 concurrency:
-  group: camping-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-camping-pois:
 
     runs-on: ubuntu-latest
 

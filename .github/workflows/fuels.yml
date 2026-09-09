@@ -7,14 +7,14 @@ on:
     - cron: "0 23 * * 3"
 
 concurrency:
-  group: tankstellen-poi-update
+  group: poi-update
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  update-pois:
+  update-fuels-pois:
 
     runs-on: ubuntu-latest
 
