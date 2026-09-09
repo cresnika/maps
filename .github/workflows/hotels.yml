@@ -1,4 +1,4 @@
-name: Update Pensionen POI database
+name: Update Hotels POI database
 
 on:
   workflow_dispatch:
