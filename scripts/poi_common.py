@@ -127,6 +127,7 @@ def git_push_with_retry():
         return True
 
     for attempt in range(1, GIT_PUSH_RETRIES + 1):
+
         debug(
             f"Git: Push Versuch "
             f"{attempt}/{GIT_PUSH_RETRIES} "
@@ -143,20 +144,70 @@ def git_push_with_retry():
             git_unpushed_commits = 0
             return True
 
-        if attempt < GIT_PUSH_RETRIES:
-            wait_time = GIT_PUSH_RETRY_DELAY * attempt
+        debug("Git: Push fehlgeschlagen.")
+
+        # ----------------------------------------------------
+        # FETCH + REBASE
+        # ----------------------------------------------------
+
+        debug("Git: Fetch origin...")
+        git_run(
+            ["fetch", "origin"],
+            check=False,
+        )
+
+        debug("Git: Rebase auf origin/main...")
+        rebase_result = git_run(
+            ["rebase", "origin/main"],
+            check=False,
+        )
+
+        if rebase_result.returncode == 0:
+
             debug(
-                f"Git: Push fehlgeschlagen. "
-                f"Neuer Versuch in {wait_time}s..."
+                "Git: Rebase erfolgreich. "
+                "Neuer Push-Versuch..."
             )
+
+            result = git_run(
+                ["push"],
+                check=False,
+            )
+
+            if result.returncode == 0:
+                debug("Git: Push nach Rebase erfolgreich.")
+                git_unpushed_commits = 0
+                return True
+
+        else:
+
+            debug(
+                "Git: Rebase fehlgeschlagen. "
+                "Breche Rebase ab."
+            )
+
+            git_run(
+                ["rebase", "--abort"],
+                check=False,
+            )
+
+        if attempt < GIT_PUSH_RETRIES:
+
+            wait_time = GIT_PUSH_RETRY_DELAY * attempt
+
+            debug(
+                f"Git: Neuer Versuch in "
+                f"{wait_time}s..."
+            )
+
             time.sleep(wait_time)
 
     debug(
         "Git: Push nach mehreren Versuchen "
         "fehlgeschlagen. Die lokalen Commits bleiben erhalten."
     )
-    return False
 
+    return False
 
 def commit_and_push(path, commit_message, push=False):
     """
