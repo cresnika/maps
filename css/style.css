@@ -1127,9 +1127,12 @@ body {
     --poi-color: #3fdd00;
   }
 
-
   .extern-poi-marker-guesthouses {
     --poi-color: #2b9900;
+  }
+  
+  .extern-poi-marker-campingsite {
+    --poi-color: #028d7a;
   }
   
   .extern-poi-popup {
