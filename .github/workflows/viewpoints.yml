@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 0"
 
 concurrency:
-  group: poi-update
+  group: sehenswürdigkeiten-poi-update
   cancel-in-progress: false
 
 permissions:

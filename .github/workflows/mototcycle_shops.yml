@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 1"
 
 concurrency:
-  group: poi-update
+  group: motorradhändler-poi-update
   cancel-in-progress: false
 
 permissions:

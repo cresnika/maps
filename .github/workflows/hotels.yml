@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 5"
 
 concurrency:
-  group: poi-update
+  group: hotels-poi-update
   cancel-in-progress: false
 
 permissions:

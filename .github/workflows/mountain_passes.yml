@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 6"
 
 concurrency:
-  group: poi-update
+  group: alpenpässe-poi-update
   cancel-in-progress: false
 
 permissions:

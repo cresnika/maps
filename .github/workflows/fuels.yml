@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 3"
 
 concurrency:
-  group: poi-update
+  group: tankstellen-poi-update
   cancel-in-progress: false
 
 permissions:

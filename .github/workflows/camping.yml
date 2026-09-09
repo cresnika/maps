@@ -7,7 +7,7 @@ on:
     - cron: "0 23 * * 2"
 
 concurrency:
-  group: poi-update
+  group: camping-poi-update
   cancel-in-progress: false
 
 permissions:

@@ -7,7 +7,7 @@ on:
     - cron: "59 23 * * 0"
 
 concurrency:
-  group: poi-update
+  group: ladestationen-poi-update
   cancel-in-progress: false
 
 permissions:
