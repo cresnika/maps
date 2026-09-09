@@ -1,4 +1,4 @@
-name: Update POI database
+name: Update Camping POI database
 
 on:
   workflow_dispatch:
