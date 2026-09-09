@@ -437,11 +437,11 @@
   L.control.layers({
       // 'Google-artig / reduziert': cartoLight,
       // 'Google-artig / detailliert': cartoVoyager,
-      'Stadia – Outdoor / Calimoto': stadiaOutdoors,
+      'Alex´s Stil': motorcycleStyle,
       'OpenStreetMap': osmStandard,
       'Topographisch': openTopo,
+      'Stadia – Outdoor': stadiaOutdoors,
       'Stadia – Hell / reduziert': stadiaSmooth,
-      'Mein eigener Stil': motorcycleStyle,
   }, null, {
       collapsed: true,
       position: 'topright'
@@ -594,45 +594,85 @@
         cache: new Map(),
         pendingTiles: new Set()
     },
-      {
-        description: 'Pensionen',
-        mapicon: L.divIcon({
-                  className: 'extern-poi-marker extern-poi-marker-guesthouses',
-                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
-                              <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
-                              <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                              <path fill="var(--icon-outline)" d="M116.44,109.44v97.78h85.56v-61.11h73.33c20.24,0,36.67,16.42,36.67,36.67v97.78h-24.44v-36.67H116.44v36.67h-24.44V109.44h24.44ZM134.78,170.56c0-13.48,10.96-24.44,24.44-24.44s24.44,10.96,24.44,24.44-10.96,24.44-24.44,24.44-24.44-10.96-24.44-24.44Z"/>
-                          </svg>`,
-                  iconSize: [24, 24],
-                  iconAnchor: [12, 24],
-                  popupAnchor: [0, -12]
-                }),
-        labelicon: L.divIcon({
-                  html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                            <path opacity=".4" fill="var(--text)" d="M272 256C272 291.3 243.3 320 208 320C172.7 320 144 291.3 144 256C144 220.7 172.7 192 208 192C243.3 192 272 220.7 272 256zM320 224C320 206.3 334.3 192 352 192L512 192C565 192 608 235 608 288L608 352L320 352L320 224z"/>
-                            <path fill="var(--icon-outline)" d="M64 96C81.7 96 96 110.3 96 128L96 352L608 352L608 512C608 529.7 593.7 544 576 544C558.3 544 544 529.7 544 512L544 448L96 448L96 512C96 529.7 81.7 544 64 544C46.3 544 32 529.7 32 512L32 128C32 110.3 46.3 96 64 96z"/>
-                          </svg>`,
-                }),
-        layer: null,
-        visible: false,
-        _loadingActive: false,
-        get loadingActive() { return this._loadingActive; },
-        set loadingActive(value) {
-          this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
-        },
-        zoomLimit: 4,
-        zoomVisibility: false,
-        poiData: null,
-        loadPromise: null,
-        dataFilename: 'data/guesthouses.json',
-        control: null,
-        overpassQuery: 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
-        tileSizeDeg: 0.3,
-        cache: new Map(),
-        pendingTiles: new Set()
-    },];  
+    {
+      description: 'Pensionen',
+      mapicon: L.divIcon({
+                className: 'extern-poi-marker extern-poi-marker-guesthouses',
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                            <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                            <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                            <path fill="var(--icon-outline)" d="M116.44,109.44v97.78h85.56v-61.11h73.33c20.24,0,36.67,16.42,36.67,36.67v97.78h-24.44v-36.67H116.44v36.67h-24.44V109.44h24.44ZM134.78,170.56c0-13.48,10.96-24.44,24.44-24.44s24.44,10.96,24.44,24.44-10.96,24.44-24.44,24.44-24.44-10.96-24.44-24.44Z"/>
+                        </svg>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 24],
+                popupAnchor: [0, -12]
+              }),
+      labelicon: L.divIcon({
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path opacity=".4" fill="var(--text)" d="M272 256C272 291.3 243.3 320 208 320C172.7 320 144 291.3 144 256C144 220.7 172.7 192 208 192C243.3 192 272 220.7 272 256zM320 224C320 206.3 334.3 192 352 192L512 192C565 192 608 235 608 288L608 352L320 352L320 224z"/>
+                          <path fill="var(--icon-outline)" d="M64 96C81.7 96 96 110.3 96 128L96 352L608 352L608 512C608 529.7 593.7 544 576 544C558.3 544 544 529.7 544 512L544 448L96 448L96 512C96 529.7 81.7 544 64 544C46.3 544 32 529.7 32 512L32 128C32 110.3 46.3 96 64 96z"/>
+                        </svg>`,
+              }),
+      layer: null,
+      visible: false,
+      _loadingActive: false,
+      get loadingActive() { return this._loadingActive; },
+      set loadingActive(value) {
+        this._loadingActive = value;
+        const Licon = document.getElementById(`${this.description}-load-icon`);
+        if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+      },
+      zoomLimit: 4,
+      zoomVisibility: false,
+      poiData: null,
+      loadPromise: null,
+      dataFilename: 'data/guesthouses.json',
+      control: null,
+      overpassQuery: 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
+      tileSizeDeg: 0.3,
+      cache: new Map(),
+      pendingTiles: new Set()
+    },
+    {
+      description: 'Camping',
+      mapicon: L.divIcon({
+                className: 'extern-poi-marker extern-poi-marker-guesthouses',
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                            <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                            <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110C16,93.7,94.5,16.1,192,16.1v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                            <path fill="var(--icon-outline)" d="M116.44,109.44v97.78h85.56v-61.11h73.33c20.24,0,36.67,16.42,36.67,36.67v97.78h-24.44v-36.67H116.44v36.67h-24.44V109.44h24.44ZM134.78,170.56c0-13.48,10.96-24.44,24.44-24.44s24.44,10.96,24.44,24.44-10.96,24.44-24.44,24.44-24.44-10.96-24.44-24.44Z"/>
+                        </svg>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 24],
+                popupAnchor: [0, -12]
+              }),
+      labelicon: L.divIcon({
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path opacity=".4" fill="var(--text)" d="M272 256C272 291.3 243.3 320 208 320C172.7 320 144 291.3 144 256C144 220.7 172.7 192 208 192C243.3 192 272 220.7 272 256zM320 224C320 206.3 334.3 192 352 192L512 192C565 192 608 235 608 288L608 352L320 352L320 224z"/>
+                          <path fill="var(--icon-outline)" d="M64 96C81.7 96 96 110.3 96 128L96 352L608 352L608 512C608 529.7 593.7 544 576 544C558.3 544 544 529.7 544 512L544 448L96 448L96 512C96 529.7 81.7 544 64 544C46.3 544 32 529.7 32 512L32 128C32 110.3 46.3 96 64 96z"/>
+                        </svg>`,
+              }),
+      layer: null,
+      visible: false,
+      _loadingActive: false,
+      get loadingActive() { return this._loadingActive; },
+      set loadingActive(value) {
+        this._loadingActive = value;
+        const Licon = document.getElementById(`${this.description}-load-icon`);
+        if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+      },
+      zoomLimit: 4,
+      zoomVisibility: false,
+      poiData: null,
+      loadPromise: null,
+      dataFilename: 'data/campsites.json',
+      control: null,
+      overpassQuery: 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
+      tileSizeDeg: 0.3,
+      cache: new Map(),
+      pendingTiles: new Set()
+    },
+  ];  
  
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -1410,6 +1450,11 @@
       row.draggable = true;
       row.dataset.wpId = wp.id;
 
+      row.addEventListener('dblclick', (e) => {
+        row.classList.add('dblclick');
+        map.setView([wp.lat, wp.lng], map.getZoom());
+      });
+
       row.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', wp.id);
@@ -1417,24 +1462,24 @@
       });
       row.addEventListener('dragend', () => row.classList.remove('dragging'));
       
-	  row.addEventListener('dragover', (e) => {
-		e.preventDefault();
-		const rect = row.getBoundingClientRect();
-		row.classList.remove(
-			'drag-over-top',
-			'drag-over-bottom'
-		);
-		if ((e.clientY - rect.top) < (rect.height / 2))
-			row.classList.add('drag-over-top');
-		else
-			row.classList.add('drag-over-bottom');
-	  });
-	  row.addEventListener('dragleave', () => {
-		row.classList.remove(
-			'drag-over-top',
-			'drag-over-bottom'
-		);
-	  });
+      row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const rect = row.getBoundingClientRect();
+      row.classList.remove(
+        'drag-over-top',
+        'drag-over-bottom'
+      );
+      if ((e.clientY - rect.top) < (rect.height / 2))
+        row.classList.add('drag-over-top');
+      else
+        row.classList.add('drag-over-bottom');
+      });
+      row.addEventListener('dragleave', () => {
+      row.classList.remove(
+        'drag-over-top',
+        'drag-over-bottom'
+      );
+      });
 
 	  row.addEventListener('drop', (e) => {
         e.preventDefault();
@@ -1580,6 +1625,7 @@
   // ============================================================
   //#region Temporary store route
   const STORAGE_KEY = 'motorcycle-route-planner-state-v1';
+  const STORAGE_KEY_MAPVIEW = 'motorcycle-route-planner-mapview';
   const STORAGE_DEBOUNCE_MS = 500;
 
   function serializeWaypoints() {
@@ -1610,13 +1656,47 @@
     return state;
   }
 
+  function serializeMapView() {
+    const c = map.getCenter();
+    return {
+      center: [c.lat, c.lng],
+      zoom: map.getZoom()
+    };
+  }
+  
+  function restoreMapView() {
+    const raw = localStorage.getItem(STORAGE_KEY_MAPVIEW);
+
+    let state = null;
+    try {
+      state = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      state = null;
+    }
+
+    if (!state || !Array.isArray(state.center) || state.center.length !== 2 || typeof state.zoom !== 'number') {
+      return;
+    }
+
+    map.setView(state.center, state.zoom, { animate: false });
+  }
+
+  function saveMapView() {
+    try {
+      localStorage.setItem(STORAGE_KEY_MAPVIEW, JSON.stringify(serializeMapView()));
+    } catch (err) {
+      console.warn('Mapview  konnte nicht gespeichert werden:', err);
+    }
+  }
+
   function saveAppState() {
+    saveMapView();
     const state = {
       version: 1,
       savedAt: new Date().toISOString(),
       waypoints: serializeWaypoints(),
       poiVisibility: serializePoiVisibility(),
-      globalOptions: serializeGlobalOptions(),   // NEU
+      globalOptions: serializeGlobalOptions(),
     };
 
     try {
@@ -1670,7 +1750,7 @@
       }
     }
 
-    // NEU: globale Meiden-Optionen
+    // globale Meiden-Optionen
     if (state.globalOptions) {
       const tollwaysCheckbox = document.getElementById('avoid-tollways');
       const ferriesCheckbox = document.getElementById('avoid-ferries');
@@ -1701,12 +1781,11 @@
         }
       });
     }
-
-    // TODO: weitere Optionen wiederherstellen
   }  
   //#endregion
 
   restoreAppState();
+  restoreMapView();
 
   // -- Map-click picking mode --
   btnTogglePick.addEventListener('click', () => {
@@ -1760,6 +1839,7 @@
   }
 
   map.on('moveend', debounce(() => {
+    saveMapView();
     extPOIs.forEach(poi => {
       if (poi.visible) { loadExternPOI(poi); }
     })
@@ -2347,6 +2427,7 @@
   // ============================================================
   // POIs (Tab "POI") -- persisted via IndexedDB (see dbGet/dbSet above)
   // ============================================================
+  //#region POI
   const poiLayer = L.layerGroup().addTo(map);
   const poiSearchPreviewLayer = L.layerGroup().addTo(map);
   const pois = [];
@@ -2903,6 +2984,7 @@
   poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
 
   loadPoisFromStorage().then(renderPoiList);
+  //#endregion
 
   // ---------- Color palette for tracks ----------
   const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
@@ -4531,8 +4613,8 @@
   loadRoutesFromStorage().then(renderRoutesList);
  
   loadViewerList();
-
-})();
+})
+();
 </script>
 </body>
 </html>

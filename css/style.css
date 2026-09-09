@@ -675,7 +675,7 @@ body {
     border: none;
     color: var(--text-dim);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 18px;
     padding: 3px 5px;
     border-radius: 4px;
   }
@@ -966,9 +966,9 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    color: var(--text-faint);
+    color: var(--text-dim);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
   }
