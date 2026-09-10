@@ -1,6 +1,6 @@
 :root{
     --bg-sidebar: #1b2420;
-    --bg-sidebar-raised: #222f29;
+    --bg-sidebar-raised: #424745;
     --bg-row-hover: #263229;
     --text: #e8e6df;
     --text-dim: #e2e2e2;
@@ -277,7 +277,7 @@ body {
     flex: 1;
     font-family: var(--font-body);
     font-weight: 600;
-    font-size: 13px;
+    font-size: 16px;
     padding: 9px 10px;
     border-radius: 6px;
     border: 1px solid var(--border);
@@ -570,7 +570,7 @@ body {
   .shortcut-hint {
     margin: 0;
     padding: 0 20px 0px;
-    font-size: 11px;
+    font-size: 16px;
     color: var(--text-faint);
     line-height: 1.4;
   }
@@ -643,10 +643,10 @@ body {
   }
   .waypoint-index {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 16px;
     font-weight: 600;
-    width: 22px;
-    height: 22px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: var(--accent-soft);
     color: var(--accent);
@@ -654,6 +654,11 @@ body {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+  }
+  .waypoint-index svg {
+    width: 20px;
+    height: 20px;
+    color: var(--accent);
   }
   .waypoint-info { flex: 1; min-width: 0; }
   .waypoint-tag {
@@ -878,7 +883,7 @@ body {
     border: 1px solid var(--border);
     color: var(--text);
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 16px;
     padding: 7px 6px;
     border-radius: 5px;
   }
@@ -887,7 +892,7 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 11.5px;
+    font-size: 16px;
     color: var(--text-dim);
     cursor: pointer;
   }
@@ -1137,6 +1142,10 @@ body {
   
   .extern-poi-marker-restaurant {
     --poi-color: #ff3535;
+  }
+
+  .extern-poi-marker-charger {
+    --poi-color: #f3f718;
   }
 
   .extern-poi-popup {

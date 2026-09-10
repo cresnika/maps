@@ -103,7 +103,7 @@
       </div>
 
       <div id="route-options">
-        <p class="shortcut-hint" style="padding:0 0 4px;">⚡ Schnellste · ⭐ Empfohlen · 📏 Kürzeste</p>
+        <p class="shortcut-hint" style="padding:0 0 4px;">⭐ Empfohlen/schnell · 📏 Kürzeste</p>
         <div class="route-avoid-row">
           <label><input type="checkbox" id="avoid-tollways"> Maut meiden</label>
           <label><input type="checkbox" id="avoid-ferries"> Fähren meiden</label>
@@ -322,8 +322,8 @@
   settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
   document.getElementById('settings-modal-close').addEventListener('click', () => settingsModalBackdrop.classList.remove('active'));
   settingsModalBackdrop.addEventListener('click', (e) => {
-    if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
-  });
+          if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
+        });
   backdropEl.addEventListener('click', closeSidebar);
 
   // ---------- Sidebar width resizing (desktop, mouse drag) ----------
@@ -469,15 +469,6 @@
         });
 
   //#region external POI
-  const OVERPASS_SERVERS = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-  ];
-  const MAX_RETRIES = 4;
-  const REQUEST_TIMEOUT_MS = 30000; // pro Versuch, etwas ueber Overpass-internem [timeout:25]
-
-  const TILE_FETCH_DELAY_MS = 250;
-
   const POI_DEFAULTS = {
             layer: null,
             visible: false,
@@ -497,6 +488,7 @@
   const ICON_DEFAULTS = { 
               iconSize: [24, 24],
               iconAnchor: [12, 32],
+              popupAnchor: [0,-24],
             };
   
   let extPOIs = [
@@ -520,7 +512,6 @@
                 }),
         zoomLimit: 4,
         dataFilename: 'data/mountain_passes.json',
-        overpassQuery: '',
         ...POI_DEFAULTS,
     },
     {
@@ -543,7 +534,6 @@
                 }),
         zoomLimit: 4,
         dataFilename: 'data/fuel.json',
-        overpassQuery: 'nwr["amenity"="fuel"]',
         ...POI_DEFAULTS,
     },
     {
@@ -565,7 +555,6 @@
                 }),
         zoomLimit: 4,
         dataFilename: 'data/hotels.json',
-        overpassQuery: 'nwr["tourism"="hotel"]',
         ...POI_DEFAULTS,
     },
     {
@@ -587,7 +576,6 @@
               }),
       zoomLimit: 4,
       dataFilename: 'data/guesthouses.json',
-      overpassQuery: 'nwr["tourism"~"^(guest_house|hostel|motel|bed_and_breakfast|apartment|chalet)$"]',
         ...POI_DEFAULTS,
     },
     {
@@ -612,6 +600,28 @@
         ...POI_DEFAULTS,
     },
     {
+      description: 'Ladestationen',
+      mapicon: L.divIcon({
+                className: 'extern-poi-marker extern-poi-marker-charger',
+                html: `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                          <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                          <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                          <path fill="currentColor"  d="M97.61,156.44h130v33.81c-29.11,10.29-51.05,35.66-56.47,66.72-2.8.36-5.64.54-8.53.54-35.89,0-65-29.11-65-65v-36.11.05Z"/>
+                          <path fill="var(--icon-outline)" d="M126.5,77v57.78h72.22v-57.78h21.67v57.78h43.33v21.67h-14.44v29.2c-7.54.63-14.81,2.21-21.67,4.65v-33.81H97.61v36.11c0,35.89,29.11,65,65,65,2.89,0,5.73-.18,8.53-.54-1.35,7.76-2.84,22.48,2.3,39.81v25.73h-21.67v-44.01c-42.75-5.37-75.83-41.84-75.83-86.03v-36.11h-14.44v-21.67h43.33v-57.78h21.67ZM256.5,207c35.89,0,65,29.11,65,65s-29.11,65-65,65-65-29.11-65-65,29.11-65,65-65ZM213.17,279.22h32l-10.34,36.11,65-50.56h-32l10.34-36.11-65,50.56Z"/>
+                        </svg>`,
+                  ...ICON_DEFAULTS,
+              }),
+      labelicon: L.divIcon({
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path fill="var(--text)" opacity=".4" d="M144 208L432 208L432 282.9C367.5 305.7 318.9 361.9 306.9 430.7C300.7 431.5 294.4 431.9 288 431.9C208.5 431.9 144 367.4 144 287.9L144 207.9z"/>
+                          <path fill="var(--icon-outline)" d="M208 32L208 160L368 160L368 32L416 32L416 160L512 160L512 208L480 208L480 272.7C463.3 274.1 447.2 277.6 432 283L432 208.1L144 208.1L144 288.1C144 367.6 208.5 432.1 288 432.1C294.4 432.1 300.7 431.7 306.9 430.9C303.9 448.1 300.6 480.7 312 519.1L312 576.1L264 576.1L264 478.6C169.3 466.7 96 385.9 96 288L96 208L64 208L64 160L160 160L160 32L208 32zM496 320C575.5 320 640 384.5 640 464C640 543.5 575.5 608 496 608C416.5 608 352 543.5 352 464C352 384.5 416.5 320 496 320zM400 480L470.9 480L448 560L592 448L521.1 448L544 368L400 480z"/>
+                        </svg>`,
+              }),
+      zoomLimit: 4,
+      dataFilename: 'data/charging_stations.json',
+        ...POI_DEFAULTS,
+    },
+    {
       description: 'Camping',
       mapicon: L.divIcon({
                 className: 'extern-poi-marker extern-poi-marker-campingsite',
@@ -631,7 +641,6 @@
               }),
       zoomLimit: 4,
       dataFilename: 'data/campsites.json',
-      overpassQuery: 'nwr["tourism"="camp_site"]',
         ...POI_DEFAULTS,
     },
   ];  
@@ -640,231 +649,11 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  function tileKey(tx, ty) {
-    return `${tx}_${ty}`;
-  }
-
-  function tileIndexFor(lat, lon, tileSizeDeg) {
-    return {
-      tx: Math.floor(lon / tileSizeDeg),
-      ty: Math.floor(lat / tileSizeDeg),
-    };
-  }
-
-  function tileBounds(tx, ty, tileSizeDeg) {
-    return {
-      south: ty * tileSizeDeg,
-      west: tx * tileSizeDeg,
-      north: (ty + 1) * tileSizeDeg,
-      east: (tx + 1) * tileSizeDeg,
-    };
-  }
-
-  function tilesForBounds(bounds, tileSizeDeg) {
-    const sw = tileIndexFor(bounds.getSouth(), bounds.getWest(), tileSizeDeg);
-    const ne = tileIndexFor(bounds.getNorth(), bounds.getEast(), tileSizeDeg);
-
-    const tiles = [];
-    for (let ty = sw.ty; ty <= ne.ty; ty++) {
-      for (let tx = sw.tx; tx <= ne.tx; tx++) {
-        tiles.push({ tx, ty });
-      }
-    }
-    return tiles;
-  }
-
-  function elementToPlace(element) {
-    if (!['node', 'way', 'relation'].includes(element.type)) {
-      return null;
-    }
-
-    let lat, lon;
-    if (element.type === 'node') {
-      lat = element.lat;
-      lon = element.lon;
-    } else if (element.center) {
-      lat = element.center.lat;
-      lon = element.center.lon;
-    } else {
-      return null;
-    }
-
-    if (lat == null || lon == null) {
-      return null;
-    }
-
-    const tags = element.tags || {};
-    const name = tags.name || tags['name:de'] || tags['name:en'] || 'Unbenannter POI';
-
-    const place = {
-      id: element.id,
-      osm_type: element.type,
-      name,
-      lat,
-      lng: lon,
-    };
-
-    if (tags['name:de']) place.name_de = tags['name:de'];
-    if (tags['name:en']) place.name_en = tags['name:en'];
-
-    if (tags.ele) {
-      const ele = parseFloat(String(tags.ele).replace(',', '.').replace('m', '').trim());
-      if (!Number.isNaN(ele)) place.ele = ele;
-    }
-
-    if (tags.wikidata) place.wikidata = tags.wikidata;
-    if (tags.website) place.website = tags.website;
-    if (tags.phone) place.phone = tags.phone;
-    if (tags.opening_hours) place.opening_hours = tags.opening_hours;
-
-    return place;
-  }
-
-  async function fetchWithTimeout(url, options, timeoutMs) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
- 
-  async function fetchOverpassTile(poi, tx, ty) {
-    const b = tileBounds(tx, ty, poi.tileSizeDeg);
-
-    const query = `[out:json][timeout:25];
-                   ${poi.overpassQuery}(${b.south},${b.west},${b.north},${b.east});
-                   out center;`;
-
-    let lastError = null;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const server = OVERPASS_SERVERS[attempt % OVERPASS_SERVERS.length];
-
-      try {
-        const response = await fetchWithTimeout(server, {
-          method: 'POST',
-          body: 'data=' + encodeURIComponent(query),
-        }, REQUEST_TIMEOUT_MS);
-
-        if (response.status === 429) {
-          const waitMs = 5000 * (attempt + 1);
-          console.warn(`Overpass Rate-Limit (${server}), warte ${waitMs}ms...`);
-          await sleep(waitMs);
-          continue;
-        }
-
-        if ([502, 503, 504].includes(response.status)) {
-          const waitMs = 3000 * (attempt + 1);
-          console.warn(`Overpass überlastet (${response.status}, ${server}), warte ${waitMs}ms...`);
-          await sleep(waitMs);
-          continue;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Overpass HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        const elements = data.elements || [];
-
-        return elements.map(elementToPlace).filter(Boolean);
-
-      } catch (error) {
-        lastError = error;
-
-        if (error.name === 'AbortError') {
-          console.warn(`Overpass Timeout (${server}), Versuch ${attempt + 1}/${MAX_RETRIES}`);
-        } else {
-          console.warn(`Overpass Netzwerkfehler (${server}), Versuch ${attempt + 1}/${MAX_RETRIES}:`, error);
-        }
-
-        if (attempt < MAX_RETRIES - 1) {
-          await sleep(3000 * (attempt + 1));
-        }
-      }
-    }
-
-    throw lastError || new Error('Overpass: alle Versuche fehlgeschlagen');
-  }
-
-  function mergeDynamicCache(poi) {
-    const merged = new Map();
-
-    for (const places of poi.cache.values()) {
-      for (const place of places) {
-        merged.set(`${place.osm_type}/${place.id}`, place);
-      }
-    }
-
-    poi.poiData = { places: Array.from(merged.values()) };
-  }
-
-  // async function loadDynamicExternPOI(poi) {
-  //   const bounds = map.getBounds();
-  //   const tiles = tilesForBounds(bounds, poi.tileSizeDeg);
-
-  //   const missing = tiles.filter(({ tx, ty }) => {
-  //     const key = tileKey(tx, ty);
-  //     return !poi.cache.has(key) && !poi.pendingTiles.has(key);
-  //   });
-
-  //   if (missing.length === 0) {
-  //     if (!poi.poiData) {
-  //       mergeDynamicCache(poi);
-  //     }
-  //     if (poi.visible) {
-  //       renderextPOI(poi);
-  //     }
-  //     return;
-  //   }
-
-  //   for (const { tx, ty } of missing) {
-  //     const key = tileKey(tx, ty);
-  //     poi.pendingTiles.add(key);
-
-  //     try {
-  //       const places = await fetchOverpassTile(poi, tx, ty);
-  //       poi.cache.set(key, places);
-  //     } catch (error) {
-  //       console.warn(`${poi.description}: Kachel ${key} konnte nicht geladen werden:`, error);
-  //     } finally {
-  //       poi.pendingTiles.delete(key);
-  //     }
-
-  //     if (!poi.visible) {
-  //       return;
-  //     }
-
-  //     mergeDynamicCache(poi);
-  //     renderextPOI(poi);
-
-  //     await sleep(TILE_FETCH_DELAY_MS);
-  //   }
-  // }
-
-  async function loadExternPOI(poi) {
+    async function loadExternPOI(poi) {
     if (!poi.visible) {
       return;
     }
     
-    // if (!poi.dataFilename) {
-    //   if (poi.zoomLimit >= map.getZoom()) {
-    //         // showToast('Zoomen um ' + poi.description + ' anzuzeigen');
-    //   }
-    //   else {
-    //     // showToast('suche ' + poi.description);
-    //   }
-
-    //   poi.loadingActive = true;
-    //   await loadDynamicExternPOI(poi);
-    //   poi.loadingActive = false;
-
-    //   return;
-    // }
-
     if (!poi.poiData) {
       if (!poi.loadPromise) {
         poi.loadingActive = true;
@@ -1041,9 +830,6 @@
     }
 
     poi.layer.addLayers(markers);   // NEU: alle auf einmal hinzufuegen
-
-    console.log(poi.description + `: ${visibleCount} im aktuellen Kartenausschnitt`);    
-    
   }
 
   extPOIs.forEach(poi => {
@@ -1398,6 +1184,7 @@
     refreshWaypointIcons();
     renderWaypointList();
     maybeAutoRecalculateRoute();
+    saveAppStateDebounced();
   }
 
   function moveWaypoint(id, dir){
@@ -1413,6 +1200,21 @@
     saveAppStateDebounced();
   }
 
+  const flagIcon = L.divIcon({
+                  className: 'waypoint-index',
+                  html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          	<path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
+                        </svg>`,
+                })
+
+  const locationIcon = L.divIcon({
+                  className: 'waypoint-index',
+                  html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
+                        </svg>`,
+                })
+
+                
   function renderWaypointList(){
     waypointListEl.innerHTML = '';
     if (waypoints.length === 0){
@@ -1459,7 +1261,7 @@
       );
       });
 
-	  row.addEventListener('drop', (e) => {
+	    row.addEventListener('drop', (e) => {
         e.preventDefault();
         const rect = row.getBoundingClientRect();
         const dropBelow =
@@ -1499,7 +1301,17 @@
 
       const idx = document.createElement('span');
       idx.className = 'waypoint-index';
-      idx.textContent = i + 1;
+      if (i === 0) {
+        idx.innerHTML = `${locationIcon.options.html}`;
+      }
+      else {
+        if ((i+1) < waypoints.length) {
+          idx.textContent = i;
+        }
+        else {
+          idx.innerHTML = `${flagIcon.options.html}`;
+        }
+      }
       row.appendChild(idx);
 
       const info = document.createElement('div');

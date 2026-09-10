@@ -351,9 +351,6 @@ class POIHandler(osmium.SimpleHandler):
         })
         
         
-
-files = sorted(DOWNLOADPATH.glob("*.osm.pbf"))
-
 def format_duration(seconds):
 
     seconds = int(seconds)
@@ -383,29 +380,27 @@ def format_duration(seconds):
 
     return f"{seconds}s"
 
-print(f"Gefundene Dateien: {len(files)}")
-print()
 
-EXTRACTPATH.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+def run_export(poi_config):
 
-overall_start = time.time()
+    files = sorted(DOWNLOADPATH.glob("*.osm.pbf"))
 
-for poi in POI_TYPES:
+    print(f"Gefundene Dateien: {len(files)}")
+    print()
+
+    EXTRACTPATH.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    overall_start = time.time()
 
     print()
     print("==================================================")
-    print(f"STARTE: {poi['name']}")
+    print(f"     STARTE: {poi_config['name']}")
     print("==================================================")
-    print()
 
-    #
-    # Mountain-Pässe:
-    # zuerst alle Straßenknoten sammeln
-    #
-    if poi["type"] == "mountain_pass":
+    if poi_config["type"] == "mountain_pass":
 
         print("Sammle Straßenknoten...")
 
@@ -436,9 +431,9 @@ for poi in POI_TYPES:
     seen = set()
 
     handler = POIHandler(
-        poi_name=poi["name"],
-        tag_key=poi["tag_key"],
-        tag_values=poi["tag_values"],
+        poi_name=poi_config["name"],
+        tag_key=poi_config["tag_key"],
+        tag_values=poi_config["tag_values"],
         places=places,
         seen=seen,
     )
@@ -480,7 +475,7 @@ for poi in POI_TYPES:
 
     output_file = (
         EXTRACTPATH
-        / poi["output"]
+        / poi_config["output"]
     )
 
     with open(
@@ -492,7 +487,7 @@ for poi in POI_TYPES:
         json.dump(
             {
                 "version": 1,
-                "type": poi["type"],
+                "type": poi_config["type"],
                 "places": places,
             },
             f,
@@ -505,7 +500,7 @@ for poi in POI_TYPES:
     )
 
     print(
-        f"{poi['name']} fertig"
+        f"{poi_config['name']} fertig"
     )
 
     print(
@@ -520,17 +515,13 @@ for poi in POI_TYPES:
         f"Laufzeit: {poi_elapsed:.1f}s"
     )
 
-overall_elapsed = (
-    time.time() - overall_start
-)
+    overall_elapsed = (time.time() - overall_start)
 
+    print("==================================================")
+    print("FERTIG")
+    print("==================================================")
 
-print()
-print("==================================================")
-print("FERTIG")
-print("==================================================")
-
-print(
-    f"Gesamtlaufzeit: "
-    f"{format_duration(overall_elapsed)}"
-)
+    print(
+        f"Gesamtlaufzeit: "
+        f"{format_duration(overall_elapsed)}"
+    )
