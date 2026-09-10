@@ -3,9 +3,6 @@ name: Update Camping POI database
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: "0 23 * * 2"
-
 concurrency:
   group: poi-update
   cancel-in-progress: false

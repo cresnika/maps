@@ -3,9 +3,6 @@ name: Update Ladestationen POI database
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: "59 23 * * 0"
-
 concurrency:
   group: poi-update
   cancel-in-progress: false

@@ -3,9 +3,6 @@ name: Update Hotels POI database
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: "0 23 * * 5"
-
 concurrency:
   group: poi-update
   cancel-in-progress: false
