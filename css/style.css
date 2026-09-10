@@ -610,8 +610,15 @@ body {
   .search-result-item:hover { background: var(--bg-row-hover); color: var(--text); }
 
   #map.picking-mode { cursor: crosshair; }
-  #map.ctrl-active { cursor: copy; }
+  #map.ctrl-active {
+    cursor: url('data:image/svg+xml;charset=utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z" fill="%23ffffff" stroke="%23000000" stroke-width="1"/><g transform="translate(9,9) scale(1)"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="%2322c55e" stroke="%23ffffff" stroke-width="1.2"/><path d="M10.5,4 H13.5 V7.5 H17 V10.5 H13.5 V14 H10.5 V10.5 H7 V7.5 H10.5 Z" fill="%23ffffff"/></g></svg>') 2 2, copy;
+  }
+  
   #map.shift-active { cursor: not-allowed; }
+
+  .waypoint-delete-mode {
+    cursor: url("/icons/trash.svg") 4 4, auto;
+  }
 
   #waypoint-list {
     flex: 1;
