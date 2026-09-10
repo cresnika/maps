@@ -1062,6 +1062,34 @@ body {
     --icon-outline: black;
   }
 
+  .extern-poi-marker-fuels {
+    --poi-color: #006eff;
+  }
+
+  .extern-poi-marker-mountain-passes {
+    --poi-color: #fdc52b;
+  }
+
+  .extern-poi-marker-hotels {
+    --poi-color: #3fdd00;
+  }
+
+  .extern-poi-marker-guesthouses {
+    --poi-color: #2b9900;
+  }
+  
+  .extern-poi-marker-campingsite {
+    --poi-color: #028d7a;
+  }
+  
+  .extern-poi-marker-restaurant {
+    --poi-color: #ff3535;
+  }
+
+  .extern-poi-marker-charger {
+    --poi-color: #ced111;
+  }
+
   .extern-poi-switch {
     display: flex;
     align-items: center;
@@ -1102,7 +1130,7 @@ body {
   }
 
   .extern-poi-switch input:checked + .extern-poi-slider {
-    background: #dd9a1e;
+    background: var(--poi-color, #dd9a1e);
   }
 
   .extern-poi-switch input:checked + .extern-poi-slider::after {
@@ -1118,34 +1146,6 @@ body {
     color: var(--poi-color, var(--accent));
     opacity: 0.8;
     --icon-outline: #070707;
-  }
-
-  .extern-poi-marker-fuels {
-    --poi-color: #006eff;
-  }
-
-  .extern-poi-marker-mountain-passes {
-    --poi-color: rgb(255, 176, 29);
-  }
-
-  .extern-poi-marker-hotels {
-    --poi-color: #3fdd00;
-  }
-
-  .extern-poi-marker-guesthouses {
-    --poi-color: #2b9900;
-  }
-  
-  .extern-poi-marker-campingsite {
-    --poi-color: #028d7a;
-  }
-  
-  .extern-poi-marker-restaurant {
-    --poi-color: #ff3535;
-  }
-
-  .extern-poi-marker-charger {
-    --poi-color: #f3f718;
   }
 
   .extern-poi-popup {
