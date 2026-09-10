@@ -496,8 +496,7 @@
           };
   const ICON_DEFAULTS = { 
               iconSize: [24, 24],
-              iconAnchor: [12, 24],
-              popupAnchor: [0, -12]
+              iconAnchor: [12, 32],
             };
   
   let extPOIs = [
@@ -592,13 +591,34 @@
         ...POI_DEFAULTS,
     },
     {
+      description: 'Restaurants',
+      mapicon: L.divIcon({
+                className: 'extern-poi-marker extern-poi-marker-restaurant',
+                html: `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                          <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                          <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                        	<path fill="var(--icon-outline)" d="M263.44,80.88c3.43,4.54,2.48,10.96-2.06,14.39l-52.55,39.4c-7.37,5.52-11.86,13.92-11.86,22.61,0,7.15,2.83,14,7.88,19.06l5.61,5.61c5.05,5.05,11.91,7.88,19.06,7.88,8.65,0,17.09-4.5,22.61-11.86l39.4-52.55c3.43-4.54,9.85-5.48,14.39-2.06,4.54,3.43,5.48,9.85,2.06,14.39l-39.4,52.55c-8.99,11.95-23.26,20.09-39.06,20.09-10.49,0-20.6-3.47-28.82-9.76l-92.38,92.42c-4.03,4.03-10.54,4.03-14.52,0-3.98-4.03-4.03-10.54,0-14.52l92.38-92.42c-6.3-8.22-9.76-18.33-9.76-28.82,0-15.8,8.14-30.07,20.09-39.06l52.55-39.4c4.54-3.43,10.96-2.48,14.39,2.06ZM286.49,100.32c4.03,4.03,4.03,10.54,0,14.52l-49.68,49.68c-4.03,4.03-10.54,4.03-14.52,0-3.98-4.03-4.03-10.54,0-14.52l49.68-49.68c4.03-4.03,10.54-4.03,14.52,0ZM254.66,226.15l52.38,52.34c4.03,4.03,4.03,10.54,0,14.52-4.03,3.98-10.54,4.03-14.52,0l-62.1-62.1c8.39-.13,16.62-1.76,24.28-4.8l-.04.04ZM155.86,156.43l-40.22-40.22c-8.31,14.39-6.3,33.15,6,45.48l29.94,29.94-14.52,14.52-29.94-29.94c-22.74-22.74-22.74-59.62,0-82.36l.34-.34c4.03-4.03,10.54-4.03,14.52,0l38.67,38.67c-3.04,7.67-4.71,15.89-4.8,24.28v-.04Z"/>
+                        </svg>`,
+                  ...ICON_DEFAULTS,
+              }),
+      labelicon: L.divIcon({
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path fill="var(--icon-outline)"  d="M467.3 73.6C475.3 84.2 473.1 99.2 462.5 107.2L339.8 199.2C322.6 212.1 312.1 231.7 312.1 252C312.1 268.7 318.7 284.7 330.5 296.5L343.6 309.6C355.4 321.4 371.4 328 388.1 328C408.3 328 428 317.5 440.9 300.3L532.9 177.6C540.9 167 555.9 164.8 566.5 172.8C577.1 180.8 579.3 195.8 571.3 206.4L479.3 329.1C458.3 357 425 376 388.1 376C363.6 376 340 367.9 320.8 353.2L105.1 569C95.7 578.4 80.5 578.4 71.2 569C61.9 559.6 61.8 544.4 71.2 535.1L286.9 319.3C272.2 300.1 264.1 276.5 264.1 252C264.1 215.1 283.1 181.8 311 160.8L433.7 68.8C444.3 60.8 459.3 63 467.3 73.6zM521.1 119C530.5 128.4 530.5 143.6 521.1 152.9L405.1 268.9C395.7 278.3 380.5 278.3 371.2 268.9C361.9 259.5 361.8 244.3 371.2 235L487.2 119C496.6 109.6 511.8 109.6 521.1 119zM446.8 412.8L569.1 535C578.5 544.4 578.5 559.6 569.1 568.9C559.7 578.2 544.5 578.3 535.2 568.9L390.2 423.9C409.8 423.6 429 419.8 446.9 412.7zM216.1 250L122.2 156.1C102.8 189.7 107.5 233.5 136.2 262.3L206.1 332.2L172.2 366.1L102.3 296.2C49.2 243.1 49.2 157 102.3 103.9L103.1 103.1C112.5 93.7 127.7 93.7 137 103.1L227.3 193.4C220.2 211.3 216.3 230.5 216.1 250.1z"/>
+                        </svg>`,
+              }),
+      zoomLimit: 4,
+      dataFilename: 'data/food.json',
+      overpassQuery: 'nwr["tourism"="camp_site"]',
+        ...POI_DEFAULTS,
+    },
+    {
       description: 'Camping',
       mapicon: L.divIcon({
                 className: 'extern-poi-marker extern-poi-marker-campingsite',
                 html: `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
                           <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
-                          <path fill="currentColor" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                          <path fill="var(--icon-outline)" d="M95.75,247.61v20.28h32.05l4.08-4.55,55-61.88c1.29-1.46,3.18-2.32,5.16-2.32s3.82.86,5.16,2.32l55,61.88,4.04,4.55h32.05v-20.28c0-.82-.3-1.59-.82-2.23l-95.48-113.01-95.43,113.01c-.52.6-.82,1.42-.82,2.23Z"/>
+                          <path fill="var(--icon-outline)" d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                          <path fill="currentColor" d="M95.75,247.61v20.28h32.05l4.08-4.55,55-61.88c1.29-1.46,3.18-2.32,5.16-2.32s3.82.86,5.16,2.32l55,61.88,4.04,4.55h32.05v-20.28c0-.82-.3-1.59-.82-2.23l-95.48-113.01-95.43,113.01c-.52.6-.82,1.42-.82,2.23Z"/>
                           <path fill="var(--icon-outline)" d="M223.93,83.9c2.92,2.45,3.27,6.79.82,9.67l-23.76,28.14,96.98,114.81c2.62,3.09,4.04,7.05,4.04,11.09v20.28c0,7.61-6.14,13.75-13.75,13.75H95.75c-7.61,0-13.75-6.14-13.75-13.75v-20.28c0-4.04,1.42-7.99,4.04-11.09l96.94-114.81-23.76-28.14c-2.45-2.92-2.06-7.22.82-9.67,2.88-2.45,7.22-2.06,9.67.82l22.3,26.34,22.26-26.34c2.45-2.92,6.79-3.27,9.67-.82ZM96.57,245.37c-.52.6-.82,1.42-.82,2.23v20.28h32.05l4.08-4.55,55-61.88c1.29-1.46,3.18-2.32,5.16-2.32s3.82.86,5.16,2.32l55,61.88,4.04,4.55h32.05v-20.28c0-.82-.3-1.59-.82-2.23l-95.48-113.01-95.43,113.01ZM146.2,267.89h91.61l-45.8-51.52-45.8,51.52Z"/>
                         </svg>`,
                   ...ICON_DEFAULTS,
@@ -782,68 +802,68 @@
     poi.poiData = { places: Array.from(merged.values()) };
   }
 
-  async function loadDynamicExternPOI(poi) {
-    const bounds = map.getBounds();
-    const tiles = tilesForBounds(bounds, poi.tileSizeDeg);
+  // async function loadDynamicExternPOI(poi) {
+  //   const bounds = map.getBounds();
+  //   const tiles = tilesForBounds(bounds, poi.tileSizeDeg);
 
-    const missing = tiles.filter(({ tx, ty }) => {
-      const key = tileKey(tx, ty);
-      return !poi.cache.has(key) && !poi.pendingTiles.has(key);
-    });
+  //   const missing = tiles.filter(({ tx, ty }) => {
+  //     const key = tileKey(tx, ty);
+  //     return !poi.cache.has(key) && !poi.pendingTiles.has(key);
+  //   });
 
-    if (missing.length === 0) {
-      if (!poi.poiData) {
-        mergeDynamicCache(poi);
-      }
-      if (poi.visible) {
-        renderextPOI(poi);
-      }
-      return;
-    }
+  //   if (missing.length === 0) {
+  //     if (!poi.poiData) {
+  //       mergeDynamicCache(poi);
+  //     }
+  //     if (poi.visible) {
+  //       renderextPOI(poi);
+  //     }
+  //     return;
+  //   }
 
-    for (const { tx, ty } of missing) {
-      const key = tileKey(tx, ty);
-      poi.pendingTiles.add(key);
+  //   for (const { tx, ty } of missing) {
+  //     const key = tileKey(tx, ty);
+  //     poi.pendingTiles.add(key);
 
-      try {
-        const places = await fetchOverpassTile(poi, tx, ty);
-        poi.cache.set(key, places);
-      } catch (error) {
-        console.warn(`${poi.description}: Kachel ${key} konnte nicht geladen werden:`, error);
-      } finally {
-        poi.pendingTiles.delete(key);
-      }
+  //     try {
+  //       const places = await fetchOverpassTile(poi, tx, ty);
+  //       poi.cache.set(key, places);
+  //     } catch (error) {
+  //       console.warn(`${poi.description}: Kachel ${key} konnte nicht geladen werden:`, error);
+  //     } finally {
+  //       poi.pendingTiles.delete(key);
+  //     }
 
-      if (!poi.visible) {
-        return;
-      }
+  //     if (!poi.visible) {
+  //       return;
+  //     }
 
-      mergeDynamicCache(poi);
-      renderextPOI(poi);
+  //     mergeDynamicCache(poi);
+  //     renderextPOI(poi);
 
-      await sleep(TILE_FETCH_DELAY_MS);
-    }
-  }
+  //     await sleep(TILE_FETCH_DELAY_MS);
+  //   }
+  // }
 
   async function loadExternPOI(poi) {
     if (!poi.visible) {
       return;
     }
     
-    if (!poi.dataFilename) {
-      if (poi.zoomLimit >= map.getZoom()) {
-            // showToast('Zoomen um ' + poi.description + ' anzuzeigen');
-      }
-      else {
-        // showToast('suche ' + poi.description);
-      }
+    // if (!poi.dataFilename) {
+    //   if (poi.zoomLimit >= map.getZoom()) {
+    //         // showToast('Zoomen um ' + poi.description + ' anzuzeigen');
+    //   }
+    //   else {
+    //     // showToast('suche ' + poi.description);
+    //   }
 
-      poi.loadingActive = true;
-      await loadDynamicExternPOI(poi);
-      poi.loadingActive = false;
+    //   poi.loadingActive = true;
+    //   await loadDynamicExternPOI(poi);
+    //   poi.loadingActive = false;
 
-      return;
-    }
+    //   return;
+    // }
 
     if (!poi.poiData) {
       if (!poi.loadPromise) {
@@ -851,15 +871,15 @@
         poi.loadPromise = fetch(poi.dataFilename)
           .then(response => {
             if (!response.ok) {
-              showToast('Fehler bim laden von ' + poi.description);
+              showToast('Fehler beim laden von ' + poi.dataFilename);
               throw new Error(`HTTP ${response.status}`);
             }
             return response.json();
           })
           .then(data => {
             if (!data || !Array.isArray(data.places)) {
-              showToast('Fehler bim laden von ' + poi.description);
-              throw new Error('Ungültiges POI-Format');
+              showToast('not DATA or NOT Array: Fehler bim laden von ' + poi.description);
+              throw new Error('Ungültiges POI-Format: not DATA or NOT Array');
             }
 
             poi.poiData = data;
@@ -972,6 +992,22 @@
           <small>${escapeHtml(place.name_de)}</small>
         `;
       }
+
+      if (place.website) {
+        popup += `
+          <br>
+          <small>Website: <a target="_blank" href="${escapeHtml(place.website)}">click to open</a></small>
+        `;
+      }
+
+      if (place.phone) {
+        popup += `
+          <br>
+          <small>Telefon: <a href="tel:${escapeHtml(place.phone)}">${escapeHtml(place.phone)}</a></small>
+        `;
+      }
+
+
 
       if (place.wikidata) {
         popup += `

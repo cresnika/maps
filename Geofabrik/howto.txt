@@ -1,0 +1,8 @@
+1. Py Osmium installieren: 
+	pip install osmium
+2. Version anzeigen (zum Test) 
+	pip show osmium
+3. Daten herunterladen unter "https://download.geofabrik.de/", jeweils die osm.pbf Files
+4. im Verzeichniss "ExtractScripts" den python script "extractPOI.py" starten
+	python extractPOI.py
+5. warten ... warten ... warten

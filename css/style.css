@@ -1135,6 +1135,10 @@ body {
     --poi-color: #028d7a;
   }
   
+  .extern-poi-marker-restaurant {
+    --poi-color: #ff3535;
+  }
+
   .extern-poi-popup {
     min-width: 140px;
     font-size: 14px;
