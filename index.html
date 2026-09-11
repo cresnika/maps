@@ -503,7 +503,6 @@
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
-  let waypointCounter = 0;
   let pickingMode = false;
   let calculatedRouteLayer = null;
   let routeCalculationController = null;
@@ -1190,8 +1189,18 @@
     // });
   }
 
+  function getNextWPId() {
+    let freieId = 0;
+    const existierendeIds = new Set(waypoints.map(obj => obj.id));
+    while (existierendeIds.has(freieId)) {
+      freieId++;
+    }
+    return freieId++;
+;
+  }
+
   function createWaypoint(latlng, label){
-    const id = 'wp' + (waypointCounter++);
+    const id = getNextWPId(); //(waypointCounter++);
     const marker = L.marker(
       latlng,
       {
@@ -1377,8 +1386,6 @@ console.log(svg.getAnimations());
 
       row.addEventListener('click', () => {
           highlightWaypoint(wp);
-const svg = wp.marker.getElement().querySelector('svg');
-console.log('animation name: ' + getComputedStyle(svg).animationName);          
       });
 
       row.addEventListener('dblclick', (e) => {
@@ -1391,44 +1398,45 @@ console.log('animation name: ' + getComputedStyle(svg).animationName);
         e.dataTransfer.setData('text/plain', wp.id);
         row.classList.add('dragging');
       });
-      row.addEventListener('dragend', () => row.classList.remove('dragging'));
-      
+
       row.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      const rect = row.getBoundingClientRect();
-      row.classList.remove(
-        'drag-over-top',
-        'drag-over-bottom'
-      );
-      if ((e.clientY - rect.top) < (rect.height / 2))
-        row.classList.add('drag-over-top');
-      else
-        row.classList.add('drag-over-bottom');
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        row.classList.remove(
+          'drag-over-top',
+          'drag-over-bottom'
+        );
+        if ((e.clientY - rect.top) < (rect.height / 2))
+          row.classList.add('drag-over-top');
+        else
+          row.classList.add('drag-over-bottom');
       });
+
+      row.addEventListener('dragend', (e) => {
+        row.classList.remove('dragging');
+      })
+
       row.addEventListener('dragleave', () => {
-      row.classList.remove(
-        'drag-over-top',
-        'drag-over-bottom'
-      );
+        row.classList.remove(
+          'drag-over-top',
+          'drag-over-bottom'
+        );
       });
 
 	    row.addEventListener('drop', (e) => {
         e.preventDefault();
         const rect = row.getBoundingClientRect();
-        const dropBelow =
-          (e.clientY - rect.top) >= (rect.height / 2);
+        const dropBelow = (e.clientY - rect.top) >= (rect.height / 2);
         row.classList.remove(
           'drag-over-top',
           'drag-over-bottom'
         );
-        const draggedId =
-          e.dataTransfer.getData('text/plain');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        console.log('dragged #' + draggedId);
         if (!draggedId || draggedId === wp.id) 
           return;
-        const fromIdx =
-          waypoints.findIndex(w => w.id === draggedId);
-        const toIdx =
-          waypoints.findIndex(w => w.id === wp.id);
+        const fromIdx = waypoints.findIndex(w => Number(w.id) === Number(draggedId));
+        const toIdx = waypoints.findIndex(w => w.id === wp.id);
         if (fromIdx === -1 || toIdx === -1)
           return;
         const [item] =
@@ -1467,8 +1475,10 @@ console.log('animation name: ' + getComputedStyle(svg).animationName);
 
       const info = document.createElement('div');
       info.className = 'waypoint-info';
-      const tagText = waypointTag(i);
-      if (tagText){
+      // const tagText = waypointTag(i);
+      const tagText = 'ID: ' + wp.id;
+      if (tagText)
+      {
         const tag = document.createElement('div');
         tag.className = 'waypoint-tag';
         tag.textContent = tagText;
@@ -1944,7 +1954,7 @@ console.log('animation name: ' + getComputedStyle(svg).animationName);
       if (savedKey) {
           orsKeyInput.value = savedKey;
       }
-  }).catch(error => {
+    }).catch(error => {
       console.error('dbGet Fehler:', error);
   });
 

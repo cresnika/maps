@@ -716,6 +716,7 @@ body {
   }
 
   .waypoint-marker-icon.is-selected > .waypoint-svg {
+    color: #ff0000;
     transform-box: view-box;
     transform-origin: center;
     animation: waypointPulse 0.8s ease-in-out infinite;
