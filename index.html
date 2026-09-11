@@ -268,7 +268,9 @@
 (function(){
   "use strict";
 
+  // ============================================================
   // ---------- Toast ----------
+  //#region Toast
   const toast = document.createElement('div');
   toast.className = 'toast';
   document.body.appendChild(toast);
@@ -285,7 +287,9 @@
       toast.classList.remove('show');
     }, duration);
   }
+  //#endregion
 
+  // ============================================================
   // ---------- Tab switching ----------
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -297,12 +301,14 @@
     });
   });
 
+  // ============================================================
   // ---------- Mobile drawer ----------
+  //#region Sidebar
   const sidebarEl = document.getElementById('sidebar');
   const backdropEl = document.getElementById('sidebar-backdrop');
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
-
+  
   function openSidebar(){
     sidebarEl.classList.add('open');
     backdropEl.classList.add('active');
@@ -315,8 +321,11 @@
   }
   hamburgerBtn.addEventListener('click', openSidebar);
   sidebarCloseBtn.addEventListener('click', closeSidebar);
+  //#endregion
 
-  // -- Settings modal --
+  // ============================================================
+  // ---------- Settings modal ----------
+  //#region Settings modal
   const settingsBtn = document.getElementById('settings-btn');
   const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
   settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
@@ -325,8 +334,10 @@
           if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
         });
   backdropEl.addEventListener('click', closeSidebar);
+  //#endregion
 
   // ---------- Sidebar width resizing (desktop, mouse drag) ----------
+  //#region Sidebar
   const sidebarResizer = document.getElementById('sidebar-resizer');
   let isResizingSidebar = false;
 
@@ -353,7 +364,9 @@
     document.body.style.cursor = '';
     if (map) map.invalidateSize();
   });
+  //#endregion
 
+  // ============================================================
   // ---------- LEflet cluster ----------
   function createClusterLayer(poi, options = {}) {   
     const clusterGroup = L.markerClusterGroup({      
@@ -391,6 +404,7 @@
   }
 
 
+  // ============================================================
   // ---------- Cursor svg ----------
   const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
                         <!-- Mauszeiger (kleiner, weiß) -->
@@ -405,7 +419,9 @@
                       </svg>`;
   const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
 
+  // ============================================================
   // ---------- Map setup ----------
+  //#region map setup
   const map = L.map('map', {
       zoomControl: true,
       maxZoom: 20,
@@ -479,10 +495,11 @@
   } else {
       motorcycleStyle.addTo(map);
   }
+  //#endregion
 
   // ============================================================
   // Route planning (Tab "Planung")
-  // ============================================================
+  //#region Tab Routing
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
@@ -499,7 +516,10 @@
           maybeAutoRecalculateRoute();
           saveAppStateDebounced();
         });
+  //#endregion
 
+  // ============================================================
+  // ---------- external POI ----------
   //#region external POI
   const POI_DEFAULTS = {
             layer: null,
@@ -941,6 +961,8 @@
 });
   //#endregion
 
+  // ============================================================
+  // ---------- Waypoints ----------  
   //#region Waypoints
   async function reverseGeocodeWaypoint(wp) {
     const lat = wp.lat;
@@ -1071,7 +1093,7 @@
               </svg>`;
     }
     else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
                       <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
                       <path fill="#fff" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
                     	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
@@ -1085,7 +1107,7 @@
               </svg>`;  
     }
     else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
                     <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
                     <path fill="#fff" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
                   	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
@@ -1094,7 +1116,7 @@
   }
   function waypointSvg(index) {
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" class="waypoint-svg">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
         <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
         <path fill="#fff" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
         <text 
@@ -1112,20 +1134,20 @@
   }
  
   function flagIcon(usedForMap) {
-      return L.divIcon({
-        className: 'waypoint-marker-icon',
-        html: flagSvg(usedForMap),
-        iconSize: [40, 40],
-        iconAnchor: [20, 38]
-      });
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: flagSvg(usedForMap),
+      iconSize: [40, 40],
+      iconAnchor: [20, 38]
+    });
   }
   function locationIcon(usedForMap) {
-      return L.divIcon({
-        className: 'waypoint-marker-icon',
-        html: locationSvg(usedForMap),
-        iconSize: [40, 40],
-        iconAnchor: [20, 38]
-      });
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: locationSvg(usedForMap),
+      iconSize: [40, 40],
+      iconAnchor: [20, 38]
+    });
   }
   function waypointIcon(index) {
     return L.divIcon({
@@ -1137,7 +1159,6 @@
   }
 
   function refreshWaypointIcons(){
-    console.log('Refresh waypoints');
     waypoints.forEach((wp, i) => {
       if (i === 0) {
         wp.marker.setIcon(locationIcon(true));
@@ -1327,15 +1348,15 @@
           
   function highlightWaypoint(wp) {
       const el = wp.marker.getElement();
-
-      if (!el) {
-          return;
-      }
+      if (!el) { return; }
 
       el.classList.add('is-selected');
 
+const svg = el.querySelector('.waypoint-svg');
+console.log(svg.getAnimations());
       setTimeout(() => {
           el.classList.remove('is-selected');
+          console.log('Animiere icon ENDE');
       }, 2000);
   }
 
@@ -1356,6 +1377,8 @@
 
       row.addEventListener('click', () => {
           highlightWaypoint(wp);
+const svg = wp.marker.getElement().querySelector('svg');
+console.log('animation name: ' + getComputedStyle(svg).animationName);          
       });
 
       row.addEventListener('dblclick', (e) => {
@@ -1539,8 +1562,7 @@
   //#endregion
 
   // ============================================================
-  // Temporary store route
-  // ============================================================
+  // ---------- Store temp route ----------
   //#region Temporary store route
   const STORAGE_KEY = 'motorcycle-route-planner-state-v1';
   const STORAGE_KEY_MAPVIEW = 'motorcycle-route-planner-mapview';
@@ -1832,7 +1854,8 @@
     showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
   });
 
-  // -- Text search (Nominatim) --
+  // --------------- Text search (Nominatim) ---------------
+  //#region Search
   async function searchPlace(query){
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=0`;
     try {
@@ -1892,6 +1915,8 @@
     }
     searchDebounceTimer = setTimeout(runSearch, 500);
   });
+  //#endregion
+
 
   btnClearWaypoints.addEventListener('click', () => {
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
@@ -2050,14 +2075,11 @@
 
       const group = groups[groupIndex];
 
-      routeResultEl.textContent =
-        `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
-
+      routeResultEl.textContent = `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
       routeResultEl.className = '';
 
       /*
-      * Alle Wegpunkte der Gruppe werden in EINER
-      * ORS-Anfrage übergeben.
+      * Alle Wegpunkte der Gruppe werden in EINER ORS-Anfrage übergeben.
       *
       * Beispiel:
       * A -> B -> C
