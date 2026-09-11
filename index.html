@@ -447,18 +447,38 @@
 
   motorcycleStyle.addTo(map);
 
-  L.control.layers({
-      // 'Google-artig / reduziert': cartoLight,
-      // 'Google-artig / detailliert': cartoVoyager,
-      'Alex´s Stil': motorcycleStyle,
-      'OpenStreetMap': osmStandard,
-      'Topographisch': openTopo,
-      'Stadia – Outdoor': stadiaOutdoors,
-      'Stadia – Hell / reduziert': stadiaSmooth,
-  }, null, {
+  const baseLayers = {
+    'Alex´s Stil': motorcycleStyle,
+    'OpenStreetMap': osmStandard,
+    'Topographisch': openTopo,
+    'Stadia – Outdoor': stadiaOutdoors,
+    'Stadia – Hell / reduziert': stadiaSmooth
+  };
+
+  L.control.layers(baseLayers, null, {
       collapsed: true,
       position: 'topright'
   }).addTo(map);
+
+  const STORAGE_KEY_MAPSTYLE = 'motorcycle-route-planner-mapstyle';
+ 
+  map.on('baselayerchange', function (e) {
+      const selectedStyle = Object.keys(baseLayers).find(
+          name => baseLayers[name] === e.layer
+      );
+
+      if (selectedStyle) {
+          localStorage.setItem(STORAGE_KEY_MAPSTYLE, selectedStyle);
+      }
+  });
+
+  const savedStyle = localStorage.getItem(STORAGE_KEY_MAPSTYLE);
+
+  if (savedStyle && baseLayers[savedStyle]) {
+      baseLayers[savedStyle].addTo(map);
+  } else {
+      motorcycleStyle.addTo(map);
+  }
 
   // ============================================================
   // Route planning (Tab "Planung")
@@ -475,7 +495,6 @@
           maybeAutoRecalculateRoute();
           saveAppStateDebounced();
         });
-
   document.getElementById('avoid-ferries').addEventListener('change', () => {
           maybeAutoRecalculateRoute();
           saveAppStateDebounced();
@@ -1118,6 +1137,7 @@
   }
 
   function refreshWaypointIcons(){
+    console.log('Refresh waypoints');
     waypoints.forEach((wp, i) => {
       if (i === 0) {
         wp.marker.setIcon(locationIcon(true));
@@ -1155,7 +1175,7 @@
       latlng,
       {
         draggable: true,
-        icon: waypointIcon(0)
+        icon: waypointIcon(0),
       }
     ).addTo(planningLayer);
 
@@ -1305,6 +1325,20 @@
     saveAppStateDebounced();
   }
           
+  function highlightWaypoint(wp) {
+      const el = wp.marker.getElement();
+
+      if (!el) {
+          return;
+      }
+
+      el.classList.add('is-selected');
+
+      setTimeout(() => {
+          el.classList.remove('is-selected');
+      }, 2000);
+  }
+
   function renderWaypointList(){
     waypointListEl.innerHTML = '';
     if (waypoints.length === 0){
@@ -1319,6 +1353,10 @@
       row.className = 'waypoint-row';
       row.draggable = true;
       row.dataset.wpId = wp.id;
+
+      row.addEventListener('click', () => {
+          highlightWaypoint(wp);
+      });
 
       row.addEventListener('dblclick', (e) => {
         row.classList.add('dblclick');
@@ -2098,7 +2136,6 @@
         }
 
         const data = await resp.json();
-
         /*
         * Auch nach dem JSON-Parsing noch einmal prüfen.
         */
@@ -2215,6 +2252,7 @@
         * Das passiert ganz normal, wenn z.B. während einer
         * laufenden Berechnung eine neue Route gestartet wird.
         */
+
         if (e.name === 'AbortError' || signal.aborted) {
           console.log(
             `[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`
@@ -2228,7 +2266,7 @@
           e
         );
 
-        routeResultEl.textContent =
+        routeResultEl.textContent = 
           `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
 
         routeResultEl.className = 'error';

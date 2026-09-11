@@ -9,7 +9,6 @@ POI_CONFIG = {
             "restaurant",
             "cafe",
             "fast_food",
-            "bar",
             "pub",
             "biergarten",
         ],

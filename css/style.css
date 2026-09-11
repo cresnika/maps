@@ -617,7 +617,11 @@ body {
   #map.shift-active { cursor: not-allowed; }
 
   .waypoint-delete-mode {
-    cursor: url("/icons/trash.svg") 4 4, auto;
+    cursor: url("/icons/deleteMarker.svg") 4 4, auto;
+  }
+
+  .waypoint-add-mode {
+    cursor: url("/icons/addMarker.svg") 4 4, auto;
   }
 
   #waypoint-list {
@@ -698,22 +702,36 @@ body {
   .waypoint-marker-icon {
     color: var(--accent);
     opacity: 1;
+    transform-origin: center center;
   }
 
   .waypoint-marker {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #1b2420;
+    background: none;
+    color: var(--accent);
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 13px;
-    border: 2px solid #fff;
-    box-shadow: 0 1px 5px rgba(0,0,0,.45);
+  }
+
+  .waypoint-marker-icon.is-selected > svg{
+    animation: waypointPulse 0.8s ease-in-out infinite;
+  }
+
+  @keyframes waypointPulse {
+      0% {
+          transform: scale(1);
+      }
+
+      50% {
+          transform: scale(1.5);
+      }
+
+      100% {
+          transform: scale(1);
+      }
   }
 
   .map-context-menu {
