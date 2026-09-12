@@ -403,7 +403,6 @@
     return clusterGroup;   // NEU: erst JETZT zurückgeben, nach dem Event-Binding
   }
 
-
   // ============================================================
   // ---------- Cursor svg ----------
   const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
@@ -427,6 +426,9 @@
       maxZoom: 20,
       preferCanvas: true
   }).setView([47.2, 9.6], 9);
+
+  map.createPane('waypointPane');
+  map.getPane('waypointPane').style.zIndex = 650; // Standard-Marker-Pane liegt bei 600
 
   // Reliably suppress the browser's native right-click menu on the map,
   // independent of Leaflet's own internal listener-presence check.
@@ -827,7 +829,7 @@
         [place.lat, place.lng],
         {
           icon: poi.mapicon,
-          keyboard: false
+          keyboard: false,
         }
       );
 
@@ -866,9 +868,7 @@
         `;
       }
 
-      popup += `
-        </div>
-      `;
+      popup += `</div>`;
 
       marker.bindPopup(popup);
       marker.on('contextmenu', (e) => {
@@ -1222,6 +1222,7 @@
       {
         draggable: true,
         icon: waypointIcon(0),
+        pane: 'waypointPane',  // NEU
       }
     ).addTo(planningLayer);
 
@@ -1382,19 +1383,17 @@
     maybeAutoRecalculateRoute();
     saveAppStateDebounced();
   }
-          
+
   function highlightWaypoint(wp) {
-      const el = wp.marker.getElement();
-      if (!el) { return; }
+    const el = wp.marker.getElement();
+    if (!el) { return; }
 
-      el.classList.add('is-selected');
+    el.classList.add('is-selected');
 
-const svg = el.querySelector('.waypoint-svg');
-console.log(svg.getAnimations());
-      setTimeout(() => {
-          el.classList.remove('is-selected');
-          console.log('Animiere icon ENDE');
-      }, 2000);
+    setTimeout(() => {
+        el.classList.remove('is-selected');
+        console.log('Animiere icon ENDE');
+    }, 2000);
   }
 
   function renderWaypointList(){
@@ -1411,10 +1410,6 @@ console.log(svg.getAnimations());
       row.className = 'waypoint-row';
       row.draggable = true;
       row.dataset.wpId = wp.id;
-
-      row.addEventListener('click', () => {
-          highlightWaypoint(wp);
-      });
 
       row.addEventListener('dblclick', (e) => {
         row.classList.add('dblclick');
@@ -1480,6 +1475,7 @@ console.log(svg.getAnimations());
         maybeAutoRecalculateRoute();
         saveAppStateDebounced();
   	  });
+      
       const handle = document.createElement('span');
       handle.className = 'waypoint-drag-handle';
       handle.innerHTML = '&#8942;&#8942;';
@@ -1499,6 +1495,11 @@ console.log(svg.getAnimations());
           idx.innerHTML = `${flagIcon().options.html}`;
         }
       }
+      idx.addEventListener('click', (e) => {
+        // e.preventDefault();
+        highlightWaypoint(wp);
+      });
+
       row.appendChild(idx);
 
       const info = document.createElement('div');
@@ -2098,6 +2099,7 @@ console.log(svg.getAnimations());
     let allCoords = [];
     let totalDistance = 0;
     let totalDuration = 0;
+    let collectedSegments = [];   
 
     /*
     * Jede Gruppe einzeln an ORS senden.
@@ -2293,17 +2295,15 @@ console.log(svg.getAnimations());
         * Entfernung und Dauer der kompletten Gruppe
         * genau einmal addieren.
         */
-        if (
-          feature.properties &&
-          feature.properties.summary
-        ){
-          totalDistance +=
-            feature.properties.summary.distance || 0;
-
-          totalDuration +=
-            feature.properties.summary.duration || 0;
+        if (feature.properties && feature.properties.summary ){
+          totalDistance += feature.properties.summary.distance || 0;
+          totalDuration += feature.properties.summary.duration || 0;
         }
 
+        // NEU: Teilstrecken-Infos fuer Wegpunkt-Tooltips sammeln
+        if (feature.properties && Array.isArray(feature.properties.segments)) {
+          collectedSegments = collectedSegments.concat(feature.properties.segments);
+        }
       } catch (e) {
 
         /*
@@ -2381,22 +2381,12 @@ console.log(svg.getAnimations());
     * Ergebnis anzeigen
     * ------------------------------------------------------------
     */
-
-    const distKm =
-      (totalDistance / 1000).toFixed(1);
-
-    routeResultEl.innerHTML =
-      `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
-
-    routeResultEl.totalDistance =
-      totalDistance;
-
-    routeResultEl.totalDuration =
-      totalDuration;
-
-    routeResultEl.className =
-      'success';
-
+    const distKm = (totalDistance / 1000).toFixed(1);
+    routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
+    routeResultEl.totalDistance = totalDistance;
+    routeResultEl.totalDuration = totalDuration;
+    routeResultEl.className = 'success';
+    updateWaypointTooltips(collectedSegments);   // NEU
     /*
     * Controller nur dann löschen, wenn er noch zu
     * dieser Berechnung gehört.
@@ -3003,6 +2993,44 @@ console.log(svg.getAnimations());
     const m = totalMin % 60;
     if (h === 0) return m + ' min';
     return h + ' Std ' + String(m).padStart(2,'0') + ' min';
+  }
+
+  function formatDistance(meters) {
+    return meters >= 1000
+      ? `${(meters / 1000).toFixed(1)} km`
+      : `${Math.round(meters)} m`;
+  }
+
+  function updateWaypointTooltips(segments) {
+    let cumulativeDistance = 0;
+    let cumulativeDuration = 0;
+
+    waypoints.forEach((wp, index) => {
+      wp.marker.unbindTooltip();
+
+      if (index === 0) {
+        wp.marker.bindTooltip('Start', { direction: 'top', sticky: true });
+        return;
+      }
+
+      const segment = segments[index - 1];
+      if (!segment) return;
+
+      cumulativeDistance += segment.distance || 0;
+      cumulativeDuration += segment.duration || 0;
+
+      const content = `
+        <div class="waypoint-tooltip">
+          <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
+          <br><small>ab Start</small>
+          <hr>
+          ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
+          <br><small>seit letztem Punkt</small>
+        </div>
+      `;
+
+      wp.marker.bindTooltip(content, { direction: 'top', sticky: true });
+    });
   }
 
   function updateSummary(){
