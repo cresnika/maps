@@ -268,6 +268,8 @@
 (function(){
   "use strict";
 
+  const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/api/';
+
   // ============================================================
   // ---------- Toast ----------
   //#region Toast
@@ -288,6 +290,205 @@
     }, duration);
   }
   //#endregion
+
+
+  // ============================================================
+  // ----------- AUTH (Login / Set Initial Password / Change Password)
+  //#region User login handling
+
+  const authState = {
+    loggedIn: false,
+    email: null,
+  };
+
+  async function authRequest(endpoint, body) {
+    const response = await fetch(`${CLOUDFLARE_API_BASE}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body || {}),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
+    }
+
+    if (!response.ok) {
+      throw new Error((data && data.error) || `HTTP ${response.status}`);
+    }
+
+    return data;
+  }
+
+  // ------------------------------------------------------------
+  // Modal-DOM einmalig erzeugen
+  // ------------------------------------------------------------
+  
+  function createAuthModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal-overlay';
+    overlay.style.display = 'none';
+
+    overlay.innerHTML = `
+      <div class="auth-modal">
+        <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
+
+        <div class="auth-view" data-view="login">
+          <h2>Anmelden</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
+          <p class="auth-error"></p>
+          <button type="button" class="auth-submit-login">Anmelden</button>
+          <div class="auth-links">
+            <a href="#" class="auth-link-set-initial">Erstes Passwort setzen</a>
+          </div>
+        </div>
+
+        <div class="auth-view" data-view="set-initial-password" style="display:none">
+          <h2>Erstes Passwort setzen</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <label>Neues Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
+          <p class="auth-error"></p>
+          <button type="button" class="auth-submit-set-initial">Passwort setzen</button>
+          <div class="auth-links">
+            <a href="#" class="auth-link-login">Zurück zum Login</a>
+          </div>
+        </div>
+
+        <div class="auth-view" data-view="change-password" style="display:none">
+          <h2>Passwort ändern</h2>
+          <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
+          <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
+          <p class="auth-error"></p>
+          <p class="auth-success"></p>
+          <button type="button" class="auth-submit-change">Passwort ändern</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hideAuthModal();
+    });
+
+    overlay.querySelector('.auth-link-set-initial').addEventListener('click', (e) => {
+      e.preventDefault();
+      showAuthModal('set-initial-password');
+    });
+    overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
+      e.preventDefault();
+      showAuthModal('login');
+    });
+
+    overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
+    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
+    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
+
+    return overlay;
+  }
+
+  let authModalEl = null;
+
+  function showAuthModal(view = 'login') {
+    if (!authModalEl) authModalEl = createAuthModal();
+
+    authModalEl.querySelectorAll('.auth-view').forEach(el => {
+      el.style.display = el.dataset.view === view ? 'block' : 'none';
+    });
+    authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
+    authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
+    authModalEl.style.display = 'flex';
+  }
+
+  function hideAuthModal() {
+    if (authModalEl) authModalEl.style.display = 'none';
+  }
+
+  function showViewError(view, message) {
+    view.querySelector('.auth-error').textContent = message;
+  }
+
+  // ------------------------------------------------------------
+  // Submit-Handler
+  // ------------------------------------------------------------
+
+  async function submitLogin(overlay) {
+    const view = overlay.querySelector('[data-view="login"]');
+    const email = view.querySelector('.auth-email').value.trim();
+    const password = view.querySelector('.auth-password').value;
+
+    try {
+      const data = await authRequest('login', { email, password });
+      authState.loggedIn = true;
+      authState.email = data.email;
+      updateAuthUI();
+      hideAuthModal();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+  async function submitSetInitialPassword(overlay) {
+    const view = overlay.querySelector('[data-view="set-initial-password"]');
+    const email = view.querySelector('.auth-email').value.trim();
+    const password = view.querySelector('.auth-password').value;
+
+    try {
+      const data = await authRequest('set-initial-password', { email, password });
+      authState.loggedIn = true;
+      authState.email = data.email;
+      updateAuthUI();
+      hideAuthModal();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+  async function submitChangePassword(overlay) {
+    const view = overlay.querySelector('[data-view="change-password"]');
+    const currentPassword = view.querySelector('.auth-current-password').value;
+    const newPassword = view.querySelector('.auth-new-password').value;
+
+    try {
+      await authRequest('change-password', { currentPassword, newPassword });
+      view.querySelector('.auth-error').textContent = '';
+      view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
+      view.querySelector('.auth-current-password').value = '';
+      view.querySelector('.auth-new-password').value = '';
+    } catch (err) {
+      view.querySelector('.auth-success').textContent = '';
+      showViewError(view, err.message);
+    }
+  }
+
+  async function logout() {
+    try {
+      await authRequest('logout');
+    } catch (err) {
+      console.warn('Logout fehlgeschlagen:', err);
+    }
+    authState.loggedIn = false;
+    authState.email = null;
+    updateAuthUI();
+  }
+
+  // ------------------------------------------------------------
+  // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
+  // ------------------------------------------------------------
+
+  function updateAuthUI() {
+    const el = document.getElementById('auth-status');   // TODO: an dein tatsächliches Element anpassen
+    if (!el) return;
+
+    el.textContent = authState.loggedIn ? authState.email : 'Nicht angemeldet';
+  }
+  //#endregion
+
 
   // ============================================================
   // ---------- Tab switching ----------
@@ -1285,9 +1486,7 @@
       saveAppStateDebounced();
     });
     marker.on('click', (e) => {
-      if (
-        e.originalEvent &&
-        e.originalEvent.shiftKey
+      if (e.originalEvent && e.originalEvent.shiftKey
       ){
         e.originalEvent.stopPropagation();
         removeWaypoint(wp.id);
@@ -3006,10 +3205,10 @@
     let cumulativeDuration = 0;
 
     waypoints.forEach((wp, index) => {
-      wp.marker.unbindTooltip();
+      wp.marker.unbindPopup();
 
       if (index === 0) {
-        wp.marker.bindTooltip('Start', { direction: 'top', sticky: true });
+        wp.marker.bindPopup('Start', { direction: 'top', sticky: true });
         return;
       }
 
@@ -3021,6 +3220,8 @@
 
       const content = `
         <div class="waypoint-tooltip">
+          <strong>#${index} ${wp.label}</strong>
+          <hr>
           <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
           <br><small>ab Start</small>
           <hr>
@@ -3029,7 +3230,7 @@
         </div>
       `;
 
-      wp.marker.bindTooltip(content, { direction: 'top', sticky: true });
+      wp.marker.bindPopup(content, { direction: 'top', sticky: true });
     });
   }
 
