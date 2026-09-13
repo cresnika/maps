@@ -161,13 +161,17 @@
 
   <div id="settings-modal-backdrop" class="modal-backdrop">
     <div class="modal-box settings-modal-box">
-      <h3>Einstellungen</h3>
+      <h2>Einstellungen</h2>
 
-      <label>OpenRouteService API-Key
-        <input type="password" id="ors-api-key" placeholder="API-Key">
-      </label>
-      <p class="shortcut-hint" id="api-key-hint" style="padding:0 0 4px;">Kostenlosen Key holen: openrouteservice.org/dev/#/signup</p>
+      <h4>Benutzer:</h4>
+      <div class="user-settings">
+        <button class="btn" id="btn-user-login">Login</button>
+        <button class="btn" id="btn-user-logout">Logout</button>
+        <button class="btn" id="btn-user-change-password">Passwort ändern</button>
+        <button class="btn" id="btn-user-invite">Benutzer einladen</button>
+      </div>
 
+      <h4>persönliche POI:</h4>
       <label>Lücken schließen ab (m)
         <input type="number" id="gap-threshold" value="1000" min="10" max="20000" step="10">
       </label>
@@ -288,204 +292,6 @@
     toastTimeout = setTimeout(() => {
       toast.classList.remove('show');
     }, duration);
-  }
-  //#endregion
-
-
-  // ============================================================
-  // ----------- AUTH (Login / Set Initial Password / Change Password)
-  //#region User login handling
-
-  const authState = {
-    loggedIn: false,
-    email: null,
-  };
-
-  async function authRequest(endpoint, body) {
-    const response = await fetch(`${CLOUDFLARE_API_BASE}/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body || {}),
-    });
-
-    let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
-    }
-
-    if (!response.ok) {
-      throw new Error((data && data.error) || `HTTP ${response.status}`);
-    }
-
-    return data;
-  }
-
-  // ------------------------------------------------------------
-  // Modal-DOM einmalig erzeugen
-  // ------------------------------------------------------------
-  
-  function createAuthModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'auth-modal-overlay';
-    overlay.style.display = 'none';
-
-    overlay.innerHTML = `
-      <div class="auth-modal">
-        <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
-
-        <div class="auth-view" data-view="login">
-          <h2>Anmelden</h2>
-          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-          <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
-          <p class="auth-error"></p>
-          <button type="button" class="auth-submit-login">Anmelden</button>
-          <div class="auth-links">
-            <a href="#" class="auth-link-set-initial">Erstes Passwort setzen</a>
-          </div>
-        </div>
-
-        <div class="auth-view" data-view="set-initial-password" style="display:none">
-          <h2>Erstes Passwort setzen</h2>
-          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-          <label>Neues Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
-          <p class="auth-error"></p>
-          <button type="button" class="auth-submit-set-initial">Passwort setzen</button>
-          <div class="auth-links">
-            <a href="#" class="auth-link-login">Zurück zum Login</a>
-          </div>
-        </div>
-
-        <div class="auth-view" data-view="change-password" style="display:none">
-          <h2>Passwort ändern</h2>
-          <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
-          <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
-          <p class="auth-error"></p>
-          <p class="auth-success"></p>
-          <button type="button" class="auth-submit-change">Passwort ändern</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) hideAuthModal();
-    });
-
-    overlay.querySelector('.auth-link-set-initial').addEventListener('click', (e) => {
-      e.preventDefault();
-      showAuthModal('set-initial-password');
-    });
-    overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
-      e.preventDefault();
-      showAuthModal('login');
-    });
-
-    overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
-    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
-    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
-
-    return overlay;
-  }
-
-  let authModalEl = null;
-
-  function showAuthModal(view = 'login') {
-    if (!authModalEl) authModalEl = createAuthModal();
-
-    authModalEl.querySelectorAll('.auth-view').forEach(el => {
-      el.style.display = el.dataset.view === view ? 'block' : 'none';
-    });
-    authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
-    authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
-    authModalEl.style.display = 'flex';
-  }
-
-  function hideAuthModal() {
-    if (authModalEl) authModalEl.style.display = 'none';
-  }
-
-  function showViewError(view, message) {
-    view.querySelector('.auth-error').textContent = message;
-  }
-
-  // ------------------------------------------------------------
-  // Submit-Handler
-  // ------------------------------------------------------------
-
-  async function submitLogin(overlay) {
-    const view = overlay.querySelector('[data-view="login"]');
-    const email = view.querySelector('.auth-email').value.trim();
-    const password = view.querySelector('.auth-password').value;
-
-    try {
-      const data = await authRequest('login', { email, password });
-      authState.loggedIn = true;
-      authState.email = data.email;
-      updateAuthUI();
-      hideAuthModal();
-    } catch (err) {
-      showViewError(view, err.message);
-    }
-  }
-
-  async function submitSetInitialPassword(overlay) {
-    const view = overlay.querySelector('[data-view="set-initial-password"]');
-    const email = view.querySelector('.auth-email').value.trim();
-    const password = view.querySelector('.auth-password').value;
-
-    try {
-      const data = await authRequest('set-initial-password', { email, password });
-      authState.loggedIn = true;
-      authState.email = data.email;
-      updateAuthUI();
-      hideAuthModal();
-    } catch (err) {
-      showViewError(view, err.message);
-    }
-  }
-
-  async function submitChangePassword(overlay) {
-    const view = overlay.querySelector('[data-view="change-password"]');
-    const currentPassword = view.querySelector('.auth-current-password').value;
-    const newPassword = view.querySelector('.auth-new-password').value;
-
-    try {
-      await authRequest('change-password', { currentPassword, newPassword });
-      view.querySelector('.auth-error').textContent = '';
-      view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
-      view.querySelector('.auth-current-password').value = '';
-      view.querySelector('.auth-new-password').value = '';
-    } catch (err) {
-      view.querySelector('.auth-success').textContent = '';
-      showViewError(view, err.message);
-    }
-  }
-
-  async function logout() {
-    try {
-      await authRequest('logout');
-    } catch (err) {
-      console.warn('Logout fehlgeschlagen:', err);
-    }
-    authState.loggedIn = false;
-    authState.email = null;
-    updateAuthUI();
-  }
-
-  // ------------------------------------------------------------
-  // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
-  // ------------------------------------------------------------
-
-  function updateAuthUI() {
-    const el = document.getElementById('auth-status');   // TODO: an dein tatsächliches Element anpassen
-    if (!el) return;
-
-    el.textContent = authState.loggedIn ? authState.email : 'Nicht angemeldet';
   }
   //#endregion
 
@@ -1799,6 +1605,282 @@
   }
   //#endregion
 
+
+  // ============================================================
+  // ----------- AUTH (Login / Set Initial Password / Change Password)
+  //#region User login handling
+
+  const authState = {
+    loggedIn: false,
+    email: null,
+  };
+
+  async function authRequest(endpoint, body) {
+    const response = await fetch(`${CLOUDFLARE_API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body || {}),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
+    }
+
+    if (!response.ok) {
+      throw new Error((data && data.error) || `HTTP ${response.status}`);
+    }
+
+    return data;
+  }
+
+  // ------------------------------------------------------------
+  // Modal-DOM einmalig erzeugen
+  // ------------------------------------------------------------
+  
+  function createAuthModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal-overlay';
+    overlay.style.display = 'none';
+
+    overlay.innerHTML = `
+      <div class="auth-modal">
+        <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
+
+        <div class="auth-view" data-view="login">
+          <h2>Anmelden</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
+          <p class="auth-error"></p>
+          <button type="button" class="auth-submit-login">Anmelden</button>
+          <div class="auth-links">
+            <a href="#" class="auth-link-resend-invitation">Einladungslink erneut senden</a>
+          </div>
+          <div class="auth-links">
+            <a href="#" class="auth-link-set-initial">Erstes Passwort setzen</a>
+          </div>
+        </div>
+
+        <div class="auth-view" data-view="set-initial-password" style="display:none">
+          <h2>Erstes Passwort setzen</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <label>Neues Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
+          <p class="auth-error"></p>
+          <button type="button" class="auth-submit-set-initial">Passwort setzen</button>
+          <div class="auth-links">
+            <a href="#" class="auth-link-login">Zurück zum Login</a>
+          </div>
+        </div>
+
+        <div class="auth-view" data-view="change-password" style="display:none">
+          <h2>Passwort ändern</h2>
+          <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
+          <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
+          <p class="auth-error"></p>
+          <p class="auth-success"></p>
+          <button type="button" class="auth-submit-change">Passwort ändern</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hideAuthModal();
+    });
+
+    overlay.querySelector('.auth-link-set-initial').addEventListener('click', (e) => {
+      e.preventDefault();
+      showAuthModal('set-initial-password');
+    });
+
+    overlay.querySelector('.auth-link-resend-invitation').addEventListener('click', () => submitReInvite(overlay));
+
+    overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
+      e.preventDefault();
+      showAuthModal('login');
+    });
+
+    overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
+    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
+    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
+
+    return overlay;
+  }
+
+  let authModalEl = null;
+
+  function showAuthModal(view = 'login') {
+    if (!authModalEl) authModalEl = createAuthModal();
+
+    authModalEl.querySelectorAll('.auth-view').forEach(el => {
+      el.style.display = el.dataset.view === view ? 'block' : 'none';
+    });
+    authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
+    authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
+    authModalEl.style.display = 'flex';
+  }
+
+  function hideAuthModal() {
+    if (authModalEl) authModalEl.style.display = 'none';
+  }
+
+  function showViewError(view, message) {
+    view.querySelector('.auth-error').textContent = message;
+  }
+
+  // ------------------------------------------------------------
+  // Submit-Handler
+  // ------------------------------------------------------------
+
+  async function submitLogin(overlay) {
+    const view = overlay.querySelector('[data-view="login"]');
+    const email = view.querySelector('.auth-email').value.trim();
+    const password = view.querySelector('.auth-password').value;
+
+    try {
+      const data = await authRequest('login', { email, password });
+      authState.loggedIn = true;
+      authState.email = data.email;
+      updateAuthUI();
+      hideAuthModal();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+async function submitReInvite(overlay) {
+    const view = overlay.querySelector('[data-view="login"]');
+    const email = view.querySelector('.auth-email').value.trim();
+const body = { email };
+    console.log('Resend invitation to ' + JSON.stringify(body));
+    try {
+      const data = await authRequest('reinvite', { email });
+      updateAuthUI();
+      // hideAuthModal();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+
+  async function submitSetInitialPassword(overlay) {
+    const view = overlay.querySelector('[data-view="set-initial-password"]');
+    const email = view.querySelector('.auth-email').value.trim();
+    const password = view.querySelector('.auth-password').value;
+
+    try {
+      const data = await authRequest('set-initial-password', { email, password });
+      authState.loggedIn = true;
+      authState.email = data.email;
+      updateAuthUI();
+      hideAuthModal();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+  async function submitChangePassword(overlay) {
+    const view = overlay.querySelector('[data-view="change-password"]');
+    const currentPassword = view.querySelector('.auth-current-password').value;
+    const newPassword = view.querySelector('.auth-new-password').value;
+
+    try {
+      await authRequest('change-password', { currentPassword, newPassword });
+      view.querySelector('.auth-error').textContent = '';
+      view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
+      view.querySelector('.auth-current-password').value = '';
+      view.querySelector('.auth-new-password').value = '';
+    } catch (err) {
+      view.querySelector('.auth-success').textContent = '';
+      showViewError(view, err.message);
+    }
+  }
+
+  async function logout() {
+    try {
+      await authRequest('logout');
+    } catch (err) {
+      console.warn('Logout fehlgeschlagen:', err);
+    }
+    authState.loggedIn = false;
+    authState.email = null;
+    updateAuthUI();
+  }
+
+  // ------------------------------------------------------------
+  // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
+  // ------------------------------------------------------------
+
+  let authControlInstance = null;
+
+  function createAuthControl() {
+    const control = L.control({ position: 'topleft' });
+
+    control.onAdd = function() {
+      const container = L.DomUtil.create('div', 'leaflet-bar auth-control');
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      renderAuthControl(container);
+      return container;
+    };
+
+    control.addTo(map);
+    return control;
+  }
+
+  function renderAuthControl(container) {
+    if (authState.loggedIn) {
+      container.innerHTML = `
+        <div class="auth-control-logged-in">
+          <span class="auth-control-email">${escapeHtml(authState.email)}</span>
+          <button type="button" class="auth-control-change">Passwort ändern</button>
+          <button type="button" class="auth-control-logout">Abmelden</button>
+        </div>
+      `;
+      container.querySelector('.auth-control-change').addEventListener('click', () => showAuthModal('change-password'));
+      container.querySelector('.auth-control-logout').addEventListener('click', () => logout());
+    } else {
+      container.innerHTML = `<button type="button" class="auth-control-login">Anmelden</button>`;
+      container.querySelector('.auth-control-login').addEventListener('click', () => showAuthModal('login'));
+    }
+  }
+
+  function updateAuthUI() {
+    if (!authControlInstance) return;
+    const container = authControlInstance.getContainer();
+    if (container) renderAuthControl(container);
+  }
+
+  async function checkExistingSession() {
+    try {
+      const data = await authRequest('me');
+      if (data && data.loggedIn) {
+        authState.loggedIn = true;
+        authState.email = data.email;
+      }
+    } catch (err) {
+      console.warn('Session-Check fehlgeschlagen:', err);
+    } finally {
+      updateAuthUI();
+    }
+  }
+
+  document.getElementById('btn-user-invite').addEventListener('click', () => {
+      console.log('Invite clicked');
+  });
+
+  authControlInstance = createAuthControl();
+  checkExistingSession();
+
+  
+  //#endregion
+
+
   // ============================================================
   // ---------- Store temp route ----------
   //#region Temporary store route
@@ -2168,8 +2250,6 @@
   // ============================================================
   // Route calculation (OpenRouteService)
   // ============================================================
-  const orsKeyInput = document.getElementById('ors-api-key');
-  const apiKeyHint = document.getElementById('api-key-hint');
   const routeResultEl = document.getElementById('route-result');
   let appDbPromise = null;
   const APP_DB_NAME = 'maps-planer-viewer';
@@ -2178,18 +2258,6 @@
   const SETTINGS_STORE_NAME = 'settings';
   const POI_STORE_NAME  = 'pois';
   
-  dbGet('ors_api_key', '').then(savedKey => {
-      if (savedKey) {
-          orsKeyInput.value = savedKey;
-      }
-    }).catch(error => {
-      console.error('dbGet Fehler:', error);
-  });
-
-  orsKeyInput.addEventListener('input', () => {
-    dbSet('ors_api_key', orsKeyInput.value.trim());
-  });
-
   function formatRouteDuration(seconds){
     const totalMin = Math.round(seconds / 60);
     const h = Math.floor(totalMin / 60);
