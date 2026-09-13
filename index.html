@@ -1756,8 +1756,6 @@
 async function submitReInvite(overlay) {
     const view = overlay.querySelector('[data-view="login"]');
     const email = view.querySelector('.auth-email').value.trim();
-const body = { email };
-    console.log('Resend invitation to ' + JSON.stringify(body));
     try {
       const data = await authRequest('reinvite', { email });
       updateAuthUI();
