@@ -8,6 +8,13 @@ import osmium.geom
 DOWNLOADPATH = Path("../Downloads")
 EXTRACTPATH = Path("../../data")
 
+FOOD_COUNTRIES = [
+    "Austria",
+    "Germany",
+    "Italy",
+    "Switzerland",
+]
+
 ROAD_TYPES = {
     "motorway",
     "trunk",
@@ -96,65 +103,6 @@ AVAILABLE_POI_TYPES = [
         "output": "charging_stations.json",
         "tag_key": "amenity",
         "tag_values": ["charging_station"],
-    },
-]
-
-POI_TYPES = [
-    {
-        "name": "Gebirgspässe",
-        "type": "mountain_pass",
-        "output": "mountain_passes.json",
-        "tag_key": "mountain_pass",
-        "tag_values": ["yes"],
-    },
-    {
-        "name": "Tankstellen",
-        "type": "fuel",
-        "output": "fuel.json",
-        "tag_key": "amenity",
-        "tag_values": ["fuel"],
-    },
-    {
-        "name": "Hotels",
-        "type": "hotels",
-        "output": "hotels.json",
-        "tag_key": "tourism",
-        "tag_values": ["hotel"],
-    },
-    {
-        "name": "Pensionen",
-        "type": "guesthouse",
-        "output": "guesthouses.json",
-        "tag_key": "tourism",
-        "tag_values": [
-            "guest_house",
-            "hostel",
-            "motel",
-            "bed_and_breakfast",
-            "apartment",
-            "chalet",
-        ],
-    },
-    {
-        "name": "Essen & Trinken",
-        "type": "food",
-        "output": "food.json",
-        "tag_key": "amenity",
-        "tag_values": [
-            "restaurant",
-            "cafe",
-            "fast_food",
-            "bar",
-            "pub",
-            "biergarten",
-        ],
-    },
-    {
-        "name": "Campingplätze",
-        "type": "campsite",
-        "output": "campsites.json",
-        "tag_key": "tourism",
-        "tag_values": ["camp_site"],
     },
 ]
 
@@ -385,8 +333,23 @@ def run_export(poi_config):
 
     files = sorted(DOWNLOADPATH.glob("*.osm.pbf"))
 
+    if poi_config["type"] == "food":
+
+        files = [
+            file
+            for file in files
+            if any(
+                file.name.lower().startswith(country.lower())
+                for country in FOOD_COUNTRIES
+            )
+        ]
+
+        print(
+            f"Gefilterte Food-Dateien: "
+            f"{len(files)}"
+        )
+
     print(f"Gefundene Dateien: {len(files)}")
-    print()
 
     EXTRACTPATH.mkdir(
         parents=True,

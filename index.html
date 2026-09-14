@@ -308,6 +308,7 @@
     });
   });
 
+
   // ============================================================
   // ---------- Mobile drawer ----------
   //#region Sidebar
@@ -330,6 +331,7 @@
   sidebarCloseBtn.addEventListener('click', closeSidebar);
   //#endregion
 
+
   // ============================================================
   // ---------- Settings modal ----------
   //#region Settings modal
@@ -342,6 +344,7 @@
         });
   backdropEl.addEventListener('click', closeSidebar);
   //#endregion
+
 
   // ---------- Sidebar width resizing (desktop, mouse drag) ----------
   //#region Sidebar
@@ -372,6 +375,7 @@
     if (map) map.invalidateSize();
   });
   //#endregion
+
 
   // ============================================================
   // ---------- LEflet cluster ----------
@@ -410,6 +414,7 @@
     return clusterGroup;   // NEU: erst JETZT zurückgeben, nach dem Event-Binding
   }
 
+
   // ============================================================
   // ---------- Cursor svg ----------
   const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
@@ -424,6 +429,7 @@
                         </g>
                       </svg>`;
   const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
+
 
   // ============================================================
   // ---------- Map setup ----------
@@ -506,8 +512,9 @@
   }
   //#endregion
 
+
   // ============================================================
-  // Route planning (Tab "Planung")
+  // ---------- Route planning  ----------
   //#region Tab Routing
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
@@ -525,6 +532,7 @@
           saveAppStateDebounced();
         });
   //#endregion
+
 
   // ============================================================
   // ---------- external POI ----------
@@ -961,6 +969,7 @@
   poi.control.addTo(map);  
 });
   //#endregion
+
 
   // ============================================================
   // ---------- Waypoints ----------  
@@ -1656,23 +1665,24 @@
           <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
           <p class="auth-error"></p>
           <button type="button" class="auth-submit-login">Anmelden</button>
-          <div class="auth-links">
-            <a href="#" class="auth-link-resend-invitation">Einladungslink erneut senden</a>
-          </div>
-          <div class="auth-links">
-            <a href="#" class="auth-link-set-initial">Erstes Passwort setzen</a>
-          </div>
+        </div>
+
+        <div class="auth-view" data-view="invite">
+          <h2>Einladung</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <p class="auth-error"></p>
+          <p class="auth-success"></p>
+          <button type="button" class="auth-submit-invite">Einladen</button>
         </div>
 
         <div class="auth-view" data-view="set-initial-password" style="display:none">
           <h2>Erstes Passwort setzen</h2>
-          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <label>E-Mail: <input type="email" class="auth-email" autocomplete="username"></label>
           <label>Neues Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
+          <label>Passwort Wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
           <p class="auth-error"></p>
+          <p class="auth-success"></p>
           <button type="button" class="auth-submit-set-initial">Passwort setzen</button>
-          <div class="auth-links">
-            <a href="#" class="auth-link-login">Zurück zum Login</a>
-          </div>
         </div>
 
         <div class="auth-view" data-view="change-password" style="display:none">
@@ -1692,20 +1702,20 @@
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) hideAuthModal();
     });
-
-    overlay.querySelector('.auth-link-set-initial').addEventListener('click', (e) => {
-      e.preventDefault();
-      showAuthModal('set-initial-password');
-    });
-
-    overlay.querySelector('.auth-link-resend-invitation').addEventListener('click', () => submitReInvite(overlay));
-
-    overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
-      e.preventDefault();
-      showAuthModal('login');
-    });
-
+    // overlay.querySelector('.auth-link-resend-invitation').addEventListener('click', () => submitReInvite(overlay));
+    // overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
+    //   e.preventDefault();
+    //   showAuthModal('login');
+    // });
     overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
+    overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
+        if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
+          hideAuthModal();
+        }
+        else {
+          submitInvite(overlay);
+        }
+    });
     overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
     overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
 
@@ -1727,6 +1737,9 @@
 
   function hideAuthModal() {
     if (authModalEl) authModalEl.style.display = 'none';
+    const btn = authModalEl.querySelector('.auth-submit-invite');
+    btn.classList.remove('is-close-mode');
+    btn.textContent = 'Einladen';
   }
 
   function showViewError(view, message) {
@@ -1753,11 +1766,26 @@
     }
   }
 
-  async function submitReInvite(overlay) {
-    const view = overlay.querySelector('[data-view="login"]');
+  async function submitInvite(overlay) {
+    const view = overlay.querySelector('[data-view="invite"]');
     const email = view.querySelector('.auth-email').value.trim();
     try {
-      const data = await authRequest('reinvite', { email });
+      view.querySelector('.auth-success').textContent = '';
+      const data = await authRequest('invite', { email });
+      if (!data || !data.success || !data.inviteUrl) {
+        throw new Error('Kein gültiger Einladungs-Link vom Server erhalten');
+      }
+      if (data.success) {
+        const inviteUrl = data.inviteUrl;
+        view.querySelector('.auth-success').textContent = inviteUrl;
+
+        const btn = view.querySelector('.auth-submit-invite');
+        btn.classList.add('is-close-mode');
+        btn.textContent = 'Schliessen';
+
+        await navigator.clipboard.writeText(inviteUrl);
+        alert('Invite-Link wurde in die Zwischenablage kopiert.');
+      }
       updateAuthUI();
       // hideAuthModal();
     } catch (err) {
@@ -1867,8 +1895,13 @@
     }
   }
 
-  document.getElementById('btn-user-invite').addEventListener('click', () => {
-      console.log('Invite clicked');
+  document.getElementById('btn-user-login').addEventListener('click', (e) => {
+      settingsModalBackdrop.classList.remove('active');
+      showAuthModal('login');
+  });
+  document.getElementById('btn-user-invite').addEventListener('click', (e) => {
+      settingsModalBackdrop.classList.remove('active');
+      showAuthModal('invite');
   });
 
   authControlInstance = createAuthControl();
