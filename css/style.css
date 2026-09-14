@@ -833,7 +833,7 @@ body {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 22px;
-    width: 300px;
+    width: 400px;
     max-width: 88vw;
     box-shadow: 0 12px 44px rgba(0,0,0,.55);
   }
@@ -1273,6 +1273,7 @@ body {
     transform: translateX(-50%) translateY(0);
   }
 
+  }
   .auth-modal-overlay {
     position: fixed;
     inset: 0;
@@ -1333,6 +1334,10 @@ body {
     cursor: pointer;
   }
 
+  .btn-user-view.hidden {
+    display: none;
+  }
+
   .auth-error { color: #e06c6c; font-size: 13px; min-height: 18px; }
   .auth-success { color: #6ce0a0; font-size: 13px; min-height: 18px; }
   .auth-links { margin-top: 12px; text-align: center; }
@@ -1359,6 +1364,4 @@ body {
 
 .auth-control-email {
   color: var(--text-dim, #93a294);
-}
-
 }

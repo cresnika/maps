@@ -28,7 +28,7 @@
       </svg>
     </button>
 	  <div class="header-title">
-		  <h1>Routenplaner</h1>
+		  <h1 id="title-label">Routenplaner</h1>
 	  </div>
 	  <button id="settings-btn" aria-label="Einstellungen" title="Einstellungen">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
@@ -162,14 +162,17 @@
   <div id="settings-modal-backdrop" class="modal-backdrop">
     <div class="modal-box settings-modal-box">
       <h2>Einstellungen</h2>
-
+      <div class="settings-divider"></div>
       <h4>Benutzer:</h4>
+      <label id="label-settings-email" class="btn-user-view"></label>
+      <label id="label-settings-user" class="btn-user-view"></label>
       <div class="user-settings">
-        <button class="btn" id="btn-user-login">Login</button>
-        <button class="btn" id="btn-user-logout">Logout</button>
-        <button class="btn" id="btn-user-change-password">Passwort ändern</button>
-        <button class="btn" id="btn-user-invite">Benutzer einladen</button>
+        <button class="btn btn-user-view" id="btn-user-login">Login</button>
+        <button class="btn btn-user-view" id="btn-user-logout">Logout</button>
+        <button class="btn btn-user-view" id="btn-user-change-password">Passwort ändern</button>
+        <button class="btn btn-user-view" id="btn-user-invite">Benutzer einladen</button>
       </div>
+      <div class="settings-divider"></div>
 
       <h4>persönliche POI:</h4>
       <label>Lücken schließen ab (m)
@@ -439,6 +442,14 @@
       maxZoom: 20,
       preferCanvas: true
   }).setView([47.2, 9.6], 9);
+
+  L.control.scale({
+      position: 'bottomright',   // 'topleft', 'topright', 'bottomleft', 'bottomright'
+      metric: true,               // km/m anzeigen
+      imperial: false,            // mi/ft NICHT anzeigen (falls nur metrisch gewünscht)
+      maxWidth: 100,               // maximale Breite der Scale-Bar in Pixel
+      updateWhenIdle: false        // Aktualisierung während des Zoomens/Pannens
+  }).addTo(map);
 
   map.createPane('waypointPane');
   map.getPane('waypointPane').style.zIndex = 650; // Standard-Marker-Pane liegt bei 600
@@ -865,7 +876,7 @@
       if (place.website) {
         popup += `
           <br>
-          <small>Website: <a target="_blank" href="${escapeHtml(place.website)}">click to open</a></small>
+          <small>Website: <a target="_blank" href="${escapeHtml(place.website)}">${escapeHtml(place.website)}</a></small>
         `;
       }
 
@@ -978,7 +989,9 @@
     const lat = wp.lat;
     const lng = wp.lng;
     try {
-      const url = `https://maps.a-cresnik.workers.dev/reverse` +
+      CLOUDFLARE_API_BASE
+      const url = CLOUDFLARE_API_BASE +
+                  `reverse` +
                   `?lat=${encodeURIComponent(lat)}` +
                   `&lon=${encodeURIComponent(lng)}`;
 
@@ -1622,6 +1635,7 @@
   const authState = {
     loggedIn: false,
     email: null,
+    username: null,
   };
 
   async function authRequest(endpoint, body) {
@@ -1650,6 +1664,30 @@
   // Modal-DOM einmalig erzeugen
   // ------------------------------------------------------------
   
+  function setAppAuthVisibility() {
+    document.getElementById('btn-user-login').classList.toggle('hidden', authState.loggedIn);
+    document.getElementById('btn-user-logout').classList.toggle('hidden', !authState.loggedIn);
+    document.getElementById('btn-user-invite').classList.toggle('hidden', !authState.loggedIn);
+    document.getElementById('btn-user-change-password').classList.toggle('hidden', !authState.loggedIn);
+
+    if (authState.username) 
+      document.getElementById('title-label').textContent  = 'Hallo ' + authState.username;
+    else
+      document.getElementById('title-label').textContent  = 'Routenplaner';
+
+    const userlabel = document.getElementById('label-settings-user');
+    if (userlabel) {
+      userlabel.textContent = 'Name: ' + authState.username;
+      userlabel.classList.toggle('hidden', !authState.loggedIn);
+    }
+    
+    const emaillabel = document.getElementById('label-settings-email');
+    if (emaillabel) {
+      emaillabel.textContent = 'eMail: ' + authState.email;
+      emaillabel.classList.toggle('hidden', !authState.loggedIn);
+    }
+  }
+
   function createAuthModal() {
     const overlay = document.createElement('div');
     overlay.className = 'auth-modal-overlay';
@@ -1689,6 +1727,7 @@
           <h2>Passwort ändern</h2>
           <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
           <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
+          <label>Passwort Wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
           <p class="auth-error"></p>
           <p class="auth-success"></p>
           <button type="button" class="auth-submit-change">Passwort ändern</button>
@@ -1699,14 +1738,9 @@
     document.body.appendChild(overlay);
 
     overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) hideAuthModal();
-    });
-    // overlay.querySelector('.auth-link-resend-invitation').addEventListener('click', () => submitReInvite(overlay));
-    // overlay.querySelector('.auth-link-login').addEventListener('click', (e) => {
-    //   e.preventDefault();
-    //   showAuthModal('login');
-    // });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
+    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
+    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
     overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
     overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
         if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
@@ -1716,8 +1750,6 @@
           submitInvite(overlay);
         }
     });
-    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
-    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
 
     return overlay;
   }
@@ -1740,6 +1772,7 @@
     const btn = authModalEl.querySelector('.auth-submit-invite');
     btn.classList.remove('is-close-mode');
     btn.textContent = 'Einladen';
+    setAppAuthVisibility();
   }
 
   function showViewError(view, message) {
@@ -1759,6 +1792,9 @@
       const data = await authRequest('login', { email, password });
       authState.loggedIn = true;
       authState.email = data.email;
+      authState.username = data.name;
+
+      setAppAuthVisibility();
       updateAuthUI();
       hideAuthModal();
     } catch (err) {
@@ -1786,6 +1822,7 @@
         await navigator.clipboard.writeText(inviteUrl);
         alert('Invite-Link wurde in die Zwischenablage kopiert.');
       }
+      setAppAuthVisibility();
       updateAuthUI();
       // hideAuthModal();
     } catch (err) {
@@ -1802,6 +1839,7 @@
       const data = await authRequest('set-initial-password', { email, password });
       authState.loggedIn = true;
       authState.email = data.email;
+      setAppAuthVisibility();
       updateAuthUI();
       hideAuthModal();
     } catch (err) {
@@ -1811,15 +1849,27 @@
 
   async function submitChangePassword(overlay) {
     const view = overlay.querySelector('[data-view="change-password"]');
-    const currentPassword = view.querySelector('.auth-current-password').value;
+    const oldPassword = view.querySelector('.auth-current-password').value;
     const newPassword = view.querySelector('.auth-new-password').value;
+    const newPasswordVerify = view.querySelector('.auth-password-repeat').value;
+
+    if (newPassword != newPasswordVerify) {
+      view.querySelector('.auth-error').textContent = 'Passwörter stimmen nicht überein';
+    }
+    else {
+      view.querySelector('.auth-error').textContent = '';
+    }
 
     try {
-      await authRequest('change-password', { currentPassword, newPassword });
+      await authRequest('changepassword', { oldPassword, newPassword });
       view.querySelector('.auth-error').textContent = '';
       view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
       view.querySelector('.auth-current-password').value = '';
       view.querySelector('.auth-new-password').value = '';
+      view.querySelector('.auth-password-repeat').value = '';
+      setAppAuthVisibility();
+      hideAuthModal();
+      showToast('Passwort erfolgreich geändert',3000);
     } catch (err) {
       view.querySelector('.auth-success').textContent = '';
       showViewError(view, err.message);
@@ -1834,6 +1884,8 @@
     }
     authState.loggedIn = false;
     authState.email = null;
+    authState.username = '';
+    setAppAuthVisibility();
     updateAuthUI();
   }
 
@@ -1841,7 +1893,7 @@
   // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
   // ------------------------------------------------------------
 
-  let authControlInstance = null;
+  // let authControlInstance = null;
 
   function createAuthControl() {
     const control = L.control({ position: 'bottomleft' });
@@ -1876,9 +1928,9 @@
   }
 
   function updateAuthUI() {
-    if (!authControlInstance) return;
-    const container = authControlInstance.getContainer();
-    if (container) renderAuthControl(container);
+    // if (!authControlInstance) return;
+    // const container = authControlInstance.getContainer();
+    // if (container) renderAuthControl(container);
   }
 
   async function checkExistingSession() {
@@ -1887,24 +1939,43 @@
       if (data && data.loggedIn) {
         authState.loggedIn = true;
         authState.email = data.email;
+        authState.username = data.name;
+      }
+      else {
+        authState.loggedIn = false;
+        authState.email = '';
+        authState.username = '';
       }
     } catch (err) {
       console.warn('Session-Check fehlgeschlagen:', err);
     } finally {
+      setAppAuthVisibility();
       updateAuthUI();
     }
   }
+
+  document.getElementById('btn-user-login').classList.remove('hidden');
+  document.getElementById('btn-user-logout').classList.add('hidden');
+  document.getElementById('btn-user-invite').classList.add('hidden');
+  document.getElementById('btn-user-change-password').classList.add('hidden');
 
   document.getElementById('btn-user-login').addEventListener('click', (e) => {
       settingsModalBackdrop.classList.remove('active');
       showAuthModal('login');
   });
+  document.getElementById('btn-user-logout').addEventListener('click', (e) => {
+    logout();
+  });
   document.getElementById('btn-user-invite').addEventListener('click', (e) => {
       settingsModalBackdrop.classList.remove('active');
       showAuthModal('invite');
   });
+  document.getElementById('btn-user-change-password').addEventListener('click', (e) => {
+      settingsModalBackdrop.classList.remove('active');
+      showAuthModal('change-password');
+  });
 
-  authControlInstance = createAuthControl();
+  // authControlInstance = createAuthControl();
   checkExistingSession();
 
   
@@ -2466,7 +2537,7 @@
       }
 
       try {
-        const url = `https://maps.a-cresnik.workers.dev/route?profile=${encodeURIComponent(profile)}`;
+        const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
         const resp = await fetch(
           url,
           {
