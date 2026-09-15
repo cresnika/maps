@@ -259,12 +259,21 @@
 <div id="dropzone-overlay"><div class="msg">GPX-Dateien hier ablegen</div></div>
 
 <div id="auth-gate">
-  <div class="auth-view" data-view="login">
+  <div class="auth-view" data-view="login" style="display: none">
     <h2>Anmelden</h2>
     <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-    <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
+    <label>Passwort<input type="password" class="auth-password-logim" autocomplete="current-password"></label>
     <p class="auth-error"></p>
     <button type="button" class="auth-submit-login">Anmelden</button>
+  </div>
+  <div class="auth-view" data-view="invited" style="display: none">
+    <h2>Passwort einrichten</h2>
+    <label id="label-auth-email" class="btn-user-view"></label>
+    <label>Benutzername<input type="name" class="auth-name" autocomplete="username"></label>
+    <label>Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
+    <label>Passwort wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
+    <p class="auth-error"></p>
+    <button type="button" id="btn-setup-submit" class="setup-submit">Speichern</button>
   </div>
 </div>
 
@@ -1600,6 +1609,7 @@
   }
 
   const authState = {loggedIn: false, email: null, username: null, };
+  const minPasswordLength = 6;
 
   async function authRequest(endpoint, body) {
     const response = await apiFetch(endpoint, {
@@ -1626,7 +1636,16 @@
     authState.loggedIn = false;
     authState.user = null;
     authState.email = null;
-    document.getElementById('auth-gate').classList.remove('hidden');
+    const authOverlay = document.getElementById('auth-gate');
+    authOverlay.classList.remove('hidden');
+
+    const view = 'login';
+    authOverlay.querySelectorAll('.auth-view').forEach(el => {
+      el.style.display = el.dataset.view === view ? 'block' : 'none';
+    });
+    
+    // document.getElementById('auth-gate').classList.remove('hidden');
+
     setAppAuthVisibility();
   }
 
@@ -1641,12 +1660,36 @@
 
   async function checkExistingSession() {
     try {
-      const data = await authRequest('me');
-      if (data && data.loggedIn) {
-        unlockApp(data.email, data.username);
+      const authOverlay = document.getElementById('auth-gate');
+      authOverlay.classList.remove('hidden');
+
+      // zuerst prüfen ob über einladungslink gekommen...
+      const token = new URLSearchParams(window.location.search).get('token');
+      const email = new URLSearchParams(window.location.search).get('email'); 
+      if (token && email) {
+        console.log('INVITE erkannt');
+        authState.loggedIn = false;
+        authState.user = null;
+        authState.email = null;
+        
+        authOverlay.querySelectorAll('.auth-view').forEach(el => {
+          el.style.display = el.dataset.view === 'invited' ? 'block' : 'none';
+        });
+        // authOverlay.getElementById('label-auth-email').textContent = 'email: ' +  email;
+        const emaillabel = document.getElementById('label-auth-email');
+        if (emaillabel) {
+          emaillabel.textContent = 'eMail: ' + email;
+        }
+        setAppAuthVisibility();
       }
       else {
-        lockApp();
+        const data = await authRequest('me');
+        if (data && data.loggedIn) {
+          unlockApp(data.email, data.username);
+        }
+        else {
+          lockApp();
+        }
       }
     } catch (err) {
       lockApp();
@@ -1689,13 +1732,6 @@
     overlay.className = 'auth-modal-overlay';
     overlay.style.display = 'none';
 
-        // <div class="auth-view" data-view="login">
-        //   <h2>Anmelden</h2>
-        //   <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-        //   <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
-        //   <p class="auth-error"></p>
-        //   <button type="button" class="auth-submit-login">Anmelden</button>
-        // </div>
     overlay.innerHTML = `
       <div class="auth-modal">
         <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
@@ -1706,16 +1742,6 @@
           <p class="auth-error"></p>
           <p class="auth-success"></p>
           <button type="button" class="auth-submit-invite">Einladen</button>
-        </div>
-
-        <div class="auth-view" data-view="set-initial-password" style="display:none">
-          <h2>Erstes Passwort setzen</h2>
-          <label>E-Mail: <input type="email" class="auth-email" autocomplete="username"></label>
-          <label>Neues Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
-          <label>Passwort Wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
-          <p class="auth-error"></p>
-          <p class="auth-success"></p>
-          <button type="button" class="auth-submit-set-initial">Passwort setzen</button>
         </div>
 
         <div class="auth-view" data-view="change-password" style="display:none">
@@ -1734,7 +1760,7 @@
 
     overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
-    overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
+    // overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
     overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
     overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
         if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
@@ -1780,7 +1806,7 @@
   async function submitLogin() {
     const view = document.querySelector('[data-view="login"]');
     const email = view.querySelector('.auth-email').value.trim();
-    const password = view.querySelector('.auth-password').value;
+    const password = view.querySelector('.auth-password-logim').value;
 
     try {
       const data = await authRequest('login', { email, password });
@@ -1826,21 +1852,36 @@
     }
   }
 
-  async function submitSetInitialPassword(overlay) {
-    const view = overlay.querySelector('[data-view="set-initial-password"]');
-    const email = view.querySelector('.auth-email').value.trim();
+  async function submitSetInitialPassword() {
+    const view = document.querySelector('[data-view="invited"]');
+    const username = view.querySelector('.auth-name').value.trim();
     const password = view.querySelector('.auth-password').value;
-
+    const token = new URLSearchParams(window.location.search).get('token');
+    const email = new URLSearchParams(window.location.search).get('email'); 
+    if (password.length < minPasswordLength) {
+      showViewError(view, 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein');
+      return;
+    }
     try {
-      const data = await authRequest('set-initial-password', { email, password });
-      authState.loggedIn = true;
-      authState.email = data.email;
-      setAppAuthVisibility();
-      updateAuthUI();
-      hideAuthModal();
+      const data = await authRequest('set-initial-password', { token, email, password, username });
+      console.log('redirect to: ' + location.origin + location.pathname);
+      window.location = location.origin + location.pathname;
+      return;
+      // window.location.replace()
+      // unlockApp(data.email, data.username);
+      // hideAuthModal();
     } catch (err) {
       showViewError(view, err.message);
     }
+  }
+
+  function checkPassword(password, verification) {
+    if (password === '') return 'Passwort darf nicht leer sein';
+    if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
+    if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
+
+    if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
+
   }
 
   async function submitChangePassword(overlay) {
@@ -1849,11 +1890,10 @@
     const newPassword = view.querySelector('.auth-new-password').value;
     const newPasswordVerify = view.querySelector('.auth-password-repeat').value;
 
-    if (newPassword != newPasswordVerify) {
-      view.querySelector('.auth-error').textContent = 'Passwörter stimmen nicht überein';
-    }
-    else {
-      view.querySelector('.auth-error').textContent = '';
+    const error = checkPassword(newPassword, newPasswordVerify);
+    if (error) {
+      view.querySelector('.auth-error').textContent = error;
+      return;
     }
 
     try {
@@ -1949,11 +1989,11 @@
       showAuthModal('change-password');
   });
   document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
+  document.querySelector('.auth-password-logim').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
 
-  // authControlInstance = createAuthControl();
+  document.getElementById('btn-setup-submit').addEventListener('click', async () =>  submitSetInitialPassword());
+
   checkExistingSession();
-
-  
   //#endregion
 
 
