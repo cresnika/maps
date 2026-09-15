@@ -193,7 +193,6 @@
       <div class="settings-divider"></div>
 
       <label>Alle Daten (POIs, Routen, Einstellungen)</label>
-      <p class="shortcut-hint" style="padding:0 0 8px;">Läuft alles nur im Browser (IndexedDB) – im Inkognito-Modus oder auf einem anderen Gerät nicht automatisch verfügbar. Hier sichern und dort wieder einspielen.</p>
       <div class="backup-row">
         <button class="btn" id="btn-export-data" style="flex:1;">Daten exportieren</button>
         <button class="btn" id="btn-import-data" style="flex:1;">Daten importieren</button>
@@ -259,6 +258,16 @@
 
 <div id="dropzone-overlay"><div class="msg">GPX-Dateien hier ablegen</div></div>
 
+<div id="auth-gate">
+  <div class="auth-view" data-view="login">
+    <h2>Anmelden</h2>
+    <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+    <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
+    <p class="auth-error"></p>
+    <button type="button" class="auth-submit-login">Anmelden</button>
+  </div>
+</div>
+
 <input type="file" id="input-files" accept=".gpx" multiple style="display:none">
 <input type="file" id="input-folder" webkitdirectory directory multiple style="display:none">
 
@@ -275,7 +284,7 @@
 (function(){
   "use strict";
 
-  const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/api/';
+  const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/';
 
   // ============================================================
   // ---------- Toast ----------
@@ -381,6 +390,41 @@
 
 
   // ============================================================
+  // ---------- Cursor svg ----------
+  const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+                        <!-- Mauszeiger (kleiner, weiß) -->
+                        <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
+                              fill="#ffffff" stroke="#000000" stroke-width="1"/>
+
+                        <!-- Papierkorb-Badge unten rechts (größer) -->
+                        <g transform="translate(9,9) scale(0.035)">
+                          <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
+                                fill="#ff0000" stroke="#ff0000" stroke-width="40"/>
+                        </g>
+                      </svg>`;
+  const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
+
+
+  // ============================================================
+  // ---------- Map setup ----------
+  //#region map setup
+  const map = L.map('map', {
+      zoomControl: true,
+      maxZoom: 20,
+      preferCanvas: true
+  }).setView([47.2, 9.6], 9);
+
+  L.control.scale({
+      position: 'bottomright',   // 'topleft', 'topright', 'bottomleft', 'bottomright'
+      metric: true,               // km/m anzeigen
+      imperial: false,            // mi/ft NICHT anzeigen (falls nur metrisch gewünscht)
+      maxWidth: 100,               // maximale Breite der Scale-Bar in Pixel
+      updateWhenIdle: false        // Aktualisierung während des Zoomens/Pannens
+  }).addTo(map);
+
+  map.createPane('waypointPane');
+  map.getPane('waypointPane').style.zIndex = 650; // Standard-Marker-Pane liegt bei 600
+
   // ---------- LEflet cluster ----------
   function createClusterLayer(poi, options = {}) {   
     const clusterGroup = L.markerClusterGroup({      
@@ -417,80 +461,24 @@
     return clusterGroup;   // NEU: erst JETZT zurückgeben, nach dem Event-Binding
   }
 
-
-  // ============================================================
-  // ---------- Cursor svg ----------
-  const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-                        <!-- Mauszeiger (kleiner, weiß) -->
-                        <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
-                              fill="#ffffff" stroke="#000000" stroke-width="1"/>
-
-                        <!-- Papierkorb-Badge unten rechts (größer) -->
-                        <g transform="translate(9,9) scale(0.035)">
-                          <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
-                                fill="#ff0000" stroke="#ff0000" stroke-width="40"/>
-                        </g>
-                      </svg>`;
-  const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
-
-
-  // ============================================================
-  // ---------- Map setup ----------
-  //#region map setup
-  const map = L.map('map', {
-      zoomControl: true,
-      maxZoom: 20,
-      preferCanvas: true
-  }).setView([47.2, 9.6], 9);
-
-  L.control.scale({
-      position: 'bottomright',   // 'topleft', 'topright', 'bottomleft', 'bottomright'
-      metric: true,               // km/m anzeigen
-      imperial: false,            // mi/ft NICHT anzeigen (falls nur metrisch gewünscht)
-      maxWidth: 100,               // maximale Breite der Scale-Bar in Pixel
-      updateWhenIdle: false        // Aktualisierung während des Zoomens/Pannens
-  }).addTo(map);
-
-  map.createPane('waypointPane');
-  map.getPane('waypointPane').style.zIndex = 650; // Standard-Marker-Pane liegt bei 600
-
   // Reliably suppress the browser's native right-click menu on the map,
   // independent of Leaflet's own internal listener-presence check.
   map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
 
-  const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                    attribution: '&copy; OpenStreetMap Mitwirkende'
-                                  });
-  const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                                attribution: '&copy; OpenStreetMap Mitwirkende, SRTM | Kartendarstellung: &copy; OpenTopoMap (CC-BY-SA)'
-                              });
-  const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,
-                                      {
-                                          attribution:
-                                              '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
-                                              '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
-                                              '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-                                      }
-                                  );
-  const stadiaOutdoors = L.maplibreGL({
-                  style: 'https://tiles.stadiamaps.com/styles/outdoors.json',
-                  attribution:
-                      '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
-                      '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
-                      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-              });
-  const motorcycleStyle = L.maplibreGL({
-                  style: 'styles/motorcycle.json',
-                  attribution:
-                      '&copy; Stadia Maps ' +
-                      '&copy; OpenMapTiles ' +
-                      '&copy; OpenStreetMap'
-              });
+  const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {});
+  const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {});
+  const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,);
+  const stadiaOutdoors = L.maplibreGL({style: 'https://tiles.stadiamaps.com/styles/outdoors.json',});
+  // const motorcycleStyle = L.maplibreGL({
+  //                 style: 'styles/motorcycle.json',
+  //             });
+  const TerrainStyle = L.maplibreGL({style: 'styles/Terrain.json',});
 
-  motorcycleStyle.addTo(map);
+  // TerrainStyle.addTo(map);
 
   const baseLayers = {
-    'Alex´s Stil': motorcycleStyle,
+    // 'Alex´s Stil': motorcycleStyle,
+    'Terrain' : TerrainStyle,
     'OpenStreetMap': osmStandard,
     'Topographisch': openTopo,
     'Stadia – Outdoor': stadiaOutdoors,
@@ -519,7 +507,7 @@
   if (savedStyle && baseLayers[savedStyle]) {
       baseLayers[savedStyle].addTo(map);
   } else {
-      motorcycleStyle.addTo(map);
+      TerrainStyle.addTo(map);
   }
   //#endregion
 
@@ -990,64 +978,26 @@
     const lng = wp.lng;
     try {
       CLOUDFLARE_API_BASE
-      const url = CLOUDFLARE_API_BASE +
-                  `reverse` +
+      const url = `reverse` +
                   `?lat=${encodeURIComponent(lat)}` +
                   `&lon=${encodeURIComponent(lng)}`;
 
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       const data = await response.json();
 
-      /*
-      * Wenn der Wegpunkt inzwischen verschoben oder gelöscht wurde,
-      * nichts mehr verändern.
-      */
-      if (!waypoints.includes(wp)) {
-        return;
-      }
+      if (!waypoints.includes(wp)) { return; }
+
       const address = data.address || {};
-
-      /*
-      * Straßenname
-      */
       const road = address.road || address.pedestrian || address.cycleway || address.footway || '';
-
-      /*
-      * Hausnummer
-      */
       const houseNumber = address.house_number || '';
-
-      /*
-      * Ort:
-      *
-      * Nominatim kann je nach Position unterschiedliche Felder
-      * zurückgeben.
-      */
       const city = address.city || address.town || address.village || address.municipality || '';
-
-      /*
-      * Region / Bundesland
-      */
       const state = address.state || '';
 
-      /*
-      * ---------------------------------------------------------
-      * Beschriftung zusammensetzen
-      * ---------------------------------------------------------
-      */
-
       let label = '';
-
-      const place =
-        address.city ||
-        address.town ||
-        address.village ||
-        address.municipality ||
-        '';
-
+      const place = address.city || address.town || address.village || address.municipality || '';
       if (place) {
         label = place;
       }
@@ -1079,12 +1029,17 @@
           lng.toFixed(5);
       }
       wp.label = label;
-
-      /*
-      * Liste aktualisieren.
-      */
       renderWaypointList();
 
+      const popup = wp.marker.getPopup();
+      if (!popup) return;
+
+      const oldContent = popup.getContent();
+      const newContent = oldContent.replace(
+          /<span class="wp-label">.*?<\/span>/,
+          `<span class="wp-label">${wp.label}</span>`
+      );
+      popup.setContent(newContent);
     } catch (error) {
       console.warn(
         'Reverse Geocoding fehlgeschlagen:',
@@ -1097,9 +1052,7 @@
     }
   }
 
-  function maybeAutoRecalculateRoute(){
-    if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false });
-  }
+  function maybeAutoRecalculateRoute(){ if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false }); }
 
   const mapEl = document.getElementById('map');
   const btnTogglePick = document.getElementById('btn-toggle-pick');
@@ -1288,7 +1241,6 @@
       const dist = distanceInMeter(pos.lat, pos.lng, wp.lat, wp.lng);
       const newLabel = (dist > 100);
       if (newLabel) {
-        console.log(wp.label + 'distance: ' + dist);
         wp.labelIsKnown = false;
       }
       else  
@@ -1303,10 +1255,10 @@
         wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
       }
 
-      // Während das Reverse Geocoding läuft,
-      // vorübergehend Koordinaten anzeigen.
       renderWaypointList();
 
+      // Während das Reverse Geocoding läuft,
+      // vorübergehend Koordinaten anzeigen.
       if (!wp.labelIsKnown) {
         reverseGeocodeWaypoint(wp);
       }
@@ -1632,17 +1584,27 @@
   // ----------- AUTH (Login / Set Initial Password / Change Password)
   //#region User login handling
 
-  const authState = {
-    loggedIn: false,
-    email: null,
-    username: null,
-  };
+  // global api fetch wrapper
+  async function apiFetch(path, options = {}) {
+    const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
+      ...options,
+      credentials: 'include'
+    });
+
+    if (res.status === 401) {
+      lockApp();
+      throw new Error('Nicht authentifiziert');
+    }
+
+    return res;
+  }
+
+  const authState = {loggedIn: false, email: null, username: null, };
 
   async function authRequest(endpoint, body) {
-    const response = await fetch(`${CLOUDFLARE_API_BASE}${endpoint}`, {
+    const response = await apiFetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(body || {}),
     });
 
@@ -1658,6 +1620,40 @@
     }
 
     return data;
+  }
+
+  function lockApp() {
+    authState.loggedIn = false;
+    authState.user = null;
+    authState.email = null;
+    document.getElementById('auth-gate').classList.remove('hidden');
+    setAppAuthVisibility();
+  }
+
+  function unlockApp(email, username) {
+    authState.loggedIn = true;
+    authState.user = username;
+    authState.email = email;
+
+    document.getElementById('auth-gate').classList.add('hidden');
+    setAppAuthVisibility();
+  }  
+
+  async function checkExistingSession() {
+    try {
+      const data = await authRequest('me');
+      if (data && data.loggedIn) {
+        unlockApp(data.email, data.username);
+      }
+      else {
+        lockApp();
+      }
+    } catch (err) {
+      lockApp();
+      console.warn('Session-Check fehlgeschlagen:', err);
+    } finally {
+      setAppAuthVisibility();
+    }
   }
 
   // ------------------------------------------------------------
@@ -1693,17 +1689,16 @@
     overlay.className = 'auth-modal-overlay';
     overlay.style.display = 'none';
 
+        // <div class="auth-view" data-view="login">
+        //   <h2>Anmelden</h2>
+        //   <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+        //   <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
+        //   <p class="auth-error"></p>
+        //   <button type="button" class="auth-submit-login">Anmelden</button>
+        // </div>
     overlay.innerHTML = `
       <div class="auth-modal">
         <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
-
-        <div class="auth-view" data-view="login">
-          <h2>Anmelden</h2>
-          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-          <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
-          <p class="auth-error"></p>
-          <button type="button" class="auth-submit-login">Anmelden</button>
-        </div>
 
         <div class="auth-view" data-view="invite">
           <h2>Einladung</h2>
@@ -1741,7 +1736,6 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
     overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
     overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
-    overlay.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin(overlay));
     overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
         if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
           hideAuthModal();
@@ -1783,8 +1777,8 @@
   // Submit-Handler
   // ------------------------------------------------------------
 
-  async function submitLogin(overlay) {
-    const view = overlay.querySelector('[data-view="login"]');
+  async function submitLogin() {
+    const view = document.querySelector('[data-view="login"]');
     const email = view.querySelector('.auth-email').value.trim();
     const password = view.querySelector('.auth-password').value;
 
@@ -1793,11 +1787,13 @@
       authState.loggedIn = true;
       authState.email = data.email;
       authState.username = data.name;
+      unlockApp(authState.email, authState.username);
 
       setAppAuthVisibility();
       updateAuthUI();
-      hideAuthModal();
+      // hideAuthModal();
     } catch (err) {
+      lockApp();
       showViewError(view, err.message);
     }
   }
@@ -1882,9 +1878,7 @@
     } catch (err) {
       console.warn('Logout fehlgeschlagen:', err);
     }
-    authState.loggedIn = false;
-    authState.email = null;
-    authState.username = '';
+    lockApp();
     setAppAuthVisibility();
     updateAuthUI();
   }
@@ -1933,27 +1927,6 @@
     // if (container) renderAuthControl(container);
   }
 
-  async function checkExistingSession() {
-    try {
-      const data = await authRequest('me');
-      if (data && data.loggedIn) {
-        authState.loggedIn = true;
-        authState.email = data.email;
-        authState.username = data.name;
-      }
-      else {
-        authState.loggedIn = false;
-        authState.email = '';
-        authState.username = '';
-      }
-    } catch (err) {
-      console.warn('Session-Check fehlgeschlagen:', err);
-    } finally {
-      setAppAuthVisibility();
-      updateAuthUI();
-    }
-  }
-
   document.getElementById('btn-user-login').classList.remove('hidden');
   document.getElementById('btn-user-logout').classList.add('hidden');
   document.getElementById('btn-user-invite').classList.add('hidden');
@@ -1965,6 +1938,7 @@
   });
   document.getElementById('btn-user-logout').addEventListener('click', (e) => {
     logout();
+    settingsModalBackdrop.classList.remove('active');
   });
   document.getElementById('btn-user-invite').addEventListener('click', (e) => {
       settingsModalBackdrop.classList.remove('active');
@@ -1974,6 +1948,7 @@
       settingsModalBackdrop.classList.remove('active');
       showAuthModal('change-password');
   });
+  document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
 
   // authControlInstance = createAuthControl();
   checkExistingSession();
@@ -2339,6 +2314,16 @@
   //#endregion
 
 
+  // --------------- Route calculation ---------------
+  //#region Route calculation
+  const routeResultEl = document.getElementById('route-result');
+  let appDbPromise = null;
+  const APP_DB_NAME = 'maps-planer-viewer';
+  const APP_DB_VERSION = 2;
+  const VIEWER_STORE_NAME = 'tracks';
+  const SETTINGS_STORE_NAME = 'settings';
+  const POI_STORE_NAME  = 'pois';
+
   btnClearWaypoints.addEventListener('click', () => {
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
     waypoints.length = 0;
@@ -2347,17 +2332,6 @@
     routeResultEl.className = '';
     renderWaypointList();
   });
-
-  // ============================================================
-  // Route calculation (OpenRouteService)
-  // ============================================================
-  const routeResultEl = document.getElementById('route-result');
-  let appDbPromise = null;
-  const APP_DB_NAME = 'maps-planer-viewer';
-  const APP_DB_VERSION = 2;
-  const VIEWER_STORE_NAME = 'tracks';
-  const SETTINGS_STORE_NAME = 'settings';
-  const POI_STORE_NAME  = 'pois';
   
   function formatRouteDuration(seconds){
     const totalMin = Math.round(seconds / 60);
@@ -2537,9 +2511,9 @@
       }
 
       try {
-        const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
-        const resp = await fetch(
-          url,
+        // const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
+        const resp = await apiFetch(
+          `route?profile=${encodeURIComponent(profile)}`,
           {
             method: 'POST',
             headers: {
@@ -2765,6 +2739,8 @@
   }
 
   document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
+  //#endregion
+
 
   // ============================================================
   // POIs (Tab "POI") -- persisted via IndexedDB (see dbGet/dbSet above)
@@ -3376,29 +3352,34 @@
     waypoints.forEach((wp, index) => {
       wp.marker.unbindPopup();
 
+      let labelprefix = '';
+      let content = '';
       if (index === 0) {
-        wp.marker.bindPopup('Start', { direction: 'top', sticky: true });
-        return;
+        labelprefix = 'Start - ';
+        content = `<div class="waypoint-tooltip">
+                      <strong><span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
+                  </div>`;
       }
+      else {
+        const segment = segments[index - 1];
+        if (!segment) return;
 
-      const segment = segments[index - 1];
-      if (!segment) return;
+        cumulativeDistance += segment.distance || 0;
+        cumulativeDuration += segment.duration || 0;
 
-      cumulativeDistance += segment.distance || 0;
-      cumulativeDuration += segment.duration || 0;
-
-      const content = `
-        <div class="waypoint-tooltip">
-          <strong>#${index} ${wp.label}</strong>
-          <hr>
-          <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
-          <br><small>ab Start</small>
-          <hr>
-          ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
-          <br><small>seit letztem Punkt</small>
-        </div>
-      `;
-
+        if (index === (waypoints.length-1)) {
+          labelprefix = 'Ziel - ';
+        }
+        content =  `<div class="waypoint-tooltip">
+                      <strong>${index}: <span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
+                      <hr>
+                      <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
+                      <br><small>ab Start</small>
+                      <hr>
+                      ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
+                      <br><small>seit letztem Punkt</small>
+                    </div>`;
+      }
       wp.marker.bindPopup(content, { direction: 'top', sticky: true });
     });
   }
