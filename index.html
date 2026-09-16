@@ -1639,7 +1639,7 @@
     try {
       const authOverlay = document.getElementById('auth-gate');
       authOverlay.classList.remove('hidden');
-bei neuem user werden die alten pois noch angezeigt !?!??!
+bei neuem user werden die alten pois noch angezeigt
       // zuerst prüfen ob über einladungslink gekommen...
       const token = new URLSearchParams(window.location.search).get('token');
       const email = new URLSearchParams(window.location.search).get('email'); 
@@ -2878,7 +2878,7 @@ bei neuem user werden die alten pois noch angezeigt !?!??!
       const data = resp.pois;
       clearPOIs();
       (data || []).forEach(p => addPoiInternal(p.id, p.name, p.poi_group, p.lat, p.lng, false, p.color));
-      showToast(data.length + ' POIs empfange', 3000);
+      // showToast(data.length + ' POIs empfangen', 3000);
     }
     catch (error) {
       showToast('Fehler beim laden der POIs: ' + error, 7000);
