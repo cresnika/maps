@@ -167,7 +167,6 @@
       <label id="label-settings-email" class="btn-user-view"></label>
       <label id="label-settings-user" class="btn-user-view"></label>
       <div class="user-settings">
-        <button class="btn btn-user-view" id="btn-user-login">Login</button>
         <button class="btn btn-user-view" id="btn-user-logout">Logout</button>
         <button class="btn btn-user-view" id="btn-user-change-password">Passwort ändern</button>
         <button class="btn btn-user-view" id="btn-user-invite">Benutzer einladen</button>
@@ -262,7 +261,7 @@
   <div class="auth-view" data-view="login" style="display: none">
     <h2>Anmelden</h2>
     <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-    <label>Passwort<input type="password" class="auth-password-logim" autocomplete="current-password"></label>
+    <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
     <p class="auth-error"></p>
     <button type="button" class="auth-submit-login">Anmelden</button>
   </div>
@@ -270,10 +269,10 @@
     <h2>Passwort einrichten</h2>
     <label id="label-auth-email" class="btn-user-view"></label>
     <label>Benutzername<input type="name" class="auth-name" autocomplete="username"></label>
-    <label>Passwort<input type="password" class="auth-password" autocomplete="new-password"></label>
-    <label>Passwort wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
+    <label>Passwort<input type="password" class="auth-password-invited" autocomplete="new-password"></label>
+    <label>Passwort wiederholen<input type="password" class="auth-password-verify" autocomplete="new-password"></label>
     <p class="auth-error"></p>
-    <button type="button" id="btn-setup-submit" class="setup-submit">Speichern</button>
+    <button type="button" id="btn-setup-submit">Speichern</button>
   </div>
 </div>
 
@@ -1634,7 +1633,7 @@
 
   function lockApp() {
     authState.loggedIn = false;
-    authState.user = null;
+    authState.username = null;
     authState.email = null;
     const authOverlay = document.getElementById('auth-gate');
     authOverlay.classList.remove('hidden');
@@ -1651,9 +1650,8 @@
 
   function unlockApp(email, username) {
     authState.loggedIn = true;
-    authState.user = username;
+    authState.username = username;
     authState.email = email;
-
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
   }  
@@ -1669,7 +1667,7 @@
       if (token && email) {
         console.log('INVITE erkannt');
         authState.loggedIn = false;
-        authState.user = null;
+        authState.username = null;
         authState.email = null;
         
         authOverlay.querySelectorAll('.auth-view').forEach(el => {
@@ -1704,11 +1702,6 @@
   // ------------------------------------------------------------
   
   function setAppAuthVisibility() {
-    document.getElementById('btn-user-login').classList.toggle('hidden', authState.loggedIn);
-    document.getElementById('btn-user-logout').classList.toggle('hidden', !authState.loggedIn);
-    document.getElementById('btn-user-invite').classList.toggle('hidden', !authState.loggedIn);
-    document.getElementById('btn-user-change-password').classList.toggle('hidden', !authState.loggedIn);
-
     if (authState.username) 
       document.getElementById('title-label').textContent  = 'Hallo ' + authState.username;
     else
@@ -1746,9 +1739,10 @@
 
         <div class="auth-view" data-view="change-password" style="display:none">
           <h2>Passwort ändern</h2>
+          <label class="btn-user-view auth-change-password-info"></label>
           <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
           <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
-          <label>Passwort Wiederholen<input type="password" class="auth-password-repeat" autocomplete="new-password"></label>
+          <label>Passwort Wiederholen<input type="password" class="auth-password-verify" autocomplete="new-password"></label>
           <p class="auth-error"></p>
           <p class="auth-success"></p>
           <button type="button" class="auth-submit-change">Passwort ändern</button>
@@ -1758,10 +1752,15 @@
 
     document.body.appendChild(overlay);
 
+    overlay.querySelector('.auth-current-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-new-password').focus(); });
+    overlay.querySelector('.auth-new-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-password-verify').focus(); });
+    overlay.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitChangePassword(overlay) });
     overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
-    // overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
     overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
+
+    // overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
     overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
         if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
           hideAuthModal();
@@ -1777,6 +1776,7 @@
   let authModalEl = null;
 
   function showAuthModal(view = 'login') {
+    settingsModalBackdrop.classList.remove('active');
     if (!authModalEl) authModalEl = createAuthModal();
 
     authModalEl.querySelectorAll('.auth-view').forEach(el => {
@@ -1785,6 +1785,11 @@
     authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
     authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
     authModalEl.style.display = 'flex';
+
+    const infolabel = authModalEl.querySelector('.auth-change-password-info');
+    if (infolabel) {
+      infolabel.textContent = authState.username + ' (' + authState.email + ')';
+    }
   }
 
   function hideAuthModal() {
@@ -1803,17 +1808,29 @@
   // Submit-Handler
   // ------------------------------------------------------------
 
+  function checkPassword(password, verification) {
+    if (password === '') return 'Passwort darf nicht leer sein';
+    if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
+    if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
+
+    if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
+
+  }
+
   async function submitLogin() {
     const view = document.querySelector('[data-view="login"]');
     const email = view.querySelector('.auth-email').value.trim();
-    const password = view.querySelector('.auth-password-logim').value;
+    const password = view.querySelector('.auth-password').value;
 
     try {
       const data = await authRequest('login', { email, password });
       authState.loggedIn = true;
       authState.email = data.email;
-      authState.username = data.name;
+      authState.username = data.username;
       unlockApp(authState.email, authState.username);
+
+      view.querySelector('.auth-error').textContent = '';
+      view.querySelector('.auth-password').value = '';
 
       setAppAuthVisibility();
       updateAuthUI();
@@ -1855,15 +1872,39 @@
   async function submitSetInitialPassword() {
     const view = document.querySelector('[data-view="invited"]');
     const username = view.querySelector('.auth-name').value.trim();
-    const password = view.querySelector('.auth-password').value;
+    const password = view.querySelector('.auth-password-invited').value;
+    const passwordVerify = view.querySelector('.auth-password-verify').value;
     const token = new URLSearchParams(window.location.search).get('token');
     const email = new URLSearchParams(window.location.search).get('email'); 
-    if (password.length < minPasswordLength) {
-      showViewError(view, 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein');
+    const error = checkPassword(password, passwordVerify);
+    
+    if (error) {
+      showViewError(view, error);
       return;
     }
     try {
       const data = await authRequest('set-initial-password', { token, email, password, username });
+
+
+      authState.loggedIn = true;
+      authState.email = data.email;
+      authState.username = data.username;
+      view.querySelector('.auth-error').textContent = '';
+      view.querySelector('.auth-password-invited').value = '';
+      view.querySelector('.auth-password-verify').value = '';
+
+      console.log('redirect to: ' + location.origin + location.pathname);
+      window.location = location.origin + location.pathname;
+      return;
+
+
+      unlockApp(authState.email, authState.username);
+
+      setAppAuthVisibility();
+      updateAuthUI();
+      return;
+
+
       console.log('redirect to: ' + location.origin + location.pathname);
       window.location = location.origin + location.pathname;
       return;
@@ -1875,20 +1916,11 @@
     }
   }
 
-  function checkPassword(password, verification) {
-    if (password === '') return 'Passwort darf nicht leer sein';
-    if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
-    if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
-
-    if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
-
-  }
-
   async function submitChangePassword(overlay) {
     const view = overlay.querySelector('[data-view="change-password"]');
-    const oldPassword = view.querySelector('.auth-current-password').value;
+    const currentPassword = view.querySelector('.auth-current-password').value;
     const newPassword = view.querySelector('.auth-new-password').value;
-    const newPasswordVerify = view.querySelector('.auth-password-repeat').value;
+    const newPasswordVerify = view.querySelector('.auth-password-verify').value;
 
     const error = checkPassword(newPassword, newPasswordVerify);
     if (error) {
@@ -1897,12 +1929,12 @@
     }
 
     try {
-      await authRequest('changepassword', { oldPassword, newPassword });
+      await authRequest('changepassword', { currentPassword, newPassword });
       view.querySelector('.auth-error').textContent = '';
       view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
       view.querySelector('.auth-current-password').value = '';
       view.querySelector('.auth-new-password').value = '';
-      view.querySelector('.auth-password-repeat').value = '';
+      view.querySelector('.auth-password-verify').value = '';
       setAppAuthVisibility();
       hideAuthModal();
       showToast('Passwort erfolgreich geändert',3000);
@@ -1915,6 +1947,7 @@
   async function logout() {
     try {
       await authRequest('logout');
+      settingsModalBackdrop.classList.remove('active');
     } catch (err) {
       console.warn('Logout fehlgeschlagen:', err);
     }
@@ -1967,32 +2000,20 @@
     // if (container) renderAuthControl(container);
   }
 
-  document.getElementById('btn-user-login').classList.remove('hidden');
-  document.getElementById('btn-user-logout').classList.add('hidden');
-  document.getElementById('btn-user-invite').classList.add('hidden');
-  document.getElementById('btn-user-change-password').classList.add('hidden');
-
-  document.getElementById('btn-user-login').addEventListener('click', (e) => {
-      settingsModalBackdrop.classList.remove('active');
-      showAuthModal('login');
-  });
-  document.getElementById('btn-user-logout').addEventListener('click', (e) => {
-    logout();
-    settingsModalBackdrop.classList.remove('active');
-  });
-  document.getElementById('btn-user-invite').addEventListener('click', (e) => {
-      settingsModalBackdrop.classList.remove('active');
-      showAuthModal('invite');
-  });
-  document.getElementById('btn-user-change-password').addEventListener('click', (e) => {
-      settingsModalBackdrop.classList.remove('active');
-      showAuthModal('change-password');
-  });
+  // set Button events
+  document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
+  document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
+  document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
+  
+  document.querySelector('.auth-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password').focus(); });
+  document.querySelector('.auth-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
   document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
-  document.querySelector('.auth-password-logim').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
-
+  
+  document.querySelector('.auth-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-invited').focus(); });
+  document.querySelector('.auth-password-invited').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-verify').focus(); });
+  document.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetInitialPassword() });
   document.getElementById('btn-setup-submit').addEventListener('click', async () =>  submitSetInitialPassword());
-
+    
   checkExistingSession();
   //#endregion
 

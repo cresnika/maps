@@ -715,12 +715,6 @@ body {
     font-size: 13px;
   }
 
-  @keyframes xxx-waypoint-pulse {
-    0%   { transform: scale(1); }
-    50%  { transform: scale(0.3); }
-    100% { transform: scale(1); }
-  }
-
   @keyframes waypoint-pulse {
   0%   { opacity: 1; }
   50%  { opacity: 0; }
@@ -731,7 +725,7 @@ body {
     color: #ff00ff;
     transform-box: view-box;
     transform-origin: center;
-    transform: scale(2);
+    transform: scale(1.5);
   }
 
   .map-context-menu {
