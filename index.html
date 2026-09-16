@@ -170,6 +170,7 @@
         <button class="btn btn-user-view" id="btn-user-logout">Logout</button>
         <button class="btn btn-user-view" id="btn-user-change-password">Passwort ändern</button>
         <button class="btn btn-user-view" id="btn-user-invite">Benutzer einladen</button>
+        <button class="btn btn-user-view" id="btn-user-savePOI">save POI's</button>
       </div>
       <div class="settings-divider"></div>
 
@@ -813,24 +814,18 @@
 
   function renderextPOI(poi) {
     poi.zoomVisibility = map.getZoom() >= poi.zoomLimit;
-
-    if (!poi.visible || !poi.poiData) {
-      return;
-    }
-
+    if (!poi.visible || !poi.poiData) { return; }
     if (!poi.zoomVisibility) {
         poi.layer.clearLayers();
         return;
     }
 
     const mapBounds = map.getBounds();
-
     /*
     * Prüfen, ob der aktuelle Kartenausschnitt überhaupt
     * innerhalb des Datenbereichs liegt.
     */
     const dataBounds = poi.poiData.bounds;
-
     if (dataBounds) {
       const intersects =
         mapBounds.getNorth() >= dataBounds.south &&
@@ -838,82 +833,49 @@
         mapBounds.getEast() >= dataBounds.west &&
         mapBounds.getWest() <= dataBounds.east;
 
-      if (!intersects) {
+      if (!intersects) { 
         poi.layer.clearLayers();
         return;
       }
     }
 
     poi.layer.clearLayers();
-
     let visibleCount = 0;
-    const markers = [];   // NEU
-
+    const markers = [];   
     for (const place of poi.poiData.places) {
-      if (typeof place.lat !== 'number' || typeof place.lng !== 'number') {
-        continue;
-      }
-
-      if (!mapBounds.contains([place.lat, place.lng])) {
-        continue;
-      }
+      if (typeof place.lat !== 'number' || typeof place.lng !== 'number') { continue; }
+      if (!mapBounds.contains([place.lat, place.lng])) { continue; }
 
       const name = place.name || place.name_de || poi.description;
+      if (name.includes('Unbenannt')) { continue; }
 
-      if (name.includes('Unbenannt')) {
-        continue;
-      }
+      const elevation = place.ele !== undefined &&
+                        place.ele !== null &&
+                        place.ele !== '' ? `${place.ele} m` : '';
 
-      const elevation =
-        place.ele !== undefined &&
-        place.ele !== null &&
-        place.ele !== ''
-          ? `${place.ele} m`
-          : '';
-
-      const marker = L.marker(
-        [place.lat, place.lng],
-        {
-          icon: poi.mapicon,
-          keyboard: false,
-        }
+      const marker = L.marker([place.lat, place.lng],
+                              {
+                                icon: poi.mapicon,
+                                keyboard: false,
+                              }
       );
 
       let popup = `<div class="extern-poi-popup">
-                    <strong class="extern-poi-popup-label">${poi.labelicon.options.html} ${escapeHtml(name)}</strong>`;
+                   <strong class="extern-poi-popup-label">${poi.labelicon.options.html} ${escapeHtml(name)}</strong>`;
 
-      if (elevation) {
-        popup += `<br>${escapeHtml(String(elevation))}`;
-      }
-
+      if (elevation) { popup += `<br>${escapeHtml(String(elevation))}`; }
       if (place.name_de && place.name_de !== name ) {
-        popup += `
-          <br>
-          <small>${escapeHtml(place.name_de)}</small>
-        `;
+        popup += `<br><small>${escapeHtml(place.name_de)}</small>`;
       }
-
       if (place.website) {
-        popup += `
-          <br>
-          <small>Website: <a target="_blank" href="${escapeHtml(place.website)}">${escapeHtml(place.website)}</a></small>
-        `;
+        popup += `<br><small>Website: <a target="_blank" href="${escapeHtml(place.website)}">${escapeHtml(place.website)}</a></small>`;
       }
-
       if (place.phone) {
-        popup += `
-          <br>
-          <small>Telefon: <a href="tel:${escapeHtml(place.phone)}">${escapeHtml(place.phone)}</a></small>
-        `;
+        popup += `<br><small>Telefon: <a href="tel:${escapeHtml(place.phone)}">${escapeHtml(place.phone)}</a></small>`;
       }
-
       if (place.wikidata) {
-        popup += `
-          <br>
-          <small>Wikidata: ${escapeHtml(place.wikidata)}</small>
-        `;
+        popup += `<br><small>Wikidata: ${escapeHtml(place.wikidata)}</small>`;
       }
-
       popup += `</div>`;
 
       marker.bindPopup(popup);
@@ -927,15 +889,11 @@
           { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'end', name) },
           { label: 'Als POI speichern', action: () => openPoiModal(marker.getLatLng()) }
         ];
-
         showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
       });
-
       markers.push(marker);   // NEU: statt marker.addTo(poi.layer);
-
       visibleCount++;
     }
-
     poi.layer.addLayers(markers);   // NEU: alle auf einmal hinzufuegen
   }
 
@@ -1077,10 +1035,6 @@
         'Reverse Geocoding fehlgeschlagen:',
         error
       );
-
-      /*
-      * Bei Fehler bleiben die Koordinaten stehen.
-      */
     }
   }
 
@@ -1657,6 +1611,7 @@
     authState.loggedIn = false;
     authState.username = null;
     authState.email = null;
+    clearPOIs();
     const authOverlay = document.getElementById('auth-gate');
     authOverlay.classList.remove('hidden');
 
@@ -1676,6 +1631,8 @@
     authState.email = email;
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
+    clearPOIs();
+    loadPoisFromStorage().then(renderPoiList);
   }  
 
   async function checkExistingSession() {
@@ -1699,6 +1656,7 @@
         if (emaillabel) {
           emaillabel.textContent = 'eMail: ' + email;
         }
+        clearPOIs();
         setAppAuthVisibility();
       }
       else {
@@ -2005,6 +1963,10 @@
   }
 
   // set Button events
+  document.getElementById('btn-user-savePOI').addEventListener('click', (e) => { 
+    // submitPOIList();
+  });
+  
   document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
   document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
   document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
@@ -2638,7 +2600,8 @@
         if (feature.properties && Array.isArray(feature.properties.segments)) {
           collectedSegments = collectedSegments.concat(feature.properties.segments);
         }
-      } catch (e) {
+      } 
+      catch (e) {
 
         /*
         * AbortController-Abbruch ist KEIN Fehler.
@@ -2839,8 +2802,8 @@
     return container;
   }
 
-  function addPoiInternal(name, group, lat, lng, visible, color){
-    const id = 'poi' + (poiCounter++);
+  function addPoiInternal(dbid, name, group, lat, lng, visible, color){
+    const id = dbid;//'poi' + (poiCounter++);
     const poiColor = color || getDefaultPoiColor();
     const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
     const poi = { id, name, group, lat, lng, marker, visible: visible !== false, color: poiColor };
@@ -2877,9 +2840,54 @@
     return poi;
   }
 
+  async function submitPOIList() {
+    document.getElementById('btn-user-savePOI').disabled = true;
+    const data = {pois: pois.map(p => ({
+                  name: p.name,
+                  group: p.group,
+                  lat: p.lat,
+                  lng: p.lng,
+                  color: p.color
+                  }))
+              };
+    try {
+      const response = await apiFetch('addPOIList', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      console.log(`Neu: ${result.inserted}, aktualisiert: ${result.updated}`);
+      showToast('POIs gespeichert: ' + `Neu: ${result.inserted}, aktualisiert: ${result.updated}`, 5000);
+
+      document.getElementById('btn-user-savePOI').disabled = false;
+    } catch (error) {
+      showToast('Fehler beim hinzufügen der POIs: ' + error, 7000);
+      console.warn('Fehler beim hinzufügen der POIs',error);
+      document.getElementById('btn-user-savePOI').disabled = false;
+    }
+  }
+  
   async function loadPoisFromStorage(){
-    const data = await dbGet(POI_STORE_NAME, []);
-    (data || []).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, p.visible, p.color));
+    try {
+      const response = await apiFetch('getPOIList', {
+        method: 'GET'
+      });
+      const resp = await response.json()
+      const data = resp.pois;
+      clearPOIs();
+      (data || []).forEach(p => addPoiInternal(p.id, p.name, p.poi_group, p.lat, p.lng, false, p.color));
+      showToast(data.length + ' POIs empfange', 3000);
+    }
+    catch (error) {
+      showToast('Fehler beim laden der POIs: ' + error, 7000);
+      console.warn('Fehler beim lade der POIs: ', error);
+    }
+
+    // const data = await getPOIList();
+    // const data = await dbGet(POI_STORE_NAME, []);
+    // (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, p.visible, p.color));
   }
 
   function addPoi(latlng, name, group){
@@ -3021,8 +3029,10 @@
     nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
     nm.style.cursor = 'pointer';
     nm.addEventListener('click', () => {
+      cb.checked = true;
+      setPoiVisible(poi, cb.checked);
       map.setView([poi.lat, poi.lng], Math.max(map.getZoom(), 13));
-      poi.marker.openPopup();
+      // poi.marker.openPopup();
     });
     nm.addEventListener('dblclick', (e) => {
       e.stopPropagation();
@@ -3194,6 +3204,10 @@
     poiListEl.scrollTop = scrollPos;
   }
 
+  function clearPOIs() {
+    pois.length = 0;
+    renderPoiList();
+  }
   const poiSearchInput = document.getElementById('poi-search');
   const btnSearchPoi = document.getElementById('btn-search-poi');
   const poiSearchResultsEl = document.getElementById('poi-search-results');
@@ -3263,8 +3277,6 @@
   });
   poiNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') poiGroupInput.focus(); });
   poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
-
-  loadPoisFromStorage().then(renderPoiList);
   //#endregion
 
   // ---------- Color palette for tracks ----------
@@ -4328,6 +4340,7 @@
       viewer: await loadViewerRecords(),
       default_poi_color: await dbGet('default_poi_color', '')
     };
+    console.log(JSON.stringify(backup.pois));
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4338,7 +4351,6 @@
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-
   document.getElementById('btn-import-data').addEventListener('click', () => {
     document.getElementById('input-import-data').click();
   });

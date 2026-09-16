@@ -289,6 +289,10 @@ body {
   .btn:hover { background: #2a3830; border-color: var(--accent); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #1b2420; }
   .btn.primary:hover { background: #dd9a4c; }
+  .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+  }
 
   .util-row {
     display: flex;
