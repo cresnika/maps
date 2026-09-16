@@ -1126,6 +1126,10 @@ body {
     --poi-color: #ced111;
   }
 
+  .extern-poi-marker-viewpoints {
+    --poi-color: #b900f1;
+  }
+
   .extern-poi-switch {
     display: flex;
     align-items: center;

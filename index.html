@@ -733,6 +733,30 @@
       dataFilename: 'data/campsites.json',
         ...POI_DEFAULTS,
     },
+    {
+      description: 'Aussichtspunkte',
+      mapicon: L.divIcon({
+                className: 'extern-poi-marker-viewpoints',
+                html: `<div class="extern-poi-marker">
+                         <svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 528.1">
+                            <path fill="currentColor" d="M16,188.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6S16,93.5,16,188.6Z"/>
+                            <path fill="var(--icon-outline)"d="M192,16c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM203.2,516.6c41-43.1,180.8-199.3,180.8-328C384,84.4,298,0,192,0S0,84.4,0,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                            <path fill="currentColor"  d="M142.77,169.69l-.09,59.9c0,18.85,11.1,35.91,28.35,43.57,10.78,4.72,19.31,8.53,29.26,8.53h52.47l1.7-.09c8.35-1.01,14.45-9.4,12.61-17.75-.83-3.67,1.33-7.38,4.91-8.58,8.62-2.8,12.66-13.35,8.21-21.15-1.93-3.39-.83-7.71,2.43-9.77,8.07-5.14,8.99-17.06,1.79-23.39-1.56-1.38-2.48-3.39-2.48-5.5s.92-4.13,2.48-5.5c9.17-8.07,4.17-23.58-7.29-25.46l-2.39-.18h-82.01c-2.61,0-5-1.38-6.33-3.62-1.33-2.25-1.33-5.05-.05-7.29l20.27-36.01.73-1.51c3.12-7.16.78-15.55-5.6-20.04l-1.42-.92c-7.43-4.17-16.79-1.97-21.6,4.86l-.92,1.42-31.14,55.36c-2.29,4.04-3.62,8.53-3.94,13.16l.05-.05Z"/>
+                            <path fill="var(--icon-outline)"d="M166.76,91.25c9.08-12.93,26.7-17.11,40.78-9.17l2.71,1.7c12.06,8.49,16.51,24.4,10.64,37.93l-1.42,2.84-14.13,25.09h69.49l2.48.09c22.7,1.83,33.58,28.3,21.7,45.78,7.75,11.47,6.33,27.34-3.53,37.25,3.9,12.84-1.7,27.2-13.39,34.03.05,14.59-11.01,27.66-25.87,29.45l-3.44.18h-52.47c-13.58,0-25-5.27-35.18-9.77h-.05c-8.81-3.94-16.37-9.77-22.38-16.83v4.63c0,12.16-9.86,22.02-22.02,22.02h-14.68c-12.16,0-22.02-9.86-22.02-22.02v-102.84c0-12.16,9.86-22.02,22.02-22.02h14.68c4.22,0,8.12,1.19,11.47,3.21.55-1.19,1.15-2.39,1.79-3.53l31.14-55.36,1.7-2.71v.05ZM105.98,164.28c-4.04,0-7.34,3.3-7.34,7.34v102.74c0,4.04,3.3,7.34,7.34,7.34h14.68c4.04,0,7.34-3.3,7.34-7.34v-102.74c0-4.04-3.3-7.34-7.34-7.34h-14.68ZM200.33,94.83c-7.43-4.17-16.79-1.97-21.6,4.86l-.92,1.42-31.14,55.36c-2.29,4.04-3.62,8.53-3.94,13.16l-.05,59.95c0,18.85,11.1,35.91,28.35,43.57h0c10.82,4.72,19.36,8.53,29.31,8.53h52.47l1.7-.09c8.35-1.01,14.45-9.4,12.61-17.75-.83-3.67,1.33-7.38,4.91-8.58,8.62-2.8,12.66-13.35,8.21-21.15-1.93-3.39-.83-7.71,2.43-9.77,8.07-5.14,8.99-17.06,1.79-23.39-1.56-1.38-2.48-3.39-2.48-5.5s.92-4.13,2.48-5.5c9.17-8.07,4.17-23.58-7.29-25.46l-2.39-.18h-82.01c-2.61,0-5-1.38-6.33-3.62-1.33-2.25-1.33-5.05-.05-7.29l20.27-36.01.73-1.51c3.12-7.16.78-15.55-5.6-20.04l-1.42-.92-.05-.09Z"/>
+                          </svg>
+                        </div>`,
+                  ...ICON_DEFAULTS,
+              }),
+      labelicon: L.divIcon({
+                html:  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                          <path opacity=".4" fill="var(--text)" d="M192.2 267.8L192 398.4C192 439.5 216.2 476.7 253.8 493.4C277.3 503.7 295.9 512 317.6 512L432 512L435.7 511.8C453.9 509.6 467.2 491.3 463.2 473.1C461.4 465.1 466.1 457 473.9 454.4C492.7 448.3 501.5 425.3 491.8 408.3C487.6 400.9 490 391.5 497.1 387C514.7 375.8 516.7 349.8 501 336C497.6 333 495.6 328.6 495.6 324C495.6 319.4 497.6 315 501 312C521 294.4 510.1 260.6 485.1 256.5L479.9 256.1L301.1 256.1C295.4 256.1 290.2 253.1 287.3 248.2C284.4 243.3 284.4 237.2 287.2 232.3L331.4 153.8L333 150.5C339.8 134.9 334.7 116.6 320.8 106.8L317.7 104.8C301.5 95.7 281.1 100.5 270.6 115.4L268.6 118.5L200.7 239.2C195.7 248 192.8 257.8 192.1 267.9z"/>
+                          <path fill="var(--icon-outline)" d="M244.5 96.8C264.3 68.6 302.7 59.5 333.4 76.8L339.3 80.5C365.6 99 375.3 133.7 362.5 163.2L359.4 169.4L328.6 224.1L480.1 224.1L485.5 224.3C535 228.3 558.7 286 532.8 324.1C549.7 349.1 546.6 383.7 525.1 405.3C533.6 433.3 521.4 464.6 495.9 479.5C496 511.3 471.9 539.8 439.5 543.7L432 544.1L317.6 544.1C288 544.1 263.1 532.6 240.9 522.8L240.8 522.8C221.6 514.2 205.1 501.5 192 486.1L192 496.2C192 522.7 170.5 544.2 144 544.2L112 544.2C85.5 544.2 64 522.7 64 496.2L64 272C64 245.5 85.5 224 112 224L144 224C153.2 224 161.7 226.6 169 231C170.2 228.4 171.5 225.8 172.9 223.3L240.8 102.6L244.5 96.7zM112 256C103.2 256 96 263.2 96 272L96 496C96 504.8 103.2 512 112 512L144 512C152.8 512 160 504.8 160 496L160 272C160 263.2 152.8 256 144 256L112 256zM317.7 104.6C301.5 95.5 281.1 100.3 270.6 115.2L268.6 118.3L200.7 239C195.7 247.8 192.8 257.6 192.1 267.7L192 398.4C192 439.5 216.2 476.7 253.8 493.4L253.8 493.4C277.4 503.7 296 512 317.7 512L432.1 512L435.8 511.8C454 509.6 467.3 491.3 463.3 473.1C461.5 465.1 466.2 457 474 454.4C492.8 448.3 501.6 425.3 491.9 408.3C487.7 400.9 490.1 391.5 497.2 387C514.8 375.8 516.8 349.8 501.1 336C497.7 333 495.7 328.6 495.7 324C495.7 319.4 497.7 315 501.1 312C521.1 294.4 510.2 260.6 485.2 256.5L480 256.1L301.2 256.1C295.5 256.1 290.3 253.1 287.4 248.2C284.5 243.3 284.5 237.2 287.3 232.3L331.5 153.8L333.1 150.5C339.9 134.9 334.8 116.6 320.9 106.8L317.8 104.8z"/>
+                        </svg>`,
+              }),
+      zoomLimit: 9,
+      dataFilename: 'data/viewpoints.json',
+        ...POI_DEFAULTS,
+    },
   ];  
  
   function sleep(ms) {
@@ -1379,7 +1403,6 @@
 
     setTimeout(() => {
         el.classList.remove('is-selected');
-        console.log('Animiere icon ENDE');
     }, 2000);
   }
 
@@ -1442,7 +1465,6 @@
           'drag-over-bottom'
         );
         const draggedId = e.dataTransfer.getData('text/plain');
-        console.log('dragged #' + draggedId);
         if (!draggedId || draggedId === wp.id) 
           return;
         const fromIdx = waypoints.findIndex(w => Number(w.id) === Number(draggedId));
@@ -1665,7 +1687,6 @@
       const token = new URLSearchParams(window.location.search).get('token');
       const email = new URLSearchParams(window.location.search).get('email'); 
       if (token && email) {
-        console.log('INVITE erkannt');
         authState.loggedIn = false;
         authState.username = null;
         authState.email = null;
@@ -1893,24 +1914,7 @@
       view.querySelector('.auth-password-invited').value = '';
       view.querySelector('.auth-password-verify').value = '';
 
-      console.log('redirect to: ' + location.origin + location.pathname);
       window.location = location.origin + location.pathname;
-      return;
-
-
-      unlockApp(authState.email, authState.username);
-
-      setAppAuthVisibility();
-      updateAuthUI();
-      return;
-
-
-      console.log('redirect to: ' + location.origin + location.pathname);
-      window.location = location.origin + location.pathname;
-      return;
-      // window.location.replace()
-      // unlockApp(data.email, data.username);
-      // hideAuthModal();
     } catch (err) {
       showViewError(view, err.message);
     }
@@ -2439,9 +2443,7 @@
       Dadurch kann z.B. ein mehrfach ausgelöstes "Route berechnen"
       keine alte Berechnung mehr weiterlaufen lassen.
     */
-    if (routeCalculationController) {
-      routeCalculationController.abort();
-    }
+    if (routeCalculationController) { routeCalculationController.abort(); }
 
     routeCalculationController = new AbortController();
     const controller = routeCalculationController;
@@ -2450,11 +2452,9 @@
     if (waypoints.length < 2){
       routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
       routeResultEl.className = 'error';
-
       if (routeCalculationController === controller) {
         routeCalculationController = null;
       }
-
       return;
     }
 
@@ -2464,21 +2464,16 @@
       driving: 'driving-car'
     };
 
-    const profile =
-      profileMap[
-        document.getElementById('planning-route-profile').value
-      ] || 'driving-car';
+    const profile = profileMap[document.getElementById('planning-route-profile').value] || 'driving-car';
 
     /*
     * Globale Vermeidungen.
     * Diese gelten für die komplette Berechnung.
     */
     const avoidFeatures = [];
-
     if (document.getElementById('avoid-tollways').checked) {
       avoidFeatures.push('tollways');
     }
-
     if (document.getElementById('avoid-ferries').checked) {
       avoidFeatures.push('ferries');
     }
@@ -2508,16 +2503,10 @@
     * Jede Gruppe einzeln an ORS senden.
     */
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex++){
-
-      /*
-      * Prüfen, ob diese Berechnung inzwischen abgebrochen wurde.
-      */
-      if (signal.aborted) {
-        return;
-      }
+      /* Prüfen, ob diese Berechnung inzwischen abgebrochen wurde. */
+      if (signal.aborted) { return;}
 
       const group = groups[groupIndex];
-
       routeResultEl.textContent = `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
       routeResultEl.className = '';
 
@@ -2526,45 +2515,27 @@
       *
       * Beispiel:
       * A -> B -> C
-      *
       * wird:
-      *
       * coordinates: [
       *   [A.lng, A.lat],
       *   [B.lng, B.lat],
       *   [C.lng, C.lat]
       * ]
       */
-      const coordinates = group.waypoints.map(wp => [
-        wp.lng,
-        wp.lat
-      ]);
+      const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
+      const body = { coordinates: coordinates, preference: group.preference };
 
-      const body = {
-        coordinates: coordinates,
-        preference: group.preference
-      };
-
-      /*
-      * Globale Vermeidungen übernehmen.
-      */
+      /* Globale Vermeidungen übernehmen. */
       const groupAvoidFeatures = [...avoidFeatures];
 
       /*
       * Autobahnen nur für diese Gruppe vermeiden,
       * wenn die Gruppe entsprechend konfiguriert ist.
       */
-      if (group.avoidHighways) {
-        groupAvoidFeatures.push('highways');
-      }
+      if (group.avoidHighways) { groupAvoidFeatures.push('highways'); }
 
-      /*
-      * Doppelte Werte verhindern.
-      */
-      const uniqueAvoidFeatures = [
-        ...new Set(groupAvoidFeatures)
-      ];
-
+      /* Doppelte Werte verhindern. */
+      const uniqueAvoidFeatures = [...new Set(groupAvoidFeatures)];
       if (uniqueAvoidFeatures.length) {
         body.options = {
           avoid_features: uniqueAvoidFeatures
@@ -2573,13 +2544,10 @@
 
       try {
         // const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
-        const resp = await apiFetch(
-          `route?profile=${encodeURIComponent(profile)}`,
+        const resp = await apiFetch(`route?profile=${encodeURIComponent(profile)}`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
 
             /*
@@ -2596,32 +2564,22 @@
         * Während des Fetches könnte eine neue Berechnung
         * gestartet worden sein.
         */
-        if (signal.aborted) {
-          return;
-        }
+        if (signal.aborted) { return; }
 
         const data = await resp.json();
         /*
         * Auch nach dem JSON-Parsing noch einmal prüfen.
         */
-        if (signal.aborted) {
-          return;
-        }
+        if (signal.aborted) { return; }
 
-        if (
-          !resp.ok ||
-          !data.features ||
-          !data.features[0]
-        ){
+        if (!resp.ok || !data.features || !data.features[0] ){
           const msg =
             (
               data.error &&
               (
                 data.error.message ||
                 (
-                  typeof data.error === 'string'
-                    ? data.error
-                    : JSON.stringify(data.error)
+                  typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
                 )
               )
             ) ||
@@ -2631,67 +2589,41 @@
           * Falls zwischenzeitlich eine neue Berechnung
           * gestartet wurde, keine alte Fehlermeldung anzeigen.
           */
-          if (signal.aborted) {
-            return;
-          }
-
-          routeResultEl.textContent =
-            `Fehler bei Gruppe ${groupIndex + 1}: ${msg}`;
-
+          if (signal.aborted) { return; }
+          routeResultEl.textContent = `Fehler bei Gruppe ${groupIndex + 1}: ${msg}`;
           routeResultEl.className = 'error';
-
           return;
         }
 
         const feature = data.features[0];
-
-        /*
-        * ORS-Geometrie der kompletten Gruppe.
-        */
-        const groupCoords =
-          feature.geometry.coordinates.map(c =>
-            L.latLng(c[1], c[0])
-          );
+        /* ORS-Geometrie der kompletten Gruppe. */
+        const groupCoords = feature.geometry.coordinates.map(c => L.latLng(c[1], c[0]) );
 
         /*
         * Prüfen, ob die Berechnung währenddessen
         * ersetzt wurde.
         */
-        if (signal.aborted) {
-          return;
-        }
+        if (signal.aborted) { return; }
 
         /*
         * Gruppen haben einen gemeinsamen Wegpunkt.
         *
         * Beispiel:
-        *
         * Gruppe 1: A -> B -> C
         * Gruppe 2: C -> D -> E
         *
         * C würde sonst zweimal in allCoords stehen.
         */
-        if (
-          allCoords.length &&
-          groupCoords.length
-        ){
-          const last =
-            allCoords[allCoords.length - 1];
+        if (allCoords.length && groupCoords.length ){
+          const last = allCoords[allCoords.length - 1];
+          const first = groupCoords[0];
 
-          const first =
-            groupCoords[0];
-
-          if (
-            Math.abs(last.lat - first.lat) < 1e-7 &&
-            Math.abs(last.lng - first.lng) < 1e-7
-          ){
+          if (Math.abs(last.lat - first.lat) < 1e-7 && Math.abs(last.lng - first.lng) < 1e-7) {
             groupCoords.shift();
           }
         }
 
-        /*
-        * Geometrie anhängen.
-        */
+        /* Geometrie anhängen. */
         allCoords = allCoords.concat(groupCoords);
 
         /*
@@ -2703,7 +2635,6 @@
           totalDuration += feature.properties.summary.duration || 0;
         }
 
-        // NEU: Teilstrecken-Infos fuer Wegpunkt-Tooltips sammeln
         if (feature.properties && Array.isArray(feature.properties.segments)) {
           collectedSegments = collectedSegments.concat(feature.properties.segments);
         }
@@ -2715,25 +2646,13 @@
         * Das passiert ganz normal, wenn z.B. während einer
         * laufenden Berechnung eine neue Route gestartet wird.
         */
-
         if (e.name === 'AbortError' || signal.aborted) {
-          console.log(
-            `[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`
-          );
-
+          console.log(`[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`);
           return;
         }
-
-        console.error(
-          `[Route Berechnung Gruppe ${groupIndex + 1}]`,
-          e
-        );
-
-        routeResultEl.textContent = 
-          `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
-
+        console.error(`[Route Berechnung Gruppe ${groupIndex + 1}]`,e);
+        routeResultEl.textContent = `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
         routeResultEl.className = 'error';
-
         return;
       }
     }
@@ -2742,41 +2661,24 @@
     * Noch einmal sicherstellen, dass wir nicht gerade
     * eine veraltete Berechnung fertigstellen.
     */
-    if (signal.aborted) {
-      return;
-    }
+    if (signal.aborted) { return; }
 
     /*
     * ------------------------------------------------------------
     * Route auf der Karte anzeigen
     * ------------------------------------------------------------
     */
+    if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
 
-    if (calculatedRouteLayer) {
-      planningLayer.removeLayer(calculatedRouteLayer);
-    }
+    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
+                                                    weight: 5,
+                                                    opacity: 0.85,
+                                                    lineJoin: 'round'
+                                                  }
+                          ).addTo(planningLayer);
 
-    calculatedRouteLayer =
-      L.polyline(
-        allCoords,
-        {
-          color: '#22a6d8',
-          weight: 5,
-          opacity: 0.85,
-          lineJoin: 'round'
-        }
-      ).addTo(planningLayer);
-
-    if (
-      fitView &&
-      allCoords.length
-    ){
-      map.fitBounds(
-        calculatedRouteLayer.getBounds(),
-        {
-          padding: [30, 30]
-        }
-      );
+    if (fitView && allCoords.length) {
+      map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
     }
 
     /*
