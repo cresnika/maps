@@ -525,8 +525,6 @@
   //             });
   const TerrainStyle = L.maplibreGL({style: 'styles/Terrain.json',});
 
-  // TerrainStyle.addTo(map);
-
   const baseLayers = {
     // 'Alex´s Stil': motorcycleStyle,
     'Terrain' : TerrainStyle,
@@ -557,15 +555,135 @@
 
   if (savedStyle && baseLayers[savedStyle]) {
       baseLayers[savedStyle].addTo(map);
-  } else {
+  } 
+  else {
       TerrainStyle.addTo(map);
   }
+  async function snapToRoadIfZoomedOut(latlng){
+    const zoom = map.getZoom();
+    if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
+    const profile = document.getElementById('planning-route-profile').value;
+    const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
+    const count = preferNamed ? 8 : 1;
+    const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
+        let chosen = data.waypoints[0];
+        if (preferNamed){
+          const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
+          if (named) chosen = named;
+        }
+        return L.latLng(chosen.location[1], chosen.location[0]);
+      }
+    } catch (e){ /* network error -- fall back to the exact clicked point */ }
+    return latlng;
+  }
+
+  map.on('click', async (e) => {
+    const ctrlPressed = !!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey));
+    if (!pickingMode && !ctrlPressed) return;
+    addWaypoint(await snapToRoadIfZoomedOut(e.latlng));
+  });
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  }
+
+  map.on('moveend', debounce(() => {
+    saveAppStateDebounced();
+    extPOIs.forEach(poi => {
+      if (poi.visible) { loadExternPOI(poi); }
+    })
+  }, 400));
+
+  // -- Cursor feedback while Ctrl/Shift is held --
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.add('ctrl-active');
+    if (e.key === 'Shift') { 
+      mapEl.classList.add('shift-active');
+      updateWaypointCursor();
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.remove('ctrl-active');
+    if (e.key === 'Shift') {
+      mapEl.classList.remove('shift-active');
+      updateWaypointCursor();
+    }
+  });
+  window.addEventListener('blur', () => {
+    mapEl.classList.remove('ctrl-active', 'shift-active');
+  });
+
+  function closeMapContextMenu(){
+    const m = document.getElementById('map-context-menu');
+    if (m) m.remove();
+  }
+
+  function showCustomContextMenu(x, y, items){
+    closeMapContextMenu();
+
+    const menu = document.createElement('div');
+    menu.id = 'map-context-menu';
+    menu.className = 'map-context-menu';
+
+    items.forEach(it => {
+      const btn = document.createElement('button');
+      btn.className = 'map-context-menu-item';
+      btn.textContent = it.label;
+      if (it.disabled){
+        btn.disabled = true;
+      } else {
+        btn.addEventListener('click', () => { it.action(); closeMapContextMenu(); });
+      }
+      menu.appendChild(btn);
+    });
+
+    document.body.appendChild(menu);
+
+    let left = x, top = y;
+    const rect = menu.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 8;
+    if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 8;
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+
+    setTimeout(() => {
+      document.addEventListener('click', closeMapContextMenu, { once: true });
+    }, 0);
+  }
+
+  map.on('contextmenu', (e) => {
+    L.DomEvent.preventDefault(e.originalEvent);
+    const items = [
+      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
+      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
+      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
+      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
+    ];
+    showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
+  });
+
   //#endregion
 
 
   // ============================================================
-  // ---------- Route planning  ----------
+  // ---------- Route planning (waypoints) ----------
   //#region Tab Routing
+  const mapEl = document.getElementById('map');
+  const btnTogglePick = document.getElementById('btn-toggle-pick');
+  const waypointListEl = document.getElementById('waypoint-list');
+  const waypointSearchInput = document.getElementById('waypoint-search');
+  const btnSearchWaypoint = document.getElementById('btn-search-waypoint');
+  const searchResultsEl = document.getElementById('search-results');
+  const btnClearWaypoints = document.getElementById('btn-clear-waypoints');
+  
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
@@ -582,6 +700,615 @@
           maybeAutoRecalculateRoute();
           saveAppStateDebounced();
         });
+  async function reverseGeocodeWaypoint(wp) {
+    const lat = wp.lat;
+    const lng = wp.lng;
+    try {
+      CLOUDFLARE_API_BASE
+      const url = `reverse` +
+                  `?lat=${encodeURIComponent(lat)}` +
+                  `&lon=${encodeURIComponent(lng)}`;
+
+      const response = await apiFetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+
+      if (!waypoints.includes(wp)) { return; }
+
+      const address = data.address || {};
+      const road = address.road || address.pedestrian || address.cycleway || address.footway || '';
+      const houseNumber = address.house_number || '';
+      const city = address.city || address.town || address.village || address.municipality || '';
+      const state = address.state || '';
+
+      let label = '';
+      const place = address.city || address.town || address.village || address.municipality || '';
+      if (place) {
+        label = place;
+      }
+
+      if (road) {
+        label += (label ? ', ' : '') + road;
+
+        if (houseNumber) {
+          label += ' ' + houseNumber;
+        }
+      }
+
+      if (state) {
+        label += (label ? ', ' : '') + state;
+      }
+
+      if (address.country) {
+        label += (label ? ', ' : '') + address.country;
+      }
+
+      /*
+      * Wenn gar nichts gefunden wurde:
+      * Koordinaten als Fallback verwenden.
+      */
+      if (!label) {
+        label =
+          lat.toFixed(5) +
+          ', ' +
+          lng.toFixed(5);
+      }
+      wp.label = label;
+      renderWaypointList();
+
+      const popup = wp.marker.getPopup();
+      if (!popup) return;
+
+      const oldContent = popup.getContent();
+      const newContent = oldContent.replace(
+          /<span class="wp-label">.*?<\/span>/,
+          `<span class="wp-label">${wp.label}</span>`
+      );
+      popup.setContent(newContent);
+    } catch (error) {
+      console.warn(
+        'Reverse Geocoding fehlgeschlagen:',
+        error
+      );
+    }
+  }
+
+  function maybeAutoRecalculateRoute(){ if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false }); }
+
+  function flagSvg(usedForMap) {
+    if (!usedForMap) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
+              </svg>`;
+    }
+    else {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
+                      <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
+                      <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                    	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
+              </svg>`;  
+    }
+  }
+  function locationSvg(usedForMap) {
+    if (!usedForMap) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
+              </svg>`;  
+    }
+    else {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
+                    <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
+                    <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                  	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
+              </svg>`;  
+    }
+  }
+  function waypointSvg(index) {
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
+        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
+        <path fill="#000" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
+        <text 
+          x="320"
+          y="300"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          font-size="250"
+          font-weight="700"
+          fill="#1b2420">
+          ${index}
+        </text>
+      </svg>
+    `;
+  }
+ 
+  function flagIcon(usedForMap) {
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: flagSvg(usedForMap),
+      iconSize: [40, 40],
+      iconAnchor: [20, 38]
+    });
+  }
+  function locationIcon(usedForMap) {
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: locationSvg(usedForMap),
+      iconSize: [40, 40],
+      iconAnchor: [20, 38]
+    });
+  }
+  function waypointIcon(index) {
+    return L.divIcon({
+      className: 'waypoint-marker-icon',
+      html: waypointSvg(index),
+      iconSize: [40, 40],
+      iconAnchor: [20, 38]
+    });
+  }
+
+  function refreshWaypointIcons(){
+    waypoints.forEach((wp, i) => {
+      if (i === 0) {
+        wp.marker.setIcon(locationIcon(true));
+      }
+      else {
+        if ((i+1) < waypoints.length) {
+          wp.marker.setIcon(waypointIcon(i))
+        }
+        else {
+          wp.marker.setIcon(flagIcon(true));
+        }
+      }
+    });
+  }
+
+  function waypointTag(index){
+    if (index === 0) return 'Start';
+    if (index === waypoints.length - 1) return 'Ziel';
+    return '';
+  }
+
+  let shiftPressed = false;
+
+  function updateWaypointCursor() {
+    console.log('im update');
+    const active = mapEl.classList.contains('shift-active');
+
+    document.querySelectorAll('.waypoint-marker').forEach((el) => {
+      el.style.cursor = active ? 'pointer' : '';
+    });
+  }
+
+  function getNextWPId() {
+    let freieId = 0;
+    const existierendeIds = new Set(waypoints.map(obj => obj.id));
+    while (existierendeIds.has(freieId)) {
+      freieId++;
+    }
+    return freieId++;
+;
+  }
+
+  function distanceInMeter(lat1, lng1, lat2, lng2) {
+    const ERDRADIUS_METER = 6371000; // Durchschnittlicher Erdradius in Metern
+
+    // Umrechnung von Grad in Bogenmaß (Radiant)
+    const rLat1 = lat1 * (Math.PI / 180);
+    const rLat2 = lat2 * (Math.PI / 180);
+    
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lng2 - lng1) * (Math.PI / 180);
+
+    // Haversine-Formel
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(rLat1) * Math.cos(rLat2) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+              
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    // Ergebnis in Metern (auf ganze Meter gerundet)
+    return Math.round(ERDRADIUS_METER * c);
+  }
+
+  function createWaypoint(latlng, label){
+    const id = getNextWPId(); //(waypointCounter++);
+    const marker = L.marker(
+      latlng,
+      {
+        draggable: true,
+        icon: waypointIcon(0),
+        pane: 'waypointPane',  // NEU
+      }
+    ).addTo(planningLayer);
+
+    const hasKnownLabel = !!label && String(label).trim() !== '';
+    const wp = {
+      id,
+      lat: latlng.lat,
+      lng: latlng.lng,
+
+      // Bekannten POI-Namen behalten.
+      // Bei einem freien Kartenpunkt zunächst Koordinaten anzeigen.
+      label: hasKnownLabel ? label : (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)),  
+      marker, 
+      segmentPreference: 'recommended',
+      avoidHighways: false,
+
+      // Merken, ob der Name bereits aus einem bekannten POI stammt.
+      labelIsKnown: hasKnownLabel
+    };
+
+    marker.getElement().classList.add('waypoint-marker');
+
+    marker.on('mouseover', () => {
+      if (mapEl.classList.contains('shift-active')) {
+        marker.getElement().style.cursor = deleteMarkerCursor;
+      }
+    });
+    marker.on('mouseout', () => {
+      marker.getElement().style.cursor = '';
+    });
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+
+      const dist = distanceInMeter(pos.lat, pos.lng, wp.lat, wp.lng);
+      const newLabel = (dist > 100);
+      if (newLabel) {
+        wp.labelIsKnown = false;
+      }
+      else  
+        wp.labelIsKnown = true;
+      wp.lat = pos.lat;
+      wp.lng = pos.lng;
+
+      // Der bisherige POI-Name ist nach dem Verschieben
+      // nicht mehr zwangsläufig korrekt.
+      // wp.labelIsKnown = false;
+      if (!wp.labelIsKnown) {
+        wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
+      }
+
+      renderWaypointList();
+
+      // Während das Reverse Geocoding läuft,
+      // vorübergehend Koordinaten anzeigen.
+      if (!wp.labelIsKnown) {
+        reverseGeocodeWaypoint(wp);
+      }
+      maybeAutoRecalculateRoute();
+      saveAppStateDebounced();
+    });
+    marker.on('click', (e) => {
+      if (e.originalEvent && e.originalEvent.shiftKey
+      ){
+        e.originalEvent.stopPropagation();
+        removeWaypoint(wp.id);
+      }
+    });
+
+    /*
+    * Nur für frei gesetzte Punkte Reverse Geocoding starten.
+    *
+    * Bekannte POIs behalten ihren vorhandenen Namen.
+    */
+    if (!wp.labelIsKnown) {
+      reverseGeocodeWaypoint(wp);
+    }
+    return wp;
+  }
+
+  // When 2+ waypoints already exist, insert a newly added point wherever it
+  // adds the least detour to the existing route, instead of always at the end.
+  function bestInsertionIndex(latlng){
+    if (waypoints.length < 2) return waypoints.length;
+    let bestIdx = waypoints.length;
+    let bestCost = Infinity;
+    for (let i = 0; i < waypoints.length - 1; i++){
+      const a = L.latLng(waypoints[i].lat, waypoints[i].lng);
+      const b = L.latLng(waypoints[i + 1].lat, waypoints[i + 1].lng);
+      const cost = a.distanceTo(latlng) + latlng.distanceTo(b) - a.distanceTo(b);
+      if (cost < bestCost){ bestCost = cost; bestIdx = i + 1; }
+    }
+    return bestIdx;
+  }
+
+  function addWaypoint(latlng, label){
+    const wp = createWaypoint(latlng, label);
+    const idx = bestInsertionIndex(latlng);
+    waypoints.splice(idx, 0, wp);
+    refreshWaypointIcons();
+    renderWaypointList();
+    maybeAutoRecalculateRoute();
+    saveAppStateDebounced();
+  }
+
+  // Insert a waypoint at a specific role: 'start' (front), 'end' (back),
+  // or 'via' (just before the current last point, i.e. before "Ziel").
+	function insertWaypointAtRole(latlng, role, label){
+		const wp = createWaypoint(latlng, label);
+		if (role === 'start') {
+			waypoints.unshift(wp);
+		}
+		else if (role === 'end') {
+			waypoints.push(wp);
+		}
+		else { // via
+
+			if (waypoints.length <= 1) {
+				waypoints.push(wp);
+			}
+			else {
+				waypoints.splice(
+					waypoints.length - 1,
+					0,
+					wp
+				);
+			}
+		}
+
+		refreshWaypointIcons();
+		renderWaypointList();
+		maybeAutoRecalculateRoute();
+    saveAppStateDebounced();
+	}
+
+  function removeWaypoint(id){
+    const idx = waypoints.findIndex(w => w.id === id);
+    if (idx === -1) return;
+    planningLayer.removeLayer(waypoints[idx].marker);
+    waypoints.splice(idx, 1);
+    refreshWaypointIcons();
+    renderWaypointList();
+    maybeAutoRecalculateRoute();
+    saveAppStateDebounced();
+  }
+
+  function moveWaypoint(id, dir){
+    const idx = waypoints.findIndex(w => w.id === id);
+    const newIdx = idx + dir;
+    if (idx === -1 || newIdx < 0 || newIdx >= waypoints.length) return;
+    const tmp = waypoints[idx];
+    waypoints[idx] = waypoints[newIdx];
+    waypoints[newIdx] = tmp;
+    refreshWaypointIcons();
+    renderWaypointList();
+    maybeAutoRecalculateRoute();
+    saveAppStateDebounced();
+  }
+
+  function highlightWaypoint(wp) {
+    const el = wp.marker.getElement();
+    if (!el) { return; }
+
+    el.classList.add('is-selected');
+
+    setTimeout(() => {
+        el.classList.remove('is-selected');
+    }, 2000);
+  }
+
+  function renderWaypointList(){
+    waypointListEl.innerHTML = '';
+    if (waypoints.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div>Noch keine Wegpunkte.<br>Auf die Karte klicken (Button oben)<br>oder einen Ort suchen.</div>';
+      waypointListEl.appendChild(empty);
+      return;
+    }
+    waypoints.forEach((wp, i) => {
+      const row = document.createElement('div');
+      row.className = 'waypoint-row';
+      row.draggable = true;
+      row.dataset.wpId = wp.id;
+
+      row.addEventListener('dblclick', (e) => {
+        row.classList.add('dblclick');
+        map.setView([wp.lat, wp.lng], map.getZoom());
+      });
+
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', wp.id);
+        row.classList.add('dragging');
+      });
+
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        row.classList.remove(
+          'drag-over-top',
+          'drag-over-bottom'
+        );
+        if ((e.clientY - rect.top) < (rect.height / 2))
+          row.classList.add('drag-over-top');
+        else
+          row.classList.add('drag-over-bottom');
+      });
+
+      row.addEventListener('dragend', (e) => {
+        row.classList.remove('dragging');
+      })
+
+      row.addEventListener('dragleave', () => {
+        row.classList.remove(
+          'drag-over-top',
+          'drag-over-bottom'
+        );
+      });
+
+	    row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const dropBelow = (e.clientY - rect.top) >= (rect.height / 2);
+        row.classList.remove(
+          'drag-over-top',
+          'drag-over-bottom'
+        );
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (!draggedId || draggedId === wp.id) 
+          return;
+        const fromIdx = waypoints.findIndex(w => Number(w.id) === Number(draggedId));
+        const toIdx = waypoints.findIndex(w => w.id === wp.id);
+        if (fromIdx === -1 || toIdx === -1)
+          return;
+        const [item] =
+          waypoints.splice(fromIdx, 1);
+        let insertIdx = toIdx;
+        if (fromIdx < toIdx)
+          insertIdx--;
+        if (dropBelow)
+          insertIdx++;
+        waypoints.splice(insertIdx, 0, item);
+        refreshWaypointIcons();
+        renderWaypointList();
+        maybeAutoRecalculateRoute();
+        saveAppStateDebounced();
+  	  });
+      
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'Ziehen zum Umsortieren';
+      row.appendChild(handle);
+
+      const idx = document.createElement('span');
+      idx.className = 'waypoint-index';
+      if (i === 0) {
+        idx.innerHTML = `${locationIcon().options.html}`;
+      }
+      else {
+        if ((i+1) < waypoints.length) {
+          idx.textContent = i;
+        }
+        else {
+          idx.innerHTML = `${flagIcon().options.html}`;
+        }
+      }
+      idx.addEventListener('click', (e) => {
+        // e.preventDefault();
+        highlightWaypoint(wp);
+      });
+
+      row.appendChild(idx);
+
+      const info = document.createElement('div');
+      info.className = 'waypoint-info';
+      const tagText = waypointTag(i);
+      //const tagText = 'ID: ' + wp.id;
+      if (tagText)
+      {
+        const tag = document.createElement('div');
+        tag.className = 'waypoint-tag';
+        tag.textContent = tagText;
+        info.appendChild(tag);
+      }
+      const label = document.createElement('div');
+      label.className = 'waypoint-label';
+      label.textContent = wp.label;
+      label.title = wp.label;
+      info.appendChild(label);
+      row.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'waypoint-actions';
+
+      const upBtn = document.createElement('button');
+      upBtn.innerHTML = '&#8593;';
+      upBtn.title = 'Nach oben';
+      upBtn.disabled = i === 0;
+      upBtn.addEventListener('click', () => moveWaypoint(wp.id, -1));
+      actions.appendChild(upBtn);
+
+      const downBtn = document.createElement('button');
+      downBtn.innerHTML = '&#8595;';
+      downBtn.title = 'Nach unten';
+      downBtn.disabled = i === waypoints.length - 1;
+      downBtn.addEventListener('click', () => moveWaypoint(wp.id, 1));
+      actions.appendChild(downBtn);
+
+      const delBtn = document.createElement('button');
+      // delBtn.innerHTML = '&times;';
+      const icon = document.createElement('span');
+      icon.innerHTML = trashSVG;
+      delBtn.appendChild(icon);
+      delBtn.title = 'Entfernen';
+      delBtn.addEventListener('click', () => removeWaypoint(wp.id));
+      actions.appendChild(delBtn);
+
+      row.appendChild(actions);
+      waypointListEl.appendChild(row);
+
+      if (i < waypoints.length - 1){
+        waypointListEl.appendChild(buildSegmentConnector(waypoints[i + 1]));
+      }
+    });
+  }
+
+  function buildSegmentConnector(destinationWp){
+    const wrap = document.createElement('div');
+    wrap.className = 'segment-connector';
+
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'segment-pref-buttons';
+
+    const options = [
+//      { key: 'fastest', icon: '⚡', title: 'Schnellste' },
+      { key: 'recommended', icon: '⭐', title: 'Empfohlen' },
+      { key: 'shortest', icon: '📏', title: 'Kürzeste' }
+    ];
+    if (!destinationWp.segmentPreference) destinationWp.segmentPreference = 'recommended';
+
+    options.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'segment-pref-btn' + (destinationWp.segmentPreference === opt.key ? ' active' : '');
+      b.textContent = opt.icon;
+      b.title = opt.title + ' (Anreise zu diesem Punkt)';
+      b.addEventListener('click', () => {
+        destinationWp.segmentPreference = opt.key;
+        renderWaypointList();
+        saveAppStateDebounced();
+      });
+      btnGroup.appendChild(b);
+    });
+
+    const avoidLabel = document.createElement('label');
+    avoidLabel.className = 'segment-avoid-highways';
+    avoidLabel.title = 'Autobahn auf diesem Abschnitt meiden';
+    const avoidInput = document.createElement('input');
+    avoidInput.type = 'checkbox';
+    avoidInput.checked = !!destinationWp.avoidHighways;
+    avoidInput.addEventListener('click', e => e.stopPropagation());
+    avoidInput.addEventListener('change', () => {
+      destinationWp.avoidHighways = avoidInput.checked;
+      maybeAutoRecalculateRoute();
+      saveAppStateDebounced();
+    });
+    avoidLabel.appendChild(avoidInput);
+    avoidLabel.appendChild(document.createTextNode('Autobahn meiden'));
+    btnGroup.appendChild(avoidLabel);
+
+    wrap.appendChild(btnGroup);
+    return wrap;
+  }
+
+  btnTogglePick.addEventListener('click', () => {
+    pickingMode = !pickingMode;
+    btnTogglePick.classList.toggle('primary', pickingMode);
+    mapEl.classList.toggle('picking-mode', pickingMode);
+    btnTogglePick.textContent = pickingMode ? '📍 Klicke auf die Karte …' : '📍 Punkt auf Karte setzen';
+  });
+
+  // Below this zoom level, clicked points are snapped to the nearest routable
+  // road/path -- at this zoom or closer, the exact clicked pixel is used.
+  // Below the stricter zoom, only named (i.e. typically more major) roads are
+  // considered, so a big overview click doesn't snap onto every minor track.
+  const ROAD_SNAP_MAX_ZOOM = 18;
+  const ROAD_SNAP_STRICT_ZOOM = 16;
+
   //#endregion
 
 
@@ -1000,613 +1727,6 @@
     };
   poi.control.addTo(map);  
 });
-  //#endregion
-
-
-  // ============================================================
-  // ---------- Waypoints ----------  
-  //#region Waypoints
-  async function reverseGeocodeWaypoint(wp) {
-    const lat = wp.lat;
-    const lng = wp.lng;
-    try {
-      CLOUDFLARE_API_BASE
-      const url = `reverse` +
-                  `?lat=${encodeURIComponent(lat)}` +
-                  `&lon=${encodeURIComponent(lng)}`;
-
-      const response = await apiFetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = await response.json();
-
-      if (!waypoints.includes(wp)) { return; }
-
-      const address = data.address || {};
-      const road = address.road || address.pedestrian || address.cycleway || address.footway || '';
-      const houseNumber = address.house_number || '';
-      const city = address.city || address.town || address.village || address.municipality || '';
-      const state = address.state || '';
-
-      let label = '';
-      const place = address.city || address.town || address.village || address.municipality || '';
-      if (place) {
-        label = place;
-      }
-
-      if (road) {
-        label += (label ? ', ' : '') + road;
-
-        if (houseNumber) {
-          label += ' ' + houseNumber;
-        }
-      }
-
-      if (state) {
-        label += (label ? ', ' : '') + state;
-      }
-
-      if (address.country) {
-        label += (label ? ', ' : '') + address.country;
-      }
-
-      /*
-      * Wenn gar nichts gefunden wurde:
-      * Koordinaten als Fallback verwenden.
-      */
-      if (!label) {
-        label =
-          lat.toFixed(5) +
-          ', ' +
-          lng.toFixed(5);
-      }
-      wp.label = label;
-      renderWaypointList();
-
-      const popup = wp.marker.getPopup();
-      if (!popup) return;
-
-      const oldContent = popup.getContent();
-      const newContent = oldContent.replace(
-          /<span class="wp-label">.*?<\/span>/,
-          `<span class="wp-label">${wp.label}</span>`
-      );
-      popup.setContent(newContent);
-    } catch (error) {
-      console.warn(
-        'Reverse Geocoding fehlgeschlagen:',
-        error
-      );
-    }
-  }
-
-  function maybeAutoRecalculateRoute(){ if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false }); }
-
-  const mapEl = document.getElementById('map');
-  const btnTogglePick = document.getElementById('btn-toggle-pick');
-  const waypointListEl = document.getElementById('waypoint-list');
-  const waypointSearchInput = document.getElementById('waypoint-search');
-  const btnSearchWaypoint = document.getElementById('btn-search-waypoint');
-  const searchResultsEl = document.getElementById('search-results');
-  const btnClearWaypoints = document.getElementById('btn-clear-waypoints');
-  
-  function flagSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
-              </svg>`;
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                      <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                      <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                    	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
-              </svg>`;  
-    }
-  }
-  function locationSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
-              </svg>`;  
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                    <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                    <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                  	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
-              </svg>`;  
-    }
-  }
-  function waypointSvg(index) {
-    return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
-        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
-        <path fill="#000" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
-        <text 
-          x="320"
-          y="300"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-size="250"
-          font-weight="700"
-          fill="#1b2420">
-          ${index}
-        </text>
-      </svg>
-    `;
-  }
- 
-  function flagIcon(usedForMap) {
-    return L.divIcon({
-      className: 'waypoint-marker-icon',
-      html: flagSvg(usedForMap),
-      iconSize: [40, 40],
-      iconAnchor: [20, 38]
-    });
-  }
-  function locationIcon(usedForMap) {
-    return L.divIcon({
-      className: 'waypoint-marker-icon',
-      html: locationSvg(usedForMap),
-      iconSize: [40, 40],
-      iconAnchor: [20, 38]
-    });
-  }
-  function waypointIcon(index) {
-    return L.divIcon({
-      className: 'waypoint-marker-icon',
-      html: waypointSvg(index),
-      iconSize: [40, 40],
-      iconAnchor: [20, 38]
-    });
-  }
-
-  function refreshWaypointIcons(){
-    waypoints.forEach((wp, i) => {
-      if (i === 0) {
-        wp.marker.setIcon(locationIcon(true));
-      }
-      else {
-        if ((i+1) < waypoints.length) {
-          wp.marker.setIcon(waypointIcon(i))
-        }
-        else {
-          wp.marker.setIcon(flagIcon(true));
-        }
-      }
-    });
-  }
-
-  function waypointTag(index){
-    if (index === 0) return 'Start';
-    if (index === waypoints.length - 1) return 'Ziel';
-    return '';
-  }
-
-  let shiftPressed = false;
-
-  function updateWaypointCursor() {
-    // const active = mapEl.classList.contains('shift-active');
-
-    // document.querySelectorAll('.waypoint-marker').forEach((el) => {
-    //   el.style.cursor = active ? 'pointer' : '';
-    // });
-  }
-
-  function getNextWPId() {
-    let freieId = 0;
-    const existierendeIds = new Set(waypoints.map(obj => obj.id));
-    while (existierendeIds.has(freieId)) {
-      freieId++;
-    }
-    return freieId++;
-;
-  }
-
-  function distanceInMeter(lat1, lng1, lat2, lng2) {
-    const ERDRADIUS_METER = 6371000; // Durchschnittlicher Erdradius in Metern
-
-    // Umrechnung von Grad in Bogenmaß (Radiant)
-    const rLat1 = lat1 * (Math.PI / 180);
-    const rLat2 = lat2 * (Math.PI / 180);
-    
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLng = (lng2 - lng1) * (Math.PI / 180);
-
-    // Haversine-Formel
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(rLat1) * Math.cos(rLat2) *
-              Math.sin(dLng / 2) * Math.sin(dLng / 2);
-              
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    // Ergebnis in Metern (auf ganze Meter gerundet)
-    return Math.round(ERDRADIUS_METER * c);
-  }
-
-  function createWaypoint(latlng, label){
-    const id = getNextWPId(); //(waypointCounter++);
-    const marker = L.marker(
-      latlng,
-      {
-        draggable: true,
-        icon: waypointIcon(0),
-        pane: 'waypointPane',  // NEU
-      }
-    ).addTo(planningLayer);
-
-    const hasKnownLabel = !!label && String(label).trim() !== '';
-    const wp = {
-      id,
-      lat: latlng.lat,
-      lng: latlng.lng,
-
-      // Bekannten POI-Namen behalten.
-      // Bei einem freien Kartenpunkt zunächst Koordinaten anzeigen.
-      label: hasKnownLabel ? label : (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)),  
-      marker, 
-      segmentPreference: 'recommended',
-      avoidHighways: false,
-
-      // Merken, ob der Name bereits aus einem bekannten POI stammt.
-      labelIsKnown: hasKnownLabel
-    };
-
-    marker.getElement().classList.add('waypoint-marker');
-
-    marker.on('mouseover', () => {
-      if (mapEl.classList.contains('shift-active')) {
-        marker.getElement().style.cursor = deleteMarkerCursor;
-      }
-    });
-    marker.on('mouseout', () => {
-      marker.getElement().style.cursor = '';
-    });
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
-
-      const dist = distanceInMeter(pos.lat, pos.lng, wp.lat, wp.lng);
-      const newLabel = (dist > 100);
-      if (newLabel) {
-        wp.labelIsKnown = false;
-      }
-      else  
-        wp.labelIsKnown = true;
-      wp.lat = pos.lat;
-      wp.lng = pos.lng;
-
-      // Der bisherige POI-Name ist nach dem Verschieben
-      // nicht mehr zwangsläufig korrekt.
-      // wp.labelIsKnown = false;
-      if (!wp.labelIsKnown) {
-        wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
-      }
-
-      renderWaypointList();
-
-      // Während das Reverse Geocoding läuft,
-      // vorübergehend Koordinaten anzeigen.
-      if (!wp.labelIsKnown) {
-        reverseGeocodeWaypoint(wp);
-      }
-      maybeAutoRecalculateRoute();
-      saveAppStateDebounced();
-    });
-    marker.on('click', (e) => {
-      if (e.originalEvent && e.originalEvent.shiftKey
-      ){
-        e.originalEvent.stopPropagation();
-        removeWaypoint(wp.id);
-      }
-    });
-
-    /*
-    * Nur für frei gesetzte Punkte Reverse Geocoding starten.
-    *
-    * Bekannte POIs behalten ihren vorhandenen Namen.
-    */
-    if (!wp.labelIsKnown) {
-      reverseGeocodeWaypoint(wp);
-    }
-    return wp;
-  }
-
-  // When 2+ waypoints already exist, insert a newly added point wherever it
-  // adds the least detour to the existing route, instead of always at the end.
-  function bestInsertionIndex(latlng){
-    if (waypoints.length < 2) return waypoints.length;
-    let bestIdx = waypoints.length;
-    let bestCost = Infinity;
-    for (let i = 0; i < waypoints.length - 1; i++){
-      const a = L.latLng(waypoints[i].lat, waypoints[i].lng);
-      const b = L.latLng(waypoints[i + 1].lat, waypoints[i + 1].lng);
-      const cost = a.distanceTo(latlng) + latlng.distanceTo(b) - a.distanceTo(b);
-      if (cost < bestCost){ bestCost = cost; bestIdx = i + 1; }
-    }
-    return bestIdx;
-  }
-
-  function addWaypoint(latlng, label){
-    const wp = createWaypoint(latlng, label);
-    const idx = bestInsertionIndex(latlng);
-    waypoints.splice(idx, 0, wp);
-    refreshWaypointIcons();
-    renderWaypointList();
-    maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-  }
-
-  // Insert a waypoint at a specific role: 'start' (front), 'end' (back),
-  // or 'via' (just before the current last point, i.e. before "Ziel").
-	function insertWaypointAtRole(latlng, role, label){
-		const wp = createWaypoint(latlng, label);
-		if (role === 'start') {
-			waypoints.unshift(wp);
-		}
-		else if (role === 'end') {
-			waypoints.push(wp);
-		}
-		else { // via
-
-			if (waypoints.length <= 1) {
-				waypoints.push(wp);
-			}
-			else {
-				waypoints.splice(
-					waypoints.length - 1,
-					0,
-					wp
-				);
-			}
-		}
-
-		refreshWaypointIcons();
-		renderWaypointList();
-		maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-	}
-
-  function removeWaypoint(id){
-    const idx = waypoints.findIndex(w => w.id === id);
-    if (idx === -1) return;
-    planningLayer.removeLayer(waypoints[idx].marker);
-    waypoints.splice(idx, 1);
-    refreshWaypointIcons();
-    renderWaypointList();
-    maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-  }
-
-  function moveWaypoint(id, dir){
-    const idx = waypoints.findIndex(w => w.id === id);
-    const newIdx = idx + dir;
-    if (idx === -1 || newIdx < 0 || newIdx >= waypoints.length) return;
-    const tmp = waypoints[idx];
-    waypoints[idx] = waypoints[newIdx];
-    waypoints[newIdx] = tmp;
-    refreshWaypointIcons();
-    renderWaypointList();
-    maybeAutoRecalculateRoute();
-    saveAppStateDebounced();
-  }
-
-  function highlightWaypoint(wp) {
-    const el = wp.marker.getElement();
-    if (!el) { return; }
-
-    el.classList.add('is-selected');
-
-    setTimeout(() => {
-        el.classList.remove('is-selected');
-    }, 2000);
-  }
-
-  function renderWaypointList(){
-    waypointListEl.innerHTML = '';
-    if (waypoints.length === 0){
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.innerHTML = '<div>Noch keine Wegpunkte.<br>Auf die Karte klicken (Button oben)<br>oder einen Ort suchen.</div>';
-      waypointListEl.appendChild(empty);
-      return;
-    }
-    waypoints.forEach((wp, i) => {
-      const row = document.createElement('div');
-      row.className = 'waypoint-row';
-      row.draggable = true;
-      row.dataset.wpId = wp.id;
-
-      row.addEventListener('dblclick', (e) => {
-        row.classList.add('dblclick');
-        map.setView([wp.lat, wp.lng], map.getZoom());
-      });
-
-      row.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', wp.id);
-        row.classList.add('dragging');
-      });
-
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const rect = row.getBoundingClientRect();
-        row.classList.remove(
-          'drag-over-top',
-          'drag-over-bottom'
-        );
-        if ((e.clientY - rect.top) < (rect.height / 2))
-          row.classList.add('drag-over-top');
-        else
-          row.classList.add('drag-over-bottom');
-      });
-
-      row.addEventListener('dragend', (e) => {
-        row.classList.remove('dragging');
-      })
-
-      row.addEventListener('dragleave', () => {
-        row.classList.remove(
-          'drag-over-top',
-          'drag-over-bottom'
-        );
-      });
-
-	    row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const rect = row.getBoundingClientRect();
-        const dropBelow = (e.clientY - rect.top) >= (rect.height / 2);
-        row.classList.remove(
-          'drag-over-top',
-          'drag-over-bottom'
-        );
-        const draggedId = e.dataTransfer.getData('text/plain');
-        if (!draggedId || draggedId === wp.id) 
-          return;
-        const fromIdx = waypoints.findIndex(w => Number(w.id) === Number(draggedId));
-        const toIdx = waypoints.findIndex(w => w.id === wp.id);
-        if (fromIdx === -1 || toIdx === -1)
-          return;
-        const [item] =
-          waypoints.splice(fromIdx, 1);
-        let insertIdx = toIdx;
-        if (fromIdx < toIdx)
-          insertIdx--;
-        if (dropBelow)
-          insertIdx++;
-        waypoints.splice(insertIdx, 0, item);
-        refreshWaypointIcons();
-        renderWaypointList();
-        maybeAutoRecalculateRoute();
-        saveAppStateDebounced();
-  	  });
-      
-      const handle = document.createElement('span');
-      handle.className = 'waypoint-drag-handle';
-      handle.innerHTML = '&#8942;&#8942;';
-      handle.title = 'Ziehen zum Umsortieren';
-      row.appendChild(handle);
-
-      const idx = document.createElement('span');
-      idx.className = 'waypoint-index';
-      if (i === 0) {
-        idx.innerHTML = `${locationIcon().options.html}`;
-      }
-      else {
-        if ((i+1) < waypoints.length) {
-          idx.textContent = i;
-        }
-        else {
-          idx.innerHTML = `${flagIcon().options.html}`;
-        }
-      }
-      idx.addEventListener('click', (e) => {
-        // e.preventDefault();
-        highlightWaypoint(wp);
-      });
-
-      row.appendChild(idx);
-
-      const info = document.createElement('div');
-      info.className = 'waypoint-info';
-      const tagText = waypointTag(i);
-      //const tagText = 'ID: ' + wp.id;
-      if (tagText)
-      {
-        const tag = document.createElement('div');
-        tag.className = 'waypoint-tag';
-        tag.textContent = tagText;
-        info.appendChild(tag);
-      }
-      const label = document.createElement('div');
-      label.className = 'waypoint-label';
-      label.textContent = wp.label;
-      label.title = wp.label;
-      info.appendChild(label);
-      row.appendChild(info);
-
-      const actions = document.createElement('div');
-      actions.className = 'waypoint-actions';
-
-      const upBtn = document.createElement('button');
-      upBtn.innerHTML = '&#8593;';
-      upBtn.title = 'Nach oben';
-      upBtn.disabled = i === 0;
-      upBtn.addEventListener('click', () => moveWaypoint(wp.id, -1));
-      actions.appendChild(upBtn);
-
-      const downBtn = document.createElement('button');
-      downBtn.innerHTML = '&#8595;';
-      downBtn.title = 'Nach unten';
-      downBtn.disabled = i === waypoints.length - 1;
-      downBtn.addEventListener('click', () => moveWaypoint(wp.id, 1));
-      actions.appendChild(downBtn);
-
-      const delBtn = document.createElement('button');
-      // delBtn.innerHTML = '&times;';
-      const icon = document.createElement('span');
-      icon.innerHTML = trashSVG;
-      delBtn.appendChild(icon);
-      delBtn.title = 'Entfernen';
-      delBtn.addEventListener('click', () => removeWaypoint(wp.id));
-      actions.appendChild(delBtn);
-
-      row.appendChild(actions);
-      waypointListEl.appendChild(row);
-
-      if (i < waypoints.length - 1){
-        waypointListEl.appendChild(buildSegmentConnector(waypoints[i + 1]));
-      }
-    });
-  }
-
-  function buildSegmentConnector(destinationWp){
-    const wrap = document.createElement('div');
-    wrap.className = 'segment-connector';
-
-    const btnGroup = document.createElement('div');
-    btnGroup.className = 'segment-pref-buttons';
-
-    const options = [
-//      { key: 'fastest', icon: '⚡', title: 'Schnellste' },
-      { key: 'recommended', icon: '⭐', title: 'Empfohlen' },
-      { key: 'shortest', icon: '📏', title: 'Kürzeste' }
-    ];
-    if (!destinationWp.segmentPreference) destinationWp.segmentPreference = 'recommended';
-
-    options.forEach(opt => {
-      const b = document.createElement('button');
-      b.className = 'segment-pref-btn' + (destinationWp.segmentPreference === opt.key ? ' active' : '');
-      b.textContent = opt.icon;
-      b.title = opt.title + ' (Anreise zu diesem Punkt)';
-      b.addEventListener('click', () => {
-        destinationWp.segmentPreference = opt.key;
-        renderWaypointList();
-        saveAppStateDebounced();
-      });
-      btnGroup.appendChild(b);
-    });
-
-    const avoidLabel = document.createElement('label');
-    avoidLabel.className = 'segment-avoid-highways';
-    avoidLabel.title = 'Autobahn auf diesem Abschnitt meiden';
-    const avoidInput = document.createElement('input');
-    avoidInput.type = 'checkbox';
-    avoidInput.checked = !!destinationWp.avoidHighways;
-    avoidInput.addEventListener('click', e => e.stopPropagation());
-    avoidInput.addEventListener('change', () => {
-      destinationWp.avoidHighways = avoidInput.checked;
-      maybeAutoRecalculateRoute();
-      saveAppStateDebounced();
-    });
-    avoidLabel.appendChild(avoidInput);
-    avoidLabel.appendChild(document.createTextNode('Autobahn meiden'));
-    btnGroup.appendChild(avoidLabel);
-
-    wrap.appendChild(btnGroup);
-    return wrap;
-  }
   //#endregion
 
 
@@ -2232,132 +2352,6 @@
   
   //#endregion
 
-  // -- Map-click picking mode --
-  btnTogglePick.addEventListener('click', () => {
-    pickingMode = !pickingMode;
-    btnTogglePick.classList.toggle('primary', pickingMode);
-    mapEl.classList.toggle('picking-mode', pickingMode);
-    btnTogglePick.textContent = pickingMode ? '📍 Klicke auf die Karte …' : '📍 Punkt auf Karte setzen';
-  });
-
-  // Below this zoom level, clicked points are snapped to the nearest routable
-  // road/path -- at this zoom or closer, the exact clicked pixel is used.
-  // Below the stricter zoom, only named (i.e. typically more major) roads are
-  // considered, so a big overview click doesn't snap onto every minor track.
-  const ROAD_SNAP_MAX_ZOOM = 18;
-  const ROAD_SNAP_STRICT_ZOOM = 16;
-
-  async function snapToRoadIfZoomedOut(latlng){
-    const zoom = map.getZoom();
-    if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
-    const profile = document.getElementById('planning-route-profile').value;
-    const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
-    const count = preferNamed ? 8 : 1;
-    const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
-    try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
-        let chosen = data.waypoints[0];
-        if (preferNamed){
-          const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
-          if (named) chosen = named;
-        }
-        return L.latLng(chosen.location[1], chosen.location[0]);
-      }
-    } catch (e){ /* network error -- fall back to the exact clicked point */ }
-    return latlng;
-  }
-
-  map.on('click', async (e) => {
-    const ctrlPressed = !!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey));
-    if (!pickingMode && !ctrlPressed) return;
-    addWaypoint(await snapToRoadIfZoomedOut(e.latlng));
-  });
-
-  function debounce(fn, ms) {
-    let t;
-    return (...args) => {
-      clearTimeout(t);
-      t = setTimeout(() => fn(...args), ms);
-    };
-  }
-
-  map.on('moveend', debounce(() => {
-    saveAppStateDebounced();
-    extPOIs.forEach(poi => {
-      if (poi.visible) { loadExternPOI(poi); }
-    })
-  }, 400));
-
-  // -- Cursor feedback while Ctrl/Shift is held --
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.add('ctrl-active');
-    if (e.key === 'Shift') { 
-      mapEl.classList.add('shift-active');
-      updateWaypointCursor();
-    }
-  });
-  document.addEventListener('keyup', (e) => {
-    if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.remove('ctrl-active');
-    if (e.key === 'Shift') {
-      mapEl.classList.remove('shift-active');
-      updateWaypointCursor();
-    }
-  });
-  window.addEventListener('blur', () => {
-    mapEl.classList.remove('ctrl-active', 'shift-active');
-  });
-
-  // -- Right-click context menu (extensible: waypoint roles, later POIs) --
-  function closeMapContextMenu(){
-    const m = document.getElementById('map-context-menu');
-    if (m) m.remove();
-  }
-
-  function showCustomContextMenu(x, y, items){
-    closeMapContextMenu();
-
-    const menu = document.createElement('div');
-    menu.id = 'map-context-menu';
-    menu.className = 'map-context-menu';
-
-    items.forEach(it => {
-      const btn = document.createElement('button');
-      btn.className = 'map-context-menu-item';
-      btn.textContent = it.label;
-      if (it.disabled){
-        btn.disabled = true;
-      } else {
-        btn.addEventListener('click', () => { it.action(); closeMapContextMenu(); });
-      }
-      menu.appendChild(btn);
-    });
-
-    document.body.appendChild(menu);
-
-    let left = x, top = y;
-    const rect = menu.getBoundingClientRect();
-    if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 8;
-    if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 8;
-    menu.style.left = left + 'px';
-    menu.style.top = top + 'px';
-
-    setTimeout(() => {
-      document.addEventListener('click', closeMapContextMenu, { once: true });
-    }, 0);
-  }
-
-  map.on('contextmenu', (e) => {
-    L.DomEvent.preventDefault(e.originalEvent);
-    const items = [
-      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
-      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
-      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
-      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
-    ];
-    showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
-  });
 
   // --------------- Text search (Nominatim) ---------------
   //#region Search
@@ -2761,7 +2755,6 @@
   let pendingPoiLatLng = null;
   let poiSearchPreviewMarker = null;
   const collapsedPoiGroups = new Set();
-
   const poiListEl = document.getElementById('poi-list');
   const poiModalBackdrop = document.getElementById('poi-modal-backdrop');
   const poiNameInput = document.getElementById('poi-name-input');
@@ -3027,7 +3020,9 @@
                              .split('/')
                              .map(s => s.trim())
                              .filter(Boolean);
-      if (parts.length === 0) parts.push('Ohne Gruppe');
+      if (parts.length === 0) {
+        parts.push('Ohne Gruppe');
+      }
       let node = root;
       let pathSoFar = '';
       parts.forEach(part => {
@@ -3078,6 +3073,24 @@
     });
   }
 
+  async function delPOIHelper(poi) {
+    const ok = await confirmDialog(`Möchten Sie den POI "${poi.name}" wirklich löschen?`);
+    if (!ok) return;
+    deletePoi(poi.id); 
+  }
+
+  function getGroupState(groupName) {
+    const groupPois = pois.filter(p => p.group.startsWith(groupName));
+
+    const visibleCount = groupPois.filter(
+        p => p.visible
+    ).length;
+
+    if (visibleCount === 0) return 'hidden';
+    if (visibleCount === groupPois.length) return 'visible';
+    return 'partial';
+  }
+
   function buildPoiRow(poi){
     const row = document.createElement('div');
     row.className = 'file-row';
@@ -3108,7 +3121,9 @@
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = poi.visible;
-    cb.addEventListener('change', () => setPoiVisible(poi, cb.checked));
+    cb.addEventListener('change', () => { 
+      setPoiVisible(poi, cb.checked);
+    });
     row.appendChild(cb);
 
     const swWrap = document.createElement('label');
@@ -3158,6 +3173,10 @@
         } else {
             poi.name = newName.trim();
         }
+
+        
+        poi.name = newName;
+
         savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
         renderPoiList();
       });
@@ -3171,7 +3190,10 @@
     icon.innerHTML = trashSVG;
     delBtn.appendChild(icon);
     delBtn.title = 'POI löschen';
-    delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deletePoi(poi.id); });
+    delBtn.addEventListener('click', (ev) => { 
+      ev.stopPropagation(); 
+      delPOIHelper(poi);
+    });
     row.appendChild(delBtn);
 
     return row;
@@ -3179,6 +3201,13 @@
 
   let poiGroupsInitialized = false;
     
+  async function delPOIGroupHelper(child, descendants) {
+    const ok = await confirmDialog(`Möchten Sie die Gruppe "${child.label}"" mit ${descendants.length} POIs wirklich löschen?`);
+    if (!ok) return;
+    
+    descendants.forEach(p => { deletePoi(p.id); });
+  }
+  
   function renderPoiGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllPoisInNode(child);
@@ -3212,6 +3241,12 @@
       groupCb.type = 'checkbox';
       groupCb.checked = allVisible;
       groupCb.indeterminate = !allVisible && !noneVisible;
+
+      // am schluss nach dem rendern machen, wenn alle childs vorhanden sind
+      // const state = getGroupState(child.label);
+      // groupCb.checked = state === 'visible';
+      // groupCb.indeterminate = state === 'partial';
+
       groupCb.addEventListener('click', ev => ev.stopPropagation());
       groupCb.addEventListener('change', () => {
         descendants.forEach(p => setPoiVisible(p, groupCb.checked));
@@ -3233,17 +3268,13 @@
 
       const groupDelBtn = document.createElement('button');
       groupDelBtn.className = 'row-icon-btn group-del-btn';
-      // groupDelBtn.innerHTML = '&times;';
       const icon = document.createElement('span');
       icon.innerHTML = trashSVG;
       groupDelBtn.appendChild(icon);
       groupDelBtn.title = 'Ganze Gruppe löschen';
       groupDelBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (!confirm(`"${child.label}" mit ${descendants.length} POI(s) (inkl. Untergruppen) wirklich löschen?`)) return;
-        descendants.forEach(p => {
-          deletePoi(p.id);
-        });
+        delPOIGroupHelper(child, descendants);
       });
       header.appendChild(groupDelBtn);
 
@@ -3332,7 +3363,7 @@
 
     const root = buildPoiGroupTree();
     renderPoiGroupNode(root, poiListEl);
-     poiGroupsInitialized = true;
+    poiGroupsInitialized = true;
 
     poiListEl.scrollTop = scrollPos;
   }
