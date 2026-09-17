@@ -90,7 +90,7 @@
       <div class="btn-row">
         <button class="btn primary" id="btn-toggle-pick">📍 Punkt auf Karte setzen</button>
       </div>
-      <p class="shortcut-hint">Tipp: Strg+Klick setzt immer einen Punkt · Shift+Klick auf einen Punkt löscht ihn</p>
+      <p class="shortcut-hint">Strg+Klick   -> setzt einen Wegpunkt<br>Shift+Klick   -> löscht den Wegpunkt</p>
       <div class="search-row">
         <input type="text" id="waypoint-search" placeholder="Ort suchen…">
         <button class="btn small" id="btn-search-waypoint">Suchen</button>
@@ -261,7 +261,7 @@
 <div id="auth-gate">
   <div class="auth-view" data-view="login" style="display: none">
     <h2>Anmelden</h2>
-    <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+    <label>E-Mail oder Name<input type="email" class="auth-email" autocomplete="username"></label>
     <label>Passwort<input type="password" class="auth-password" autocomplete="current-password"></label>
     <p class="auth-error"></p>
     <button type="button" class="auth-submit-login">Anmelden</button>
@@ -325,6 +325,7 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      saveAppStateDebounced();
       setTimeout(() => map.invalidateSize(), 50);
     });
   });
@@ -412,7 +413,9 @@
                         </g>
                       </svg>`;
   const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
-
+  const trashSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                      <path fill="currentColor" d="M256.5 91.4C258.5 84.6 264.8 80 271.8 80L368.2 80C375.3 80 381.5 84.6 383.5 91.4L394.5 128L245.5 128L256.5 91.4zM212.1 128L112 128C103.2 128 96 135.2 96 144C96 152.8 103.2 160 112 160L528 160C536.8 160 544 152.8 544 144C544 135.2 536.8 128 528 128L427.9 128L414.2 82.2C408.1 61.9 389.4 48 368.2 48L271.8 48C250.6 48 231.9 61.9 225.8 82.2L212.1 128zM124.7 208L147.6 516.7C150.1 550.1 177.9 576 211.4 576L428.5 576C462 576 489.8 550.1 492.3 516.7L515.2 208L483.1 208L460.4 514.4C459.2 531.1 445.2 544 428.5 544L211.4 544C194.6 544 180.7 531.1 179.5 514.4L156.8 208L124.7 208z"/>
+                    </svg>`;
 
   // ============================================================
   // ---------- Map setup ----------
@@ -527,6 +530,7 @@
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
+  let routeID = -1;
   let pickingMode = false;
   let calculatedRouteLayer = null;
   let routeCalculationController = null;
@@ -1501,7 +1505,10 @@
       actions.appendChild(downBtn);
 
       const delBtn = document.createElement('button');
-      delBtn.innerHTML = '&times;';
+      // delBtn.innerHTML = '&times;';
+      const icon = document.createElement('span');
+      icon.innerHTML = trashSVG;
+      delBtn.appendChild(icon);
       delBtn.title = 'Entfernen';
       delBtn.addEventListener('click', () => removeWaypoint(wp.id));
       actions.appendChild(delBtn);
@@ -1565,10 +1572,8 @@
 
 
   // ============================================================
-  // ----------- AUTH (Login / Set Initial Password / Change Password)
+  // -------- Authentication (Login / Logout / Set-Change Password)
   //#region User login handling
-
-  // global api fetch wrapper
   async function apiFetch(path, options = {}) {
     const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
       ...options,
@@ -1611,7 +1616,13 @@
     authState.loggedIn = false;
     authState.username = null;
     authState.email = null;
+    authState.admin = false;
+    authState.settings = null;
+
+    document.getElementById('btn-user-invite').classList.add('hidden');
+    document.getElementById('btn-user-savePOI').classList.add('hidden');
     clearPOIs();
+
     const authOverlay = document.getElementById('auth-gate');
     authOverlay.classList.remove('hidden');
 
@@ -1625,21 +1636,36 @@
     setAppAuthVisibility();
   }
 
-  function unlockApp(email, username) {
+  function unlockApp(email, username, admin, settings) {
     authState.loggedIn = true;
     authState.username = username;
     authState.email = email;
+    authState.admin = admin;
+    authState.settings = settings;
+
+    if (authState.admin) {
+      document.getElementById('btn-user-invite').classList.remove('hidden');
+      document.getElementById('btn-user-savePOI').classList.remove('hidden');
+    }
+    else {
+      document.getElementById('btn-user-invite').classList.add('hidden');
+      document.getElementById('btn-user-savePOI').classList.add('hidden');
+    }
+
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
-    loadPoisFromStorage().then(renderPoiList);
+    loadPoisFromStorage().then(e => { restoreOwnPOI(authState.settings.ownPOIs); });
+    loadRoutesFromStorage().then(renderRoutesList);
+;
+    restoreAppState();
   }  
 
   async function checkExistingSession() {
     try {
       const authOverlay = document.getElementById('auth-gate');
       authOverlay.classList.remove('hidden');
-bei neuem user werden die alten pois noch angezeigt
+  
       // zuerst prüfen ob über einladungslink gekommen...
       const token = new URLSearchParams(window.location.search).get('token');
       const email = new URLSearchParams(window.location.search).get('email'); 
@@ -1647,7 +1673,7 @@ bei neuem user werden die alten pois noch angezeigt
         authState.loggedIn = false;
         authState.username = null;
         authState.email = null;
-        
+        authState.admin = false;
         authOverlay.querySelectorAll('.auth-view').forEach(el => {
           el.style.display = el.dataset.view === 'invited' ? 'block' : 'none';
         });
@@ -1662,7 +1688,7 @@ bei neuem user werden die alten pois noch angezeigt
       else {
         const data = await authRequest('me');
         if (data && data.loggedIn) {
-          unlockApp(data.email, data.username);
+          unlockApp(data.email, data.username, data.admin, data.settings);
         }
         else {
           lockApp();
@@ -1798,15 +1824,12 @@ bei neuem user werden die alten pois noch angezeigt
 
   async function submitLogin() {
     const view = document.querySelector('[data-view="login"]');
-    const email = view.querySelector('.auth-email').value.trim();
+    const login = view.querySelector('.auth-email').value.trim();
     const password = view.querySelector('.auth-password').value;
 
     try {
-      const data = await authRequest('login', { email, password });
-      authState.loggedIn = true;
-      authState.email = data.email;
-      authState.username = data.username;
-      unlockApp(authState.email, authState.username);
+      const data = await authRequest('login', { login, password });
+      unlockApp(data.email, data.username, data.admin, data.settings);
 
       view.querySelector('.auth-error').textContent = '';
       view.querySelector('.auth-password').value = '';
@@ -1864,10 +1887,11 @@ bei neuem user werden die alten pois noch angezeigt
     try {
       const data = await authRequest('set-initial-password', { token, email, password, username });
 
-
       authState.loggedIn = true;
       authState.email = data.email;
       authState.username = data.username;
+      authState.settings = data.settings;
+
       view.querySelector('.auth-error').textContent = '';
       view.querySelector('.auth-password-invited').value = '';
       view.querySelector('.auth-password-verify').value = '';
@@ -1963,12 +1987,7 @@ bei neuem user werden die alten pois noch angezeigt
   }
 
   // set Button events
-  document.getElementById('btn-user-savePOI').addEventListener('click', (e) => { 
-    // submitPOIList();
-  });
-  
   document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
-  document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
   document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
   
   document.querySelector('.auth-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password').focus(); });
@@ -1985,11 +2004,11 @@ bei neuem user werden die alten pois noch angezeigt
 
 
   // ============================================================
-  // ---------- Store temp route ----------
-  //#region Temporary store route
+  // ---------- Store app state ----------
+  //#region Store app settings
   const STORAGE_KEY = 'motorcycle-route-planner-state-v1';
   const STORAGE_KEY_MAPVIEW = 'motorcycle-route-planner-mapview';
-  const STORAGE_DEBOUNCE_MS = 500;
+  const STORAGE_DEBOUNCE_MS = 2000;
 
   function serializeWaypoints() {
     // marker (Leaflet-Objekt) NICHT mitspeichern - nicht serialisierbar,
@@ -2005,16 +2024,34 @@ bei neuem user werden die alten pois noch angezeigt
   }
 
   function serializeGlobalOptions() {
+    let activeTab = null;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      if (b.classList.contains('active')) {
+        activeTab = 'panel-' + b.dataset.tab;
+        return;
+      }
+    });
+
     return {
+      actTab: activeTab,
       avoidTollways: document.getElementById('avoid-tollways').checked,
       avoidFerries: document.getElementById('avoid-ferries').checked,
     };
   }  
 
-  function serializePoiVisibility() {
+  function serializeExternPoiSwitch() {
     const state = {};
     extPOIs.forEach(poi => {
       state[poi.description] = poi.visible;
+    });
+    return state;
+  }
+
+  function serializeOwnPOIVisibility() {
+    const state = {};
+    pois.forEach(poi => {
+      if (poi.visible)
+        state[poi.id] = poi.visible;
     });
     return state;
   }
@@ -2027,109 +2064,45 @@ bei neuem user werden die alten pois noch angezeigt
     };
   }
   
-  function restoreMapView() {
-    const raw = localStorage.getItem(STORAGE_KEY_MAPVIEW);
-
-    let state = null;
-    try {
-      state = raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      state = null;
-    }
-
-    if (!state || !Array.isArray(state.center) || state.center.length !== 2 || typeof state.zoom !== 'number') {
+  function restoreMapView(mapview) {
+    if (!mapview || !Array.isArray(mapview.center) || mapview.center.length !== 2 || typeof mapview.zoom !== 'number') {
       return;
     }
 
-    map.setView(state.center, state.zoom, { animate: false });
+    map.setView(mapview.center, mapview.zoom, { animate: false });
   }
 
-  function saveMapView() {
-    try {
-      localStorage.setItem(STORAGE_KEY_MAPVIEW, JSON.stringify(serializeMapView()));
-    } catch (err) {
-      console.warn('Mapview  konnte nicht gespeichert werden:', err);
-    }
-  }
-
-  function saveAppState() {
-    saveMapView();
-    const state = {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      waypoints: serializeWaypoints(),
-      poiVisibility: serializePoiVisibility(),
-      globalOptions: serializeGlobalOptions(),
-    };
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (err) {
-      console.warn('Planung konnte nicht gespeichert werden:', err);
-    }
-  }
-  const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
-  
-  function restoreAppState() {
-    let raw;
-    try {
-      raw = localStorage.getItem(STORAGE_KEY);
-    } catch (err) {
-      console.warn('localStorage nicht verfügbar:', err);
-      return;
-    }
-
-    if (!raw) return;
-
-    let state;
-    try {
-      state = JSON.parse(raw);
-    } catch (err) {
-      console.warn('Gespeicherte Planung ist beschädigt, wird verworfen.', err);
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
-    if (!state || state.version !== 1) {
-      console.warn('Gespeicherte Planung hat unbekanntes Format, wird verworfen.');
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
-    // Wegpunkte
-    if (Array.isArray(state.waypoints)) {
-      state.waypoints.forEach(wp => {
-        const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
-        if (wp.id !== undefined) restored.id = wp.id;
-        restored.segmentPreference = wp.segmentPreference; 
-        restored.avoidHighways = wp.avoidHighways;
-        waypoints.push(restored);
-      });
-
-      if (waypoints.length > 0) {
-        refreshWaypointIcons();
-        renderWaypointList();
-        maybeAutoRecalculateRoute();
-      }
-    }
-
-    // globale Meiden-Optionen
-    if (state.globalOptions) {
+  function restoreGlobalSettings(global) {
+    if (global) {
       const tollwaysCheckbox = document.getElementById('avoid-tollways');
       const ferriesCheckbox = document.getElementById('avoid-ferries');
 
-      if (tollwaysCheckbox && state.globalOptions.avoidTollways !== undefined) {
-        tollwaysCheckbox.checked = state.globalOptions.avoidTollways;
+      if (tollwaysCheckbox && global.avoidTollways !== undefined) {
+        tollwaysCheckbox.checked = global.avoidTollways;
       }
-      if (ferriesCheckbox && state.globalOptions.avoidFerries !== undefined) {
-        ferriesCheckbox.checked = state.globalOptions.avoidFerries;
+      if (ferriesCheckbox && global.avoidFerries !== undefined) {
+        ferriesCheckbox.checked = global.avoidFerries;
+      }
+
+      if (global.actTab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            if (global.actTab === 'panel-' + btn.dataset.tab) {
+              btn.classList.add('active');
+              document.getElementById(global.actTab).classList.add('active');
+              setTimeout(() => map.invalidateSize(), 50);
+              return;
+            }
+        })
       }
     }    
+  }
 
-    // POI-Sichtbarkeit (inkl. Checkbox-UI synchron halten)
-    if (state.poiVisibility) {
+  function restoreExternalPOI(states) {
+    if (states && extPOIs) {
       extPOIs.forEach(poi => {
-        const wasVisible = state.poiVisibility[poi.description];
+        const wasVisible = states[poi.description];
         if (wasVisible === undefined) return;
 
         poi.visible = wasVisible;
@@ -2144,11 +2117,82 @@ bei neuem user werden die alten pois noch angezeigt
         }
       });
     }
-  }  
-  //#endregion
+  }
 
-  restoreAppState();
-  restoreMapView();
+  function restoreOwnPOI(states) {
+    if (states && pois) {
+      pois.forEach(poi => {
+        const wasVisible = states[poi.id];
+        if (wasVisible === undefined) return;
+        poi.visible = wasVisible;
+      });
+      renderPoiList();
+    }
+  }
+
+  function restoreAppState() {
+    restoreMapView(authState.settings.mapview);
+    restoreGlobalSettings(authState.settings.globalOptions);
+    restoreExternalPOI(authState.settings.externPoiSwitches);
+    // restoreOwnPOI(authState.settings.ownPOIs); passiert automatisch nach dem laden der POI's vom user
+    // let state;
+    // try {
+    //   state = JSON.parse(raw);
+    // } catch (err) {
+    //   console.warn('Gespeicherte Planung ist beschädigt, wird verworfen.', err);
+    //   localStorage.removeItem(STORAGE_KEY);
+    //   return;
+    // }
+
+    // if (!state || state.version !== 1) {
+    //   console.warn('Gespeicherte Planung hat unbekanntes Format, wird verworfen.');
+    //   localStorage.removeItem(STORAGE_KEY);
+    //   return;
+    // }
+
+    // // Wegpunkte
+    // if (Array.isArray(state.waypoints)) {
+    //   state.waypoints.forEach(wp => {
+    //     const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
+    //     if (wp.id !== undefined) restored.id = wp.id;
+    //     restored.segmentPreference = wp.segmentPreference; 
+    //     restored.avoidHighways = wp.avoidHighways;
+    //     waypoints.push(restored);
+    //   });
+
+    //   if (waypoints.length > 0) {
+    //     refreshWaypointIcons();
+    //     renderWaypointList();
+    //     maybeAutoRecalculateRoute();
+    //   }
+    // }
+  }  
+
+  function saveAppState() {
+    const state = {
+      version: 1,
+      mapview: serializeMapView(),
+      // savedAt: new Date().toISOString(),
+      externPoiSwitches: serializeExternPoiSwitch(),
+      ownPOIs: serializeOwnPOIVisibility(), 
+      // waypoints: serializeWaypoints(),
+      globalOptions: serializeGlobalOptions(),
+    };
+
+    try {
+      apiFetch('setUserSettings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({settings: state}),
+      });
+    }
+    catch (error) {
+      console.warn('Save app state failed');
+    }
+  }
+  const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
+  
+  //#endregion
 
   // -- Map-click picking mode --
   btnTogglePick.addEventListener('click', () => {
@@ -2202,7 +2246,7 @@ bei neuem user werden die alten pois noch angezeigt
   }
 
   map.on('moveend', debounce(() => {
-    saveMapView();
+    saveAppStateDebounced();
     extPOIs.forEach(poi => {
       if (poi.visible) { loadExternPOI(poi); }
     })
@@ -2750,16 +2794,11 @@ bei neuem user werden die alten pois noch angezeigt
       if (colorsAreSimilar(poi.color, oldDefault)){
         poi.color = newDefault;
         poi.marker.setIcon(poiIcon(poi.color));
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
       }
     });
-    savePoisToStorage();
     renderPoiList();
   });
-
-  function savePoisToStorage(){
-    const data = pois.map(p => ({ name: p.name, group: p.group, lat: p.lat, lng: p.lng, visible: p.visible, color: p.color }));
-    dbSet(POI_STORE_NAME, data);
-  }
 
   function buildPoiPopupContent(poi){
     const container = document.createElement('div');
@@ -2802,8 +2841,8 @@ bei neuem user werden die alten pois noch angezeigt
     return container;
   }
 
-  function addPoiInternal(dbid, name, group, lat, lng, visible, color){
-    const id = dbid;//'poi' + (poiCounter++);
+  function addPoiInternal(name, group, lat, lng, visible, color, dbid = -1){
+    const id = dbid || -1;
     const poiColor = color || getDefaultPoiColor();
     const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
     const poi = { id, name, group, lat, lng, marker, visible: visible !== false, color: poiColor };
@@ -2833,7 +2872,7 @@ bei neuem user werden die alten pois noch angezeigt
       const pos = marker.getLatLng();
       poi.lat = pos.lat;
       poi.lng = pos.lng;
-      savePoisToStorage();
+      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
     });
     if (poi.visible) marker.addTo(poiLayer);
     pois.push(poi);
@@ -2877,31 +2916,61 @@ bei neuem user werden die alten pois noch angezeigt
       const resp = await response.json()
       const data = resp.pois;
       clearPOIs();
-      (data || []).forEach(p => addPoiInternal(p.id, p.name, p.poi_group, p.lat, p.lng, false, p.color));
-      // showToast(data.length + ' POIs empfangen', 3000);
+      (data || []).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, false, p.color, p.id,));
     }
     catch (error) {
       showToast('Fehler beim laden der POIs: ' + error, 7000);
-      console.warn('Fehler beim lade der POIs: ', error);
+      console.warn('Fehler beim laden der POIs: ', error);
     }
-
-    // const data = await getPOIList();
-    // const data = await dbGet(POI_STORE_NAME, []);
-    // (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, p.visible, p.color));
   }
 
-  function addPoi(latlng, name, group){
-    addPoiInternal(name, group, latlng.lat, latlng.lng, true);
-    savePoisToStorage();
-    renderPoiList();
+  async function savePoiToStorage(lat, lng, name, group, color, id) {
+    try {
+      const poi = {lat, lng, name, group, color, id};
+      const response = await apiFetch('addPOI', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(poi),
+        // body: poi,
+      });
+      const resp = await response.json();
+      return resp.id;
+    }
+    catch (error) {
+      showToast('Fehler beim speichern vom POI' + error, 2000);
+      return -1;
+    }
   }
+
+  async function addPoi(latlng, name, group){
+    const poi = {lat:latlng.lat, lng:latlng.lng, name:name, group:group, color:getDefaultPoiColor(), id:-1};
+    const id = await savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+    if (id != -1) {
+      addPoiInternal(name, group, latlng.lat, latlng.lng, true, getDefaultPoiColor(), id);
+      renderPoiList();
+    }
+  }
+
+  async function delPoiFromStorage(id) {
+    try {
+      await apiFetch('delPOI', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+      });
+    }
+    catch (error) {
+      showToast('Fehler beim löschen vom POI' + error, 2000);
+      return -1;
+    }
+  };
 
   function deletePoi(id){
     const idx = pois.findIndex(p => p.id === id);
     if (idx === -1) return;
+    delPoiFromStorage(id);
     poiLayer.removeLayer(pois[idx].marker);
     pois.splice(idx, 1);
-    savePoisToStorage();
     renderPoiList();
   }
 
@@ -2909,13 +2978,17 @@ bei neuem user werden die alten pois noch angezeigt
     poi.visible = visible;
     if (visible){ if (!poiLayer.hasLayer(poi.marker)) poi.marker.addTo(poiLayer); }
     else { if (poiLayer.hasLayer(poi.marker)) poiLayer.removeLayer(poi.marker); }
-    savePoisToStorage();
+    saveAppStateDebounced();
   }
 
   function buildPoiGroupTree(){
     const root = { children: new Map(), items: [] };
     pois.forEach(p => {
-      const parts = (p.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+      // const parts = (p.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+      const parts = String(p.group?.trim() || 'Ohne Gruppe')
+                             .split('/')
+                             .map(s => s.trim())
+                             .filter(Boolean);
       if (parts.length === 0) parts.push('Ohne Gruppe');
       let node = root;
       let pathSoFar = '';
@@ -2936,10 +3009,10 @@ bei neuem user werden die alten pois noch angezeigt
   }
 
   function movePoiToGroup(poiId, newGroupPath){
-    const poi = pois.find(p => p.id === poiId);
+    const poi = pois.find(p => p.id === Number(poiId));
     if (!poi || poi.group === newGroupPath) return;
     poi.group = newGroupPath;
-    savePoisToStorage();
+    savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
     renderPoiList();
   }
 
@@ -3015,8 +3088,10 @@ bei neuem user werden die alten pois noch angezeigt
       poi.color = colorInput.value;
       sw.style.background = poi.color;
       poi.marker.setIcon(poiIcon(poi.color));
-      savePoisToStorage();
     });
+    colorInput.addEventListener('change', () => { 
+      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id); 
+    });    
     colorInput.addEventListener('click', (ev) => ev.stopPropagation());
     swWrap.appendChild(colorInput);
     row.appendChild(swWrap);
@@ -3026,6 +3101,7 @@ bei neuem user werden die alten pois noch angezeigt
     const nm = document.createElement('div');
     nm.className = 'file-name';
     nm.textContent = poi.name;
+    // nm.textContent = `${poi.name} (id:${poi.id})`;
     nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
     nm.style.cursor = 'pointer';
     nm.addEventListener('click', () => {
@@ -3038,7 +3114,7 @@ bei neuem user werden die alten pois noch angezeigt
       e.stopPropagation();
       startInlineRename(nm, poi.name, (newName) => {
         poi.name = newName;
-        savePoisToStorage();
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
         renderPoiList();
       });
     });
@@ -3047,7 +3123,9 @@ bei neuem user werden die alten pois noch angezeigt
 
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
-    delBtn.innerHTML = '&times;';
+    const icon = document.createElement('span');
+    icon.innerHTML = trashSVG;
+    delBtn.appendChild(icon);
     delBtn.title = 'POI löschen';
     delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deletePoi(poi.id); });
     row.appendChild(delBtn);
@@ -3094,6 +3172,7 @@ bei neuem user werden die alten pois noch angezeigt
       groupCb.addEventListener('change', () => {
         descendants.forEach(p => setPoiVisible(p, groupCb.checked));
         renderPoiList();
+        saveAppStateDebounced();
       });
       header.appendChild(groupCb);
 
@@ -3110,12 +3189,17 @@ bei neuem user werden die alten pois noch angezeigt
 
       const groupDelBtn = document.createElement('button');
       groupDelBtn.className = 'row-icon-btn group-del-btn';
-      groupDelBtn.innerHTML = '&times;';
+      // groupDelBtn.innerHTML = '&times;';
+      const icon = document.createElement('span');
+      icon.innerHTML = trashSVG;
+      groupDelBtn.appendChild(icon);
       groupDelBtn.title = 'Ganze Gruppe löschen';
       groupDelBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         if (!confirm(`"${child.label}" mit ${descendants.length} POI(s) (inkl. Untergruppen) wirklich löschen?`)) return;
-        descendants.forEach(p => deletePoi(p.id));
+        descendants.forEach(p => {
+          deletePoi(p.id);
+        });
       });
       header.appendChild(groupDelBtn);
 
@@ -3131,11 +3215,16 @@ bei neuem user werden die alten pois noch angezeigt
         startInlineRename(nameEl, child.label, (newLabel) => {
           const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
           const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
-          pois.forEach(p => {
-            if (p.group === child.path) p.group = newPath;
-            else if (p.group.startsWith(child.path + '/')) p.group = newPath + p.group.slice(child.path.length);
+          pois.forEach(poi => {
+            if (poi.group === child.path) {
+              poi.group = newPath;
+              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+            }
+            else if (poi.group.startsWith(child.path + '/')) { 
+              poi.group = newPath + poi.group.slice(child.path.length);
+              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+            }
           });
-          savePoisToStorage();
           renderPoiList();
         });
       });
@@ -4331,6 +4420,7 @@ bei neuem user werden die alten pois noch angezeigt
   // ============================================================
   // Data backup / restore (for incognito mode or switching devices)
   // ============================================================
+  //#region import export
   document.getElementById('btn-export-data').addEventListener('click', async () => {
     const backup = {
       app: "Alex's Routenplaner",
@@ -4340,7 +4430,6 @@ bei neuem user werden die alten pois noch angezeigt
       viewer: await loadViewerRecords(),
       default_poi_color: await dbGet('default_poi_color', '')
     };
-    console.log(JSON.stringify(backup.pois));
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4373,7 +4462,7 @@ bei neuem user werden die alten pois noch angezeigt
       alert('Fehler: Diese Datei ist keine gültige Sicherung.');
     }
   });
-
+  
   // ============================================================
   // GPX parsing helpers (shared by route import and POI import)
   // ============================================================
@@ -4424,6 +4513,7 @@ bei neuem user werden die alten pois noch angezeigt
   function clearPlannerState(){
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
     waypoints.length = 0;
+    routeID = -1;
     if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
     routeResultEl.textContent = '';
     routeResultEl.className = '';
@@ -4488,37 +4578,73 @@ bei neuem user werden die alten pois noch angezeigt
     const group = document.getElementById('poi-import-group-input').value.trim() || 'Import';
     if (pendingPoiImportPoints){
       pendingPoiImportPoints.forEach(p => addPoiInternal(p.name || 'Unbenannt', group, p.lat, p.lng, true));
-      savePoisToStorage();
       renderPoiList();
     }
     document.getElementById('poi-import-modal-backdrop').classList.remove('active');
     pendingPoiImportPoints = null;
   });
 
+
+
   // ============================================================
   // Saved routes -- persisted via IndexedDB (see dbGet/dbSet above),
   // grouped/nested like POIs, editable, exportable as GPX for
   // navigation devices (route + track combo, GPX 1.1).
-  // ============================================================
+  //#region Route saving
   const routes = [];
   let routeCounter = 0;
   const collapsedRouteGroups = new Set();
   const routesListEl = document.getElementById('routes-list');
 
-  function saveRoutesToStorage(){
+  function saveRoutesToInternalStorage(){
     dbSet('gpxviewer_routes', routes);
   }
 
-  async function loadRoutesFromStorage(){
-    const data = await dbGet('gpxviewer_routes', []);
-    (data || []).forEach(r => { routes.push(r); routeCounter++; });
+  async function saveRoutesToStorage(route) {
+    try {
+      const response = await apiFetch('addRoute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(route),
+      });
+      const resp = await response.json();
+      if (resp.success) return resp.id;
+      console.log('Error saving route error: ' + resp.error);
+      console.log('stack: ' + resp.stack);
+    }
+    catch (error) {
+      showToast('Fehler beim speichern der Route: ' + error, 2000);
+      return -1;
+    }
   }
 
-  function saveCurrentAsRoute(name, group){
-    const id = 'route' + (routeCounter++);
+  async function loadRoutesFromInternalStorage(){
+    // const data = await dbGet('gpxviewer_routes', []);
+    // (data || []).forEach(r => { routes.push(r); routeCounter++; });
+  }
+
+  async function loadRoutesFromStorage(){
+    try {
+      const response = await apiFetch('getRouteList', {
+        method: 'GET'
+      });
+      const resp = await response.json()
+      const data = resp.routes;
+      routes.length = 0;
+      (data || []).forEach(r => { routes.push(r); routeCounter++; });
+    }
+    catch (error) {
+      showToast('Fehler beim laden der POIs: ' + error, 7000);
+      console.warn('Fehler beim laden der POIs: ', error);
+    }
+  }
+
+  async function saveCurrentAsRoute(name, group){
+    // const id = 'route' + (routeCounter++);
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
-    const route = {
+    let id = -1;
+    const dbRoute = {
       id, name, group,
       waypoints: wpSnapshot,
       routeCoords: coordsSnapshot,
@@ -4527,8 +4653,10 @@ bei neuem user werden die alten pois noch angezeigt
       avoidFerries: document.getElementById('avoid-ferries').checked,
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
-    routes.push(route);
-    saveRoutesToStorage();
+    const res = await saveRoutesToStorage(dbRoute);
+    dbRoute.id = res.id;
+    routes.push(dbRoute);
+    // saveRoutesToStorage();
     renderRoutesList();
   }
 
@@ -4536,7 +4664,7 @@ bei neuem user werden die alten pois noch angezeigt
     const idx = routes.findIndex(r => r.id === id);
     if (idx === -1) return;
     routes.splice(idx, 1);
-    saveRoutesToStorage();
+    saveRoutesToInternalStorage();
     renderRoutesList();
   }
 
@@ -4544,12 +4672,13 @@ bei neuem user werden die alten pois noch angezeigt
     const route = routes.find(r => r.id === routeId);
     if (!route || route.group === newGroupPath) return;
     route.group = newGroupPath;
-    saveRoutesToStorage();
+    saveRoutesToInternalStorage();
     renderRoutesList();
   }
 
   function loadRouteIntoPlanner(route){
     routePreviewLayer.clearLayers();
+    routeID = route.id;
     clearPlannerState();
     route.waypoints.forEach(wpData => {
       const wp = createWaypoint(L.latLng(wpData.lat, wpData.lng), wpData.label);
@@ -4663,7 +4792,6 @@ bei neuem user werden die alten pois noch angezeigt
     const filename = (route.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'route') + '.gpx';
     return { xml, filename };
   }
-  
 
   function buildRouteGroupTree(){
     const root = { children: new Map(), items: [] };
@@ -4726,6 +4854,7 @@ bei neuem user werden die alten pois noch angezeigt
     const nm = document.createElement('div');
     nm.className = 'file-name';
     nm.textContent = route.name;
+nm.textContent = route.name + ' (id:'+route.id+')';
     nm.title = 'Klick: auf Karte anzeigen · Doppelklick: umbenennen';
     nm.style.cursor = 'pointer';
     const meta = document.createElement('div');
@@ -4736,7 +4865,7 @@ bei neuem user werden die alten pois noch angezeigt
       e.stopPropagation();
       startInlineRenameGeneric(nm, route.name, (newName) => {
         route.name = newName;
-        saveRoutesToStorage();
+        saveRoutesToInternalStorage();
         renderRoutesList();
       }, renderRoutesList);
     });
@@ -4817,7 +4946,7 @@ bei neuem user werden die alten pois noch angezeigt
             if (r.group === child.path) r.group = newPath;
             else if (r.group.startsWith(child.path + '/')) r.group = newPath + r.group.slice(child.path.length);
           });
-          saveRoutesToStorage();
+          saveRoutesToInternalStorage();
           renderRoutesList();
         }, renderRoutesList);
       });
@@ -4919,6 +5048,7 @@ bei neuem user werden die alten pois noch angezeigt
 //    console.log(`[Export route]`, JSON.stringify(route));
     openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
   });
+  //#endregion
 
   // -- Save-route modal wiring --
   document.getElementById('btn-save-route').addEventListener('click', () => {
@@ -4948,7 +5078,7 @@ bei neuem user werden die alten pois noch angezeigt
     document.getElementById('route-modal-backdrop').classList.remove('active');
   });
 
-  loadRoutesFromStorage().then(renderRoutesList);
+  loadRoutesFromInternalStorage().then(renderRoutesList);
  
   loadViewerList();
 })

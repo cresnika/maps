@@ -411,9 +411,12 @@ body {
     padding: 0px 5px 3px;
     border-radius: 6px;
     cursor: pointer;
+    justify-content: center;
   }
-  .group-header:hover { background: var(--bg-row-hover); }
-
+  .group-header:hover { 
+    background: var(--bg-row-hover); 
+  }
+  
   .group-header .twist {
     font-size: 15px;
     color: var(--text-dim);
@@ -455,8 +458,12 @@ body {
     padding: 0px 4px;
     border-radius: 5px;
   }
-  .file-row:hover { background: var(--bg-row-hover); }
-  .file-row:hover .row-icon-btn { opacity: 1; }
+  .file-row:hover { 
+    background: var(--bg-row-hover); 
+  }
+  .file-row:hover .row-icon-btn { 
+    opacity: 1; 
+  }
 
   .row-icon-btn {
     background: none;
@@ -470,8 +477,24 @@ body {
     opacity: 0;
     flex-shrink: 0;
     transition: opacity .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}  }
+  .row-icon-btn:hover { color: var(--accent); }
+  .row-icon-btn svg {
+    display: block;
+    height: 20px;
+    width: 20px;
+    color: var(--text);
   }
-  .row-icon-btn:hover { color: var(--accent); background: var(--bg-sidebar); opacity: 1; }
+  .row-icon-btn svg:hover {
+    height: 20px;
+    width: 20px;
+    color: #ff0000;
+    background: var(--bg-row-hover); opacity: 1;
+  }
+
   .group-del-btn { opacity: .45; }
   .group-del-btn:hover { opacity: 1; }
 
@@ -699,6 +722,18 @@ body {
     padding: 3px 5px;
     border-radius: 4px;
   }
+  .waypoint-actions svg {
+    display: block;
+    height: 20px;
+    width: 20px;
+    color: var(--text);
+  }
+  .waypoint-actions svg:hover {
+    height: 20px;
+    width: 20px;
+    color: #ff0000;
+  }
+
   .waypoint-actions button:hover { color: var(--accent); background: var(--bg-sidebar); }
   .waypoint-actions button:disabled { opacity: .25; cursor: default; }
   .waypoint-actions button:disabled:hover { background: none; color: var(--text-faint); }
@@ -1275,7 +1310,6 @@ body {
     transform: translateX(-50%) translateY(0);
   }
 
-  }
   .auth-modal-overlay {
     position: fixed;
     inset: 0;
