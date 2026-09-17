@@ -277,6 +277,18 @@
   </div>
 </div>
 
+<div id="confirm-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+        <h3>Bestätigung</h3>
+        <p id="confirm-text">Möchtest du das wirklich löschen?</p>
+
+        <div class="modal-buttons">
+            <button id="confirm-no" class="btn">Nein</button>
+            <button id="confirm-yes" class="btn primary">Ja</button>
+        </div>
+    </div>
+</div>
+
 <input type="file" id="input-files" accept=".gpx" multiple style="display:none">
 <input type="file" id="input-folder" webkitdirectory directory multiple style="display:none">
 
@@ -296,8 +308,8 @@
   const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/';
 
   // ============================================================
-  // ---------- Toast ----------
-  //#region Toast
+  // ---------- Toast und Confirm dialog ----------
+  //#region Toast/confirm 
   const toast = document.createElement('div');
   toast.className = 'toast';
   document.body.appendChild(toast);
@@ -313,6 +325,28 @@
     toastTimeout = setTimeout(() => {
       toast.classList.remove('show');
     }, duration);
+  }
+
+  function confirmDialog(text) {
+      return new Promise(resolve => {
+          const backdrop = document.getElementById('confirm-backdrop');
+          const textElem = document.getElementById('confirm-text');
+          const btnYes = document.getElementById('confirm-yes');
+          const btnNo = document.getElementById('confirm-no');
+
+          textElem.textContent = text;
+          backdrop.classList.add('active');
+
+          const cleanup = result => {
+            backdrop.classList.remove('active');
+            btnYes.onclick = null;
+            btnNo.onclick = null;
+            resolve(result);
+          };
+
+          btnYes.onclick = () => cleanup(true);
+          btnNo.onclick = () => cleanup(false);
+      });
   }
   //#endregion
 
@@ -416,7 +450,12 @@
   const trashSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
                       <path fill="currentColor" d="M256.5 91.4C258.5 84.6 264.8 80 271.8 80L368.2 80C375.3 80 381.5 84.6 383.5 91.4L394.5 128L245.5 128L256.5 91.4zM212.1 128L112 128C103.2 128 96 135.2 96 144C96 152.8 103.2 160 112 160L528 160C536.8 160 544 152.8 544 144C544 135.2 536.8 128 528 128L427.9 128L414.2 82.2C408.1 61.9 389.4 48 368.2 48L271.8 48C250.6 48 231.9 61.9 225.8 82.2L212.1 128zM124.7 208L147.6 516.7C150.1 550.1 177.9 576 211.4 576L428.5 576C462 576 489.8 550.1 492.3 516.7L515.2 208L483.1 208L460.4 514.4C459.2 531.1 445.2 544 428.5 544L211.4 544C194.6 544 180.7 531.1 179.5 514.4L156.8 208L124.7 208z"/>
                     </svg>`;
-
+  const saveSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
+                    <path fill="currentColor" d="M488 576L512 576L512 528L128 528L128 576L488 576zM303 441L320 458L337 441L473 305L490 288L456.1 254.1L439.1 271.1L344.1 366.1L344.1 64L296.1 64L296.1 366.1L201.1 271.1L184.1 254.1L150.2 288L167.2 305L303.2 441z"/>
+                  </svg>`;
+  const editSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
+                    <path fill="currentColor" d="M58.1 555.9L48 592C50.7 591.2 117.4 572.6 248 536L569.4 214.6L592 192C589.6 189.6 549.1 149.1 470.6 70.6L448 48L425.4 70.6L104 392L58.1 555.9zM252.7 486L154 387.3L347.4 193.9L446.1 292.6L252.7 486zM229.4 508L94.2 545.8L132 410.6L229.4 508zM546.7 192L468.6 270.1L369.9 171.4L448 93.3L546.7 192z"/>
+                  </svg>`;
   // ============================================================
   // ---------- Map setup ----------
   //#region map setup
@@ -1657,7 +1696,6 @@
     clearPOIs();
     loadPoisFromStorage().then(e => { restoreOwnPOI(authState.settings.ownPOIs); });
     loadRoutesFromStorage().then(renderRoutesList);
-;
     restoreAppState();
   }  
 
@@ -2966,7 +3004,7 @@
   };
 
   function deletePoi(id){
-    const idx = pois.findIndex(p => p.id === id);
+    const idx = pois.findIndex(p => p.id === Number(id));
     if (idx === -1) return;
     delPoiFromStorage(id);
     poiLayer.removeLayer(pois[idx].marker);
@@ -3113,7 +3151,13 @@
     nm.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       startInlineRename(nm, poi.name, (newName) => {
-        poi.name = newName;
+        if (newName.includes('/')) {
+            const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
+            poi.name = parts.pop();           // letzter Teil = Name
+            poi.group = parts.join('/');      // alles davor = Gruppe
+        } else {
+            poi.name = newName.trim();
+        }
         savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
         renderPoiList();
       });
@@ -4462,7 +4506,8 @@
       alert('Fehler: Diese Datei ist keine gültige Sicherung.');
     }
   });
-  
+  //#endregion
+
   // ============================================================
   // GPX parsing helpers (shared by route import and POI import)
   // ============================================================
@@ -4587,20 +4632,15 @@
 
 
   // ============================================================
-  // Saved routes -- persisted via IndexedDB (see dbGet/dbSet above),
+  // Saved routes
   // grouped/nested like POIs, editable, exportable as GPX for
   // navigation devices (route + track combo, GPX 1.1).
   //#region Route saving
   const routes = [];
-  let routeCounter = 0;
   const collapsedRouteGroups = new Set();
   const routesListEl = document.getElementById('routes-list');
 
-  function saveRoutesToInternalStorage(){
-    dbSet('gpxviewer_routes', routes);
-  }
-
-  async function saveRoutesToStorage(route) {
+  async function saveRouteToStorage(route) {
     try {
       const response = await apiFetch('addRoute', {
         method: 'POST',
@@ -4608,7 +4648,7 @@
         body: JSON.stringify(route),
       });
       const resp = await response.json();
-      if (resp.success) return resp.id;
+      return resp.id;
       console.log('Error saving route error: ' + resp.error);
       console.log('stack: ' + resp.stack);
     }
@@ -4616,11 +4656,6 @@
       showToast('Fehler beim speichern der Route: ' + error, 2000);
       return -1;
     }
-  }
-
-  async function loadRoutesFromInternalStorage(){
-    // const data = await dbGet('gpxviewer_routes', []);
-    // (data || []).forEach(r => { routes.push(r); routeCounter++; });
   }
 
   async function loadRoutesFromStorage(){
@@ -4631,7 +4666,7 @@
       const resp = await response.json()
       const data = resp.routes;
       routes.length = 0;
-      (data || []).forEach(r => { routes.push(r); routeCounter++; });
+      (data || []).forEach(r => { routes.push(r); });
     }
     catch (error) {
       showToast('Fehler beim laden der POIs: ' + error, 7000);
@@ -4640,7 +4675,6 @@
   }
 
   async function saveCurrentAsRoute(name, group){
-    // const id = 'route' + (routeCounter++);
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
     let id = -1;
@@ -4653,26 +4687,45 @@
       avoidFerries: document.getElementById('avoid-ferries').checked,
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
-    const res = await saveRoutesToStorage(dbRoute);
-    dbRoute.id = res.id;
-    routes.push(dbRoute);
-    // saveRoutesToStorage();
-    renderRoutesList();
+    id = await saveRouteToStorage(dbRoute);
+    // if (result.success) {
+      dbRoute.id = id;
+      routes.push(dbRoute);
+      // saveRoutesToStorage();
+      renderRoutesList();
+    // }
+    // else {
+    //   console.log('Error adding route');
+    // }
   }
 
-  function deleteRoute(id){
-    const idx = routes.findIndex(r => r.id === id);
+  async function delRouteFromStorage(id) {
+    try {
+      await apiFetch('delRoute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+      });
+    }
+    catch (error) {
+      showToast('Fehler beim löschen der Route' + error, 2000);
+      return -1;
+    }
+  };
+
+  async function deleteRoute(id){
+    const idx = routes.findIndex(r => r.id === Number(id));
     if (idx === -1) return;
+    delRouteFromStorage(id);
     routes.splice(idx, 1);
-    saveRoutesToInternalStorage();
     renderRoutesList();
   }
 
   function moveRouteToGroup(routeId, newGroupPath){
-    const route = routes.find(r => r.id === routeId);
+    const route = routes.find(r => r.id === Number(routeId));
     if (!route || route.group === newGroupPath) return;
     route.group = newGroupPath;
-    saveRoutesToInternalStorage();
+    saveRouteToStorage(route);
     renderRoutesList();
   }
 
@@ -4831,6 +4884,12 @@
     map.fitBounds(previewLine.getBounds(), { padding: [30, 30] });
   }
 
+  async function delRouteHelper(route) {
+    const ok = await confirmDialog(`Möchten Sie die Route "${route.name}" wirklich löschen?`);
+    if (!ok) return;
+    deleteRoute(route.id);
+  }
+
   function buildRouteRow(route){
     const row = document.createElement('div');
     row.className = 'file-row';
@@ -4864,8 +4923,14 @@ nm.textContent = route.name + ' (id:'+route.id+')';
     nm.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       startInlineRenameGeneric(nm, route.name, (newName) => {
-        route.name = newName;
-        saveRoutesToInternalStorage();
+        if (newName.includes('/')) {
+            const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
+            route.name = parts.pop();           // letzter Teil = Name
+            route.group = parts.join('/');      // alles davor = Gruppe
+        } else {
+            route.name = newName.trim();
+        }
+        saveRouteToStorage(route);
         renderRoutesList();
       }, renderRoutesList);
     });
@@ -4875,14 +4940,19 @@ nm.textContent = route.name + ' (id:'+route.id+')';
 
     const loadBtn = document.createElement('button');
     loadBtn.className = 'row-icon-btn';
-    loadBtn.innerHTML = '&#9998;';
+    const editicon = document.createElement('span');
+    editicon.innerHTML = editSVG;
+    loadBtn.appendChild(editicon);
     loadBtn.title = 'Zum Bearbeiten laden';
     loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(route); });
     row.appendChild(loadBtn);
 
     const exportBtn = document.createElement('button');
     exportBtn.className = 'row-icon-btn';
-    exportBtn.innerHTML = '&#8681;';
+    const saveicon = document.createElement('span');
+    saveicon.innerHTML = saveSVG;
+    exportBtn.appendChild(saveicon);
+
     exportBtn.title = 'Als GPX exportieren (Route + Track)';
     exportBtn.addEventListener('click', (ev) => {
       openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
@@ -4891,9 +4961,16 @@ nm.textContent = route.name + ' (id:'+route.id+')';
 
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
-    delBtn.innerHTML = '&times;';
+
+    const icon = document.createElement('span');
+    icon.innerHTML = trashSVG;
+    delBtn.appendChild(icon);
     delBtn.title = 'Route löschen';
-    delBtn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteRoute(route.id); });
+    delBtn.addEventListener('click', (ev) => { 
+      ev.stopPropagation(); 
+      delRouteHelper(route);
+      // deleteRoute(route.id); 
+    });
     row.appendChild(delBtn);
 
     return row;
@@ -4945,9 +5022,8 @@ nm.textContent = route.name + ' (id:'+route.id+')';
           routes.forEach(r => {
             if (r.group === child.path) r.group = newPath;
             else if (r.group.startsWith(child.path + '/')) r.group = newPath + r.group.slice(child.path.length);
+            saveRouteToStorage(r);
           });
-          saveRoutesToInternalStorage();
-          renderRoutesList();
         }, renderRoutesList);
       });
 
@@ -5027,7 +5103,7 @@ nm.textContent = route.name + ' (id:'+route.id+')';
   document.getElementById('btn-export-route').addEventListener('click', (ev) => {
     if (waypoints.length < 2){ alert('Bitte zuerst mindestens Start und Ziel setzen.'); return; }
 
-    const id = 'route' + (routeCounter++);
+    const id = -1;
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
     const name = 'ExportedRoute';
@@ -5078,8 +5154,6 @@ nm.textContent = route.name + ' (id:'+route.id+')';
     document.getElementById('route-modal-backdrop').classList.remove('active');
   });
 
-  loadRoutesFromInternalStorage().then(renderRoutesList);
- 
   loadViewerList();
 })
 ();
