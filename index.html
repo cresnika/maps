@@ -294,12 +294,13 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-gpx@1.7.0/gpx.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script src="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js"></script>
+
+
 
 <script>
 (function(){
@@ -584,32 +585,22 @@ console.log('poi anzahl: ' + pois.length);
     'Stadia – Outdoor': stadiaOutdoors,
     'Stadia – Hell / reduziert': stadiaSmooth
   };
+  let actualStyle = null;
 
   L.control.layers(baseLayers, null, {
       collapsed: true,
       position: 'bottomleft'
   }).addTo(map);
 
-  const STORAGE_KEY_MAPSTYLE = 'motorcycle-route-planner-mapstyle';
- 
+  TerrainStyle.addTo(map);
+
   map.on('baselayerchange', function (e) {
-      const selectedStyle = Object.keys(baseLayers).find(
+      actualStyle = Object.keys(baseLayers).find(
           name => baseLayers[name] === e.layer
       );
-
-      if (selectedStyle) {
-          localStorage.setItem(STORAGE_KEY_MAPSTYLE, selectedStyle);
-      }
+      saveAppStateDebounced();
   });
 
-  const savedStyle = localStorage.getItem(STORAGE_KEY_MAPSTYLE);
-
-  if (savedStyle && baseLayers[savedStyle]) {
-      baseLayers[savedStyle].addTo(map);
-  } 
-  else {
-      TerrainStyle.addTo(map);
-  }
   async function snapToRoadIfZoomedOut(latlng){
     const zoom = map.getZoom();
     if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
@@ -1853,8 +1844,6 @@ console.log('poi anzahl: ' + pois.length);
       el.style.display = el.dataset.view === view ? 'block' : 'none';
     });
     
-    // document.getElementById('auth-gate').classList.remove('hidden');
-
     setAppAuthVisibility();
   }
 
@@ -1877,9 +1866,11 @@ console.log('poi anzahl: ' + pois.length);
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
-    loadPoisFromStorage().then(e => { if (authState.settings.ownPOIs) restoreOwnPoiVisibility(authState.settings.ownPOIs); });
-    loadRoutesFromStorage().then(renderRoutesList);
     restoreAppState();
+    loadPoisFromStorage().then(e => { 
+      if (authState.settings.ownPOIs !== null) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
+    });
+    loadRoutesFromStorage().then(renderRoutesList);
   }  
 
   async function checkExistingSession() {
@@ -1923,10 +1914,6 @@ console.log('poi anzahl: ' + pois.length);
     }
   }
 
-  // ------------------------------------------------------------
-  // Modal-DOM einmalig erzeugen
-  // ------------------------------------------------------------
-  
   function setAppAuthVisibility() {
     if (authState.username) 
       document.getElementById('title-label').textContent  = 'Hallo ' + authState.username;
@@ -2228,9 +2215,7 @@ console.log('poi anzahl: ' + pois.length);
   // ============================================================
   // ---------- Store app state ----------
   //#region Store app settings
-  const STORAGE_KEY = 'motorcycle-route-planner-state-v1';
-  const STORAGE_KEY_MAPVIEW = 'motorcycle-route-planner-mapview';
-  const STORAGE_DEBOUNCE_MS = 2000;
+  const STORAGE_DEBOUNCE_MS = 1000;
 
   function serializeWaypoints() {
     // marker (Leaflet-Objekt) NICHT mitspeichern - nicht serialisierbar,
@@ -2363,17 +2348,28 @@ console.log('poi anzahl: ' + pois.length);
   function serializeMapView() {
     const c = map.getCenter();
     return {
+      style: actualStyle,
       center: [c.lat, c.lng],
       zoom: map.getZoom()
     };
   }
   function restoreMapView(mapview) {
+    if (mapview.style && baseLayers[mapview.style]) {
+      baseLayers[mapview.style].addTo(map);
+      actualStyle = mapview.style;
+    }
+    else {
+      actualStyle = Object.keys(baseLayers).find(
+        name => baseLayers[name] === TerrainStyle
+      );
+        TerrainStyle.addTo(map);
+      }
     if (!mapview || !Array.isArray(mapview.center) || mapview.center.length !== 2 || typeof mapview.zoom !== 'number') {
       return;
-    }
-
+    }  
     map.setView(mapview.center, mapview.zoom, { animate: false });
   }
+
 
   function saveAppState() {
     const state = {
@@ -2386,18 +2382,22 @@ console.log('poi anzahl: ' + pois.length);
       globalOptions: serializeGlobalSettings(),
     };
 
-    try {
-      apiFetch('setUserSettings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({settings: state}),
-      });
-    }
-    catch (error) {
-      console.warn('Save app state failed');
-    }
+    localStorage.setItem('maps_appState', JSON.stringify(state));
+
+    // try {
+    //   apiFetch('setUserSettings', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({settings: state}),
+    //   });
+    // }
+    // catch (error) {
+    //   console.warn('Save app state failed');
+    // }
   }
   function restoreAppState() {
+    const appstate = JSON.parse(localStorage.getItem('maps_appState'));
+    authState.settings = appstate;
     if (authState.settings) {
       if (authState.settings.mapview) restoreMapView(authState.settings.mapview);
       if (authState.settings.globalOptions) restoreGlobalSettings(authState.settings.globalOptions);
@@ -2410,6 +2410,7 @@ console.log('poi anzahl: ' + pois.length);
     //#endregion
 
 
+  // ============================================================
   // --------------- Text search (Nominatim) ---------------
   //#region Search
   async function searchPlace(query){
@@ -3145,6 +3146,7 @@ console.log('poi anzahl: ' + pois.length);
   //#endregion
 
 
+  // ============================================================
   // --------------- Route calculation ---------------
   //#region Route calculation
   const routeResultEl = document.getElementById('route-result');
@@ -3239,7 +3241,6 @@ console.log('poi anzahl: ' + pois.length);
       wp.marker.bindPopup(content, { direction: 'top', sticky: true });
     });
   }
-
 
   async function calculateRoute(options){
     const fitView = !options || options.fitView !== false;
@@ -3512,6 +3513,215 @@ console.log('poi anzahl: ' + pois.length);
   //#endregion
 
 
+  // ============================================================
+  // --------------- Tracks/Viewer ---------------
+  //#region Tracks/Viewer
+  async function gzipString(text) {
+    const stream = new CompressionStream("gzip");
+    const writer = stream.writable.getWriter();
+    writer.write(new TextEncoder().encode(text));
+    writer.close();
+    const compressed = await new Response(stream.readable).arrayBuffer();
+    return new Uint8Array(compressed);
+}
+
+  async function saveTrackToStorage(track) {
+    try {
+      const compressed = await gzipString(track.gpxText);
+      const base64 = btoa(String.fromCharCode(...compressed));
+      const fsize = track.gpxText.length;
+      const data = {id: track.id, name: track.name, fileSize: fsize, distance: track.distanceKm, track_group: track.groupName, gpx: base64};
+      const response = await apiFetch('addTrack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const resp = await response.json();
+      return resp.id;
+    }
+    catch (error) {
+      showToast('Fehler beim speichern vom Track' + error, 2000);
+      return -1;
+    }
+  }
+  
+  async function loadTracksFromStorage() {
+    // await fetch('/api/track', {
+    //     method: 'POST',
+    //     headers: {
+    //         'Content-Type': 'application/json'
+    //     },
+    //     body: JSON.stringify({
+    //         name,
+    //         track_group,
+    //         trackDate,
+    //         distance,
+    //         gpx: Array.from(compressed)
+    //     })
+    // });
+  }
+
+  function calculateGpxInfo(gpxText) {
+    const xml = new DOMParser().parseFromString(gpxText, 'application/xml');
+
+    if (xml.querySelector('parsererror')) { return { durationMs: null, startDate: null};}
+
+    let totalMs = 0;
+    let hasDuration = false;
+    let earliestTimestamp = null;
+
+    const metadataTime = xml.querySelector('metadata > time');
+    if (metadataTime) {
+        const ts = Date.parse(metadataTime.textContent.trim());
+        if (!isNaN(ts)) { earliestTimestamp = ts; }
+    }
+
+    const metadataName = xml.querySelector('metadata > name')?.textContent?.trim();
+    const trackName = xml.querySelector('trk > name')?.textContent?.trim();
+    const gpxName = metadataName || trackName || '';
+    const segments = xml.querySelectorAll('trkseg');
+    const pointLists = segments.length ? segments : [xml];
+    pointLists.forEach(segment => {
+        let previousTime = null;
+        segment.querySelectorAll('trkpt').forEach(point => {
+            const timeEl = point.querySelector('time');
+            const timestamp = timeEl ? Date.parse(timeEl.textContent.trim()) : NaN;
+
+            if (isNaN(timestamp)) return;
+
+            // falls kein Metadatum vorhanden oder Trackpunkt älter
+            if (earliestTimestamp === null || timestamp < earliestTimestamp) {
+                earliestTimestamp = timestamp;
+            }
+
+            if (previousTime !== null && timestamp >= previousTime) {
+                totalMs += timestamp - previousTime;
+                if (timestamp > previousTime) { hasDuration = true; }
+            }
+            previousTime = timestamp;
+        });
+    });
+
+    return {
+        name :  gpxName,
+        durationMs: hasDuration ? totalMs : null,
+        startDate: earliestTimestamp !== null ? new Date(earliestTimestamp).toISOString() : null
+    };
+  }
+
+  // ---------- Button events ----------
+  const inputFiles = document.getElementById('input-files');
+  const inputFolder = document.getElementById('input-folder');
+  document.getElementById('btn-open-files').addEventListener('click', () => inputFiles.click());
+  document.getElementById('btn-open-folder').addEventListener('click', () => inputFolder.click());
+
+  inputFiles.addEventListener('change', (e) => {
+    handleFileInputList(e.target.files, false);
+    inputFiles.value = '';
+  });
+  inputFolder.addEventListener('change', (e) => {
+    handleFileInputList(e.target.files, true);
+    inputFolder.value = '';
+  });
+
+  // ---------- File input handling ----------
+  function handleFileInputList(fileList, useRelativePath){
+    const gpxFiles = [...fileList].filter(f => /\.gpx$/i.test(f.name));
+    let addedAny = false;
+    gpxFiles.forEach(file => {
+      let groupName = 'importierte Dateien';
+      if (useRelativePath && file.webkitRelativePath) {
+        const parts = file.webkitRelativePath.split('/');
+        if (parts.length > 1) groupName = parts.slice(0, -1).join('/');
+      }
+      loadGPXFile(file, groupName);
+      addedAny = true;
+    });
+    if (addedAny) setTimeout(zoomToAll, 400);
+  }
+
+  // ---------- Loading a GPX File object ----------
+  function loadGPXFile(file, groupName, options){
+    const settings = options || {};
+    const id = -1;//settings.id || ('f' + (fileCounter++));
+    const color = settings.color || nextColor();
+    const g = groupFor(groupName);
+
+    const entry = { id, name: file.name, color, layer: null, visible: settings.visible !== false, distanceKm: null, durationMs: null, originalSegments: [], customLayers: [], groupName: groupName, gpxText: settings.sourceText || null };
+    g.files.set(id, entry);
+    renderTree();
+
+    if (settings.persist !== false){
+      file.text().then(text => {
+        entry.gpxText = text;
+        const info = calculateGpxInfo(text);
+        entry.durationMs = info.durationMs;
+        entry.startDate = info.startDate;
+        entry.name = info.name || file.name || '';
+        updateSummary();
+        // saveTrackToStorage(entry);
+      });
+    }
+
+    const url = URL.createObjectURL(file);
+    const gpxLayer = new L.GPX(url, {
+      async: true,
+      polyline_options: { color: color, weight: 4, opacity: 0.85, lineJoin: 'round' },
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null,
+        wptIconUrls: {}
+      }
+    });
+
+    gpxLayer.on('loaded', function(e){
+      entry.distanceKm = (e.target.get_distance() / 1000).toFixed(1);
+      if (entry.gpxText) entry.durationMs = calculateGpxDurationMs(entry.gpxText);
+
+      // Capture original track geometry, then remove the plain polylines --
+      // we replace them with our own solid/dashed segments below.
+      const originalPolylines = [];
+      e.target.eachLayer(l => { if (l instanceof L.Polyline) originalPolylines.push(l); });
+      originalPolylines.forEach(l => {
+        entry.originalSegments.push(l.getLatLngs());
+        e.target.removeLayer(l);
+      });
+
+      renderTrackSegments(entry);
+      recomputeDistance(entry);
+      updateFileMeta(entry);
+      updateSummary();
+      URL.revokeObjectURL(url);
+    });
+
+    gpxLayer.on('error', function(){
+      entry.distanceKm = 'Fehler';
+      updateFileMeta(entry);
+    });
+
+    gpxLayer.addTo(map);
+    entry.layer = gpxLayer;
+    if (!entry.visible) map.removeLayer(gpxLayer);
+  }
+
+  function recomputeDistance(entry){
+    let totalMeters = 0;
+    entry.customLayers.forEach(l => {
+      const latlngs = l.getLatLngs();
+      for (let i = 1; i < latlngs.length; i++) totalMeters += latlngs[i-1].distanceTo(latlngs[i]);
+    });
+    entry.distanceKm = (totalMeters / 1000).toFixed(1);
+  }
+
+  function updateFileMeta(entry){
+    if (!entry.rowEl) return;
+    const metaEl = entry.rowEl.querySelector('.file-meta');
+    if (metaEl) metaEl.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '…';
+  }
+
+  //#endregion
+
   // ---------- Color palette for tracks ----------
   const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
   let colorCursor = 0;
@@ -3742,82 +3952,6 @@ console.log('poi anzahl: ' + pois.length);
     });
   }
 
-  // ---------- Loading a GPX File object ----------
-  function loadGPXFile(file, groupName, options){
-    const settings = options || {};
-    const id = settings.id || ('f' + (fileCounter++));
-    const color = settings.color || nextColor();
-    const g = groupFor(groupName);
-
-    const entry = { id, name: file.name, color, layer: null, visible: settings.visible !== false, distanceKm: null, durationMs: null, originalSegments: [], customLayers: [], groupName: groupName, gpxText: settings.sourceText || null };
-    g.files.set(id, entry);
-    renderTree();
-
-    if (settings.persist !== false){
-      file.text().then(text => {
-        entry.gpxText = text;
-        entry.durationMs = calculateGpxDurationMs(text);
-        updateSummary();
-        saveViewerEntry(entry);
-      });
-    }
-
-    const url = URL.createObjectURL(file);
-    const gpxLayer = new L.GPX(url, {
-      async: true,
-      polyline_options: { color: color, weight: 4, opacity: 0.85, lineJoin: 'round' },
-      marker_options: {
-        startIconUrl: null,
-        endIconUrl: null,
-        shadowUrl: null,
-        wptIconUrls: {}
-      }
-    });
-
-    gpxLayer.on('loaded', function(e){
-      entry.distanceKm = (e.target.get_distance() / 1000).toFixed(1);
-      if (entry.gpxText) entry.durationMs = calculateGpxDurationMs(entry.gpxText);
-
-      // Capture original track geometry, then remove the plain polylines --
-      // we replace them with our own solid/dashed segments below.
-      const originalPolylines = [];
-      e.target.eachLayer(l => { if (l instanceof L.Polyline) originalPolylines.push(l); });
-      originalPolylines.forEach(l => {
-        entry.originalSegments.push(l.getLatLngs());
-        e.target.removeLayer(l);
-      });
-
-      renderTrackSegments(entry);
-      recomputeDistance(entry);
-      updateFileMeta(entry);
-      updateSummary();
-      URL.revokeObjectURL(url);
-    });
-
-    gpxLayer.on('error', function(){
-      entry.distanceKm = 'Fehler';
-      updateFileMeta(entry);
-    });
-
-    gpxLayer.addTo(map);
-    entry.layer = gpxLayer;
-    if (!entry.visible) map.removeLayer(gpxLayer);
-  }
-
-  function recomputeDistance(entry){
-    let totalMeters = 0;
-    entry.customLayers.forEach(l => {
-      const latlngs = l.getLatLngs();
-      for (let i = 1; i < latlngs.length; i++) totalMeters += latlngs[i-1].distanceTo(latlngs[i]);
-    });
-    entry.distanceKm = (totalMeters / 1000).toFixed(1);
-  }
-
-  function updateFileMeta(entry){
-    if (!entry.rowEl) return;
-    const metaEl = entry.rowEl.querySelector('.file-meta');
-    if (metaEl) metaEl.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '…';
-  }
 
   // ---------- Tree rendering ----------
   function buildViewerGroupTree(){
@@ -4402,36 +4536,6 @@ console.log('poi anzahl: ' + pois.length);
 
   document.getElementById('btn-clear').addEventListener('click', clearAll);
 
-  // ---------- File input handling ----------
-  function handleFileInputList(fileList, useRelativePath){
-    const gpxFiles = [...fileList].filter(f => /\.gpx$/i.test(f.name));
-    let addedAny = false;
-    gpxFiles.forEach(file => {
-      let groupName = 'Einzelne Dateien';
-      if (useRelativePath && file.webkitRelativePath) {
-        const parts = file.webkitRelativePath.split('/');
-        if (parts.length > 1) groupName = parts.slice(0, -1).join('/');
-      }
-      loadGPXFile(file, groupName);
-      addedAny = true;
-    });
-    if (addedAny) setTimeout(zoomToAll, 400);
-  }
-
-  const inputFiles = document.getElementById('input-files');
-  const inputFolder = document.getElementById('input-folder');
-
-  document.getElementById('btn-open-files').addEventListener('click', () => inputFiles.click());
-  document.getElementById('btn-open-folder').addEventListener('click', () => inputFolder.click());
-
-  inputFiles.addEventListener('change', (e) => {
-    handleFileInputList(e.target.files, false);
-    inputFiles.value = '';
-  });
-  inputFolder.addEventListener('change', (e) => {
-    handleFileInputList(e.target.files, true);
-    inputFolder.value = '';
-  });
 
   // ---------- Drag & drop (files and folders) ----------
   const overlay = document.getElementById('dropzone-overlay');
@@ -4522,10 +4626,9 @@ console.log('poi anzahl: ' + pois.length);
     });
   }
 
+
   // ============================================================
-  // Data backup / restore (for incognito mode or switching devices)
-  // ============================================================
-  //#region import export
+  //#region import export events
   document.getElementById('btn-export-data').addEventListener('click', async () => {
     const backup = {
       app: "Alex's Routenplaner",
@@ -4568,6 +4671,7 @@ console.log('poi anzahl: ' + pois.length);
     }
   });
   //#endregion
+
 
   // ============================================================
   // GPX parsing helpers (shared by route import and POI import)
