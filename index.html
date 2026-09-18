@@ -1852,10 +1852,10 @@ console.log('poi anzahl: ' + pois.length);
 
   function unlockApp(email, username, admin, settings) {
     authState.loggedIn = true;
-    authState.username = username;
-    authState.email = email;
-    authState.admin = admin;
-    authState.settings = settings;
+    authState.username = username || '';
+    authState.email = email || '';
+    authState.admin = admin || false;
+    authState.settings = settings || {};
 
     if (authState.admin) {
       document.getElementById('btn-user-invite').classList.remove('hidden');
