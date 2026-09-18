@@ -1802,7 +1802,15 @@ console.log('poi anzahl: ' + pois.length);
     return res;
   }
 
-  const authState = {loggedIn: false, email: null, username: null, };
+  const emptySettings =  {
+      version: 1,
+      mapview: {},
+      externPoiSwitches: {},
+      ownPOIs: {}, 
+      waypoints: {},
+      globalOptions: {},
+    };
+  const authState = {loggedIn: false, email: null, username: null, admin: false, settings: emptySettings};
   const minPasswordLength = 6;
 
   async function authRequest(endpoint, body) {
@@ -1828,10 +1836,10 @@ console.log('poi anzahl: ' + pois.length);
 
   function lockApp() {
     authState.loggedIn = false;
-    authState.username = null;
-    authState.email = null;
+    authState.username = '';
+    authState.email = '';
     authState.admin = false;
-    authState.settings = null;
+    authState.settings = emptySettings;
 
     document.getElementById('btn-user-invite').classList.add('hidden');
     document.getElementById('btn-user-savePOI').classList.add('hidden');
@@ -1855,7 +1863,7 @@ console.log('poi anzahl: ' + pois.length);
     authState.username = username || '';
     authState.email = email || '';
     authState.admin = admin || false;
-    authState.settings = settings || {};
+    authState.settings = settings || emptySettings;
 
     if (authState.admin) {
       document.getElementById('btn-user-invite').classList.remove('hidden');
@@ -1900,6 +1908,7 @@ console.log('poi anzahl: ' + pois.length);
       }
       else {
         const data = await authRequest('me');
+        console.log(JSON.stringify(data));
         if (data && data.loggedIn) {
           unlockApp(data.email, data.username, data.admin, data.settings);
         }
