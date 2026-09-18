@@ -308,6 +308,34 @@
   const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/';
 
   // ============================================================
+  // ---------- Cursor svg ----------
+  //#region svg data
+  const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+                        <!-- Mauszeiger (kleiner, weiß) -->
+                        <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
+                              fill="#ffffff" stroke="#000000" stroke-width="1"/>
+
+                        <!-- Papierkorb-Badge unten rechts (größer) -->
+                        <g transform="translate(9,9) scale(0.035)">
+                          <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
+                                fill="#ff0000" stroke="#ff0000" stroke-width="40"/>
+                        </g>
+                      </svg>`;
+  const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
+  const trashSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                      <path fill="currentColor" d="M256.5 91.4C258.5 84.6 264.8 80 271.8 80L368.2 80C375.3 80 381.5 84.6 383.5 91.4L394.5 128L245.5 128L256.5 91.4zM212.1 128L112 128C103.2 128 96 135.2 96 144C96 152.8 103.2 160 112 160L528 160C536.8 160 544 152.8 544 144C544 135.2 536.8 128 528 128L427.9 128L414.2 82.2C408.1 61.9 389.4 48 368.2 48L271.8 48C250.6 48 231.9 61.9 225.8 82.2L212.1 128zM124.7 208L147.6 516.7C150.1 550.1 177.9 576 211.4 576L428.5 576C462 576 489.8 550.1 492.3 516.7L515.2 208L483.1 208L460.4 514.4C459.2 531.1 445.2 544 428.5 544L211.4 544C194.6 544 180.7 531.1 179.5 514.4L156.8 208L124.7 208z"/>
+                    </svg>`;
+  const saveSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
+                    <path fill="currentColor" d="M488 576L512 576L512 528L128 528L128 576L488 576zM303 441L320 458L337 441L473 305L490 288L456.1 254.1L439.1 271.1L344.1 366.1L344.1 64L296.1 64L296.1 366.1L201.1 271.1L184.1 254.1L150.2 288L167.2 305L303.2 441z"/>
+                  </svg>`;
+  const editSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
+                    <path fill="currentColor" d="M58.1 555.9L48 592C50.7 591.2 117.4 572.6 248 536L569.4 214.6L592 192C589.6 189.6 549.1 149.1 470.6 70.6L448 48L425.4 70.6L104 392L58.1 555.9zM252.7 486L154 387.3L347.4 193.9L446.1 292.6L252.7 486zM229.4 508L94.2 545.8L132 410.6L229.4 508zM546.7 192L468.6 270.1L369.9 171.4L448 93.3L546.7 192z"/>
+                  </svg>`;
+  //#endregion
+  
+  
+
+  // ============================================================
   // ---------- Toast und Confirm dialog ----------
   //#region Toast/confirm 
   const toast = document.createElement('div');
@@ -433,29 +461,6 @@
   //#endregion
 
 
-  // ============================================================
-  // ---------- Cursor svg ----------
-  const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-                        <!-- Mauszeiger (kleiner, weiß) -->
-                        <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
-                              fill="#ffffff" stroke="#000000" stroke-width="1"/>
-
-                        <!-- Papierkorb-Badge unten rechts (größer) -->
-                        <g transform="translate(9,9) scale(0.035)">
-                          <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
-                                fill="#ff0000" stroke="#ff0000" stroke-width="40"/>
-                        </g>
-                      </svg>`;
-  const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
-  const trashSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                      <path fill="currentColor" d="M256.5 91.4C258.5 84.6 264.8 80 271.8 80L368.2 80C375.3 80 381.5 84.6 383.5 91.4L394.5 128L245.5 128L256.5 91.4zM212.1 128L112 128C103.2 128 96 135.2 96 144C96 152.8 103.2 160 112 160L528 160C536.8 160 544 152.8 544 144C544 135.2 536.8 128 528 128L427.9 128L414.2 82.2C408.1 61.9 389.4 48 368.2 48L271.8 48C250.6 48 231.9 61.9 225.8 82.2L212.1 128zM124.7 208L147.6 516.7C150.1 550.1 177.9 576 211.4 576L428.5 576C462 576 489.8 550.1 492.3 516.7L515.2 208L483.1 208L460.4 514.4C459.2 531.1 445.2 544 428.5 544L211.4 544C194.6 544 180.7 531.1 179.5 514.4L156.8 208L124.7 208z"/>
-                    </svg>`;
-  const saveSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
-                    <path fill="currentColor" d="M488 576L512 576L512 528L128 528L128 576L488 576zM303 441L320 458L337 441L473 305L490 288L456.1 254.1L439.1 271.1L344.1 366.1L344.1 64L296.1 64L296.1 366.1L201.1 271.1L184.1 254.1L150.2 288L167.2 305L303.2 441z"/>
-                  </svg>`;
-  const editSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
-                    <path fill="currentColor" d="M58.1 555.9L48 592C50.7 591.2 117.4 572.6 248 536L569.4 214.6L592 192C589.6 189.6 549.1 149.1 470.6 70.6L448 48L425.4 70.6L104 392L58.1 555.9zM252.7 486L154 387.3L347.4 193.9L446.1 292.6L252.7 486zM229.4 508L94.2 545.8L132 410.6L229.4 508zM546.7 192L468.6 270.1L369.9 171.4L448 93.3L546.7 192z"/>
-                  </svg>`;
   // ============================================================
   // ---------- Map setup ----------
   //#region map setup
@@ -826,7 +831,7 @@
  
   function flagIcon(usedForMap) {
     return L.divIcon({
-      className: 'waypoint-marker-icon',
+      className: 'waypoint-marker-icon waypoint-marker',
       html: flagSvg(usedForMap),
       iconSize: [40, 40],
       iconAnchor: [20, 38]
@@ -834,7 +839,7 @@
   }
   function locationIcon(usedForMap) {
     return L.divIcon({
-      className: 'waypoint-marker-icon',
+      className: 'waypoint-marker-icon waypoint-marker',
       html: locationSvg(usedForMap),
       iconSize: [40, 40],
       iconAnchor: [20, 38]
@@ -842,7 +847,7 @@
   }
   function waypointIcon(index) {
     return L.divIcon({
-      className: 'waypoint-marker-icon',
+      className: 'waypoint-marker-icon waypoint-marker',
       html: waypointSvg(index),
       iconSize: [40, 40],
       iconAnchor: [20, 38]
@@ -874,11 +879,10 @@
   let shiftPressed = false;
 
   function updateWaypointCursor() {
-    console.log('im update');
     const active = mapEl.classList.contains('shift-active');
 
     document.querySelectorAll('.waypoint-marker').forEach((el) => {
-      el.style.cursor = active ? 'pointer' : '';
+      el.style.cursor = active ? deleteMarkerCursor : '';
     });
   }
 
@@ -941,8 +945,7 @@
       labelIsKnown: hasKnownLabel
     };
 
-    marker.getElement().classList.add('waypoint-marker');
-
+    // marker.getElement().classList.add('waypoint-marker');
     marker.on('mouseover', () => {
       if (mapEl.classList.contains('shift-active')) {
         marker.getElement().style.cursor = deleteMarkerCursor;
@@ -1036,7 +1039,6 @@
 			waypoints.push(wp);
 		}
 		else { // via
-
 			if (waypoints.length <= 1) {
 				waypoints.push(wp);
 			}
@@ -1091,6 +1093,13 @@
   }
 
   function renderWaypointList(){
+    if (waypoints.length > 1) {
+      document.getElementById('btn-calc-route').disabled = false;
+    } 
+    else {
+      document.getElementById('btn-calc-route').disabled = true;
+    }
+
     waypointListEl.innerHTML = '';
     if (waypoints.length === 0){
       const empty = document.createElement('div');
@@ -2288,42 +2297,28 @@
     }
   }
 
+  function restoreWaypoints(data) {
+    if (Array.isArray(data)) {
+      data.forEach(wp => {
+        const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
+        if (wp.id !== undefined) restored.id = wp.id;
+        restored.segmentPreference = wp.segmentPreference; 
+        restored.avoidHighways = wp.avoidHighways;
+        waypoints.push(restored);
+      });
+
+      refreshWaypointIcons();
+      renderWaypointList();
+      maybeAutoRecalculateRoute();
+    }
+
+  }
+
   function restoreAppState() {
     restoreMapView(authState.settings.mapview);
     restoreGlobalSettings(authState.settings.globalOptions);
+    restoreWaypoints(authState.settings.waypoints);
     restoreExternalPOI(authState.settings.externPoiSwitches);
-    // restoreOwnPOI(authState.settings.ownPOIs); passiert automatisch nach dem laden der POI's vom user
-    // let state;
-    // try {
-    //   state = JSON.parse(raw);
-    // } catch (err) {
-    //   console.warn('Gespeicherte Planung ist beschädigt, wird verworfen.', err);
-    //   localStorage.removeItem(STORAGE_KEY);
-    //   return;
-    // }
-
-    // if (!state || state.version !== 1) {
-    //   console.warn('Gespeicherte Planung hat unbekanntes Format, wird verworfen.');
-    //   localStorage.removeItem(STORAGE_KEY);
-    //   return;
-    // }
-
-    // // Wegpunkte
-    // if (Array.isArray(state.waypoints)) {
-    //   state.waypoints.forEach(wp => {
-    //     const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
-    //     if (wp.id !== undefined) restored.id = wp.id;
-    //     restored.segmentPreference = wp.segmentPreference; 
-    //     restored.avoidHighways = wp.avoidHighways;
-    //     waypoints.push(restored);
-    //   });
-
-    //   if (waypoints.length > 0) {
-    //     refreshWaypointIcons();
-    //     renderWaypointList();
-    //     maybeAutoRecalculateRoute();
-    //   }
-    // }
   }  
 
   function saveAppState() {
@@ -2333,7 +2328,7 @@
       // savedAt: new Date().toISOString(),
       externPoiSwitches: serializeExternPoiSwitch(),
       ownPOIs: serializeOwnPOIVisibility(), 
-      // waypoints: serializeWaypoints(),
+      waypoints: serializeWaypoints(),
       globalOptions: serializeGlobalOptions(),
     };
 
@@ -2348,6 +2343,7 @@
       console.warn('Save app state failed');
     }
   }
+  
   const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
   
   //#endregion
@@ -4274,8 +4270,8 @@
         }
       } catch (e){ /* user cancelled, or share failed -- fall through to download */ }
     }
-    downloadGpxString(xml, filename);
-    alert('Teilen wird von diesem Browser nicht direkt unterstützt. Die Datei wurde stattdessen heruntergeladen -- du kannst sie manuell z.B. in WhatsApp anhängen.');
+    // downloadGpxString(xml, filename);
+    alert('Teilen wird von diesem Browser nicht direkt unterstützt.');
   }
 
   function emailGpxString(xml, filename){
@@ -4861,16 +4857,18 @@
     });
     xml += '  </rte>\n';
 
-    if (route.routeCoords && route.routeCoords.length > 1){
-      xml += '  <trk>\n';
-      xml += `    <name>${nameEsc}</name>\n`;
-      xml += '    <trkseg>\n';
-      route.routeCoords.forEach(c => {
-        xml += `      <trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"></trkpt>\n`;
-      });
-      xml += '    </trkseg>\n';
-      xml += '  </trk>\n';
-    }
+    // Track weglassen, wird sowieso neu vom CRN berechnet !
+    // if (route.routeCoords && route.routeCoords.length > 1){
+    //   xml += '  <trk>\n';
+    //   xml += `    <name>${nameEsc}</name>\n`;
+    //   xml += '    <trkseg>\n';
+    //   route.routeCoords.forEach(c => {
+    //     xml += `      <trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"></trkpt>\n`;
+    //   });
+    //   xml += '    </trkseg>\n';
+    //   xml += '  </trk>\n';
+    // }
+
     xml += '</gpx>\n';
 
     const filename = (route.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'route') + '.gpx';

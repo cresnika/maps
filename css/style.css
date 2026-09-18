@@ -1,6 +1,7 @@
 :root{
     --bg-sidebar: #1b2420;
     --bg-sidebar-raised: #424745;
+    --bg-row-header: rgba(95, 94, 93, 0.16); 
     --bg-row-hover: #263229;
     --text: #e8e6df;
     --text-dim: #e2e2e2;
@@ -412,6 +413,7 @@ body {
     border-radius: 6px;
     cursor: pointer;
     justify-content: center;
+    background: var(--bg-row-header);
   }
   .group-header:hover { 
     background: var(--bg-row-hover); 
@@ -914,7 +916,7 @@ body {
     display: flex;
     gap: 8px;
     justify-content: flex-end;
-    margin-top: 4px;
+    margin-top: 20px;
   }
   .modal-actions .btn { flex: none; padding: 8px 16px; }
 
