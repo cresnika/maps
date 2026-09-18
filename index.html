@@ -1908,7 +1908,6 @@ console.log('poi anzahl: ' + pois.length);
       }
       else {
         const data = await authRequest('me');
-        console.log(JSON.stringify(data));
         if (data && data.loggedIn) {
           unlockApp(data.email, data.username, data.admin, data.settings);
         }
@@ -1956,7 +1955,7 @@ console.log('poi anzahl: ' + pois.length);
       <div class="auth-modal">
         <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
 
-        <div class="auth-view" data-view="invite">
+        <div class="auth-view" data-view="invite" style="display:none">
           <h2>Einladung</h2>
           <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
           <p class="auth-error"></p>
@@ -2211,7 +2210,8 @@ console.log('poi anzahl: ' + pois.length);
   // set Button events
   document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
   document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
-  
+  document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
+
   document.querySelector('.auth-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password').focus(); });
   document.querySelector('.auth-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
   document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
@@ -2630,7 +2630,6 @@ console.log('poi anzahl: ' + pois.length);
       });
       
       const result = await response.json();
-      console.log(`Neu: ${result.inserted}, aktualisiert: ${result.updated}`);
       showToast('POIs gespeichert: ' + `Neu: ${result.inserted}, aktualisiert: ${result.updated}`, 5000);
 
       document.getElementById('btn-user-savePOI').disabled = false;

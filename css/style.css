@@ -14,7 +14,6 @@
     --font-mono: ui-monospace, monospace;
 }
 
-* { box-sizing: border-box; }
 
 html, body {
   height: 100%;
@@ -39,15 +38,6 @@ body {
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-  }
-
-  .header-title .brand-name {
-    margin: 0;
-    font-size: 26px;
-    font-family: var(--font-display);
-    font-weight: 700;
-    text-transform: none;
-    letter-spacing: 0.01em;
   }
 
   .header-title h1 {
@@ -132,7 +122,6 @@ body {
     position: relative;
     padding: 14px 14px 12px;
     border-bottom: 1px solid var(--border);
-
     display: flex;
     align-items: center;
   }
