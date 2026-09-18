@@ -421,12 +421,51 @@
   //#region Settings modal
   const settingsBtn = document.getElementById('settings-btn');
   const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  const settingsDefaultPoiColorInput = document.getElementById('settings-default-poi-color');
+  const DEFAULT_POI_COLOR_FALLBACK = '#3b82f6';
+  let cachedDefaultPoiColor = DEFAULT_POI_COLOR_FALLBACK;
+
   settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
   document.getElementById('settings-modal-close').addEventListener('click', () => settingsModalBackdrop.classList.remove('active'));
   settingsModalBackdrop.addEventListener('click', (e) => {
           if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
         });
   backdropEl.addEventListener('click', closeSidebar);
+  
+  function getDefaultPoiColor(){
+    return cachedDefaultPoiColor;
+  }
+  async function defaultPoiColorChanged() {
+    cachedDefaultPoiColor = settingsDefaultPoiColorInput.value;
+    saveAppStateDebounced(); 
+  }
+  // settingsDefaultPoiColorInput.addEventListener('input', () => {
+  //   const oldDefault = getDefaultPoiColor();
+  //   const newDefault = settingsDefaultPoiColorInput.value;
+  //   pois.forEach(poi => {
+  //     if (colorsAreSimilar(poi.color, oldDefault)){
+  //       poi.color = newDefault;
+  //       poi.marker.setIcon(poiIcon(poi.color));
+  //     }
+  //   });
+  //   renderPoiList();
+  // });
+  settingsDefaultPoiColorInput.addEventListener('change', () => { defaultPoiColorChanged(); })
+
+
+  /*
+console.log('poi anzahl: ' + pois.length);
+    pois.forEach(poi => {
+      console.log('poi: ' + poi.color + '  old: '+oldDefault);
+      if (colorsAreSimilar(poi.color, oldDefault)){
+        console.log('similar color changed');
+        poi.color = newDefault;
+        poi.marker.setIcon(poiIcon(poi.color));
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+      }
+    });
+
+  */
   //#endregion
 
 
@@ -521,18 +560,25 @@
   // independent of Leaflet's own internal listener-presence check.
   map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
 
+  const key = 'Vr8csikavibrZIA07nBS';
   const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {});
   const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {});
   const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,);
   const stadiaOutdoors = L.maplibreGL({style: 'https://tiles.stadiamaps.com/styles/outdoors.json',});
-  // const motorcycleStyle = L.maplibreGL({
-  //                 style: 'styles/motorcycle.json',
-  //             });
   const TerrainStyle = L.maplibreGL({style: 'styles/Terrain.json',});
+  const satelliteStyle = L.tileLayer(`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.png?key=${key}`,{ //style URL
+                                    tileSize: 512,
+                                    zoomOffset: -1,
+                                    minZoom: 1,
+                                    maxZoom: 20,
+                                    attribution: "\u003ca href=\"https://www.maptiler.com/copyright/\" target=\"_blank\"\u003e\u0026copy; MapTiler\u003c/a\u003e \u003ca href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\"\u003e\u0026copy; OpenStreetMap contributors\u003c/a\u003e",
+                                    crossOrigin: true
+                                  });
 
   const baseLayers = {
     // 'Alex´s Stil': motorcycleStyle,
     'Terrain' : TerrainStyle,
+    'Satellit' : satelliteStyle,
     'OpenStreetMap': osmStandard,
     'Topographisch': openTopo,
     'Stadia – Outdoor': stadiaOutdoors,
@@ -1823,7 +1869,7 @@
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
-    loadPoisFromStorage().then(e => { restoreOwnPOI(authState.settings.ownPOIs); });
+    loadPoisFromStorage().then(e => { restoreOwnPoiVisibility(authState.settings.ownPOIs); });
     loadRoutesFromStorage().then(renderRoutesList);
     restoreAppState();
   }  
@@ -2189,8 +2235,24 @@
       avoidHighways: wp.avoidHighways,           
     }));
   }
+  function restoreWaypoints(data) {
+    if (Array.isArray(data)) {
+      data.forEach(wp => {
+        const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
+        if (wp.id !== undefined) restored.id = wp.id;
+        restored.segmentPreference = wp.segmentPreference; 
+        restored.avoidHighways = wp.avoidHighways;
+        waypoints.push(restored);
+      });
 
-  function serializeGlobalOptions() {
+      refreshWaypointIcons();
+      renderWaypointList();
+      maybeAutoRecalculateRoute();
+    }
+
+  }
+
+  function serializeGlobalSettings() {
     let activeTab = null;
     document.querySelectorAll('.tab-btn').forEach(b => {
       if (b.classList.contains('active')) {
@@ -2198,51 +2260,28 @@
         return;
       }
     });
-
     return {
       actTab: activeTab,
+      actProfile: document.getElementById('planning-route-profile').value,
       avoidTollways: document.getElementById('avoid-tollways').checked,
       avoidFerries: document.getElementById('avoid-ferries').checked,
+      PoiDefaultColor: document.getElementById('settings-default-poi-color').value,
     };
   }  
-
-  function serializeExternPoiSwitch() {
-    const state = {};
-    extPOIs.forEach(poi => {
-      state[poi.description] = poi.visible;
-    });
-    return state;
-  }
-
-  function serializeOwnPOIVisibility() {
-    const state = {};
-    pois.forEach(poi => {
-      if (poi.visible)
-        state[poi.id] = poi.visible;
-    });
-    return state;
-  }
-
-  function serializeMapView() {
-    const c = map.getCenter();
-    return {
-      center: [c.lat, c.lng],
-      zoom: map.getZoom()
-    };
-  }
-  
-  function restoreMapView(mapview) {
-    if (!mapview || !Array.isArray(mapview.center) || mapview.center.length !== 2 || typeof mapview.zoom !== 'number') {
-      return;
-    }
-
-    map.setView(mapview.center, mapview.zoom, { animate: false });
-  }
-
   function restoreGlobalSettings(global) {
     if (global) {
       const tollwaysCheckbox = document.getElementById('avoid-tollways');
       const ferriesCheckbox = document.getElementById('avoid-ferries');
+      const profile = document.getElementById('planning-route-profile');
+      const poiColor = document.getElementById('settings-default-poi-color');
+
+      if (poiColor && global.PoiDefaultColor !== undefined) {
+        poiColor.value = global.PoiDefaultColor;
+      }
+
+      if (profile && global.actProfile !== undefined) {
+        profile.value = global.actProfile;
+      }
 
       if (tollwaysCheckbox && global.avoidTollways !== undefined) {
         tollwaysCheckbox.checked = global.avoidTollways;
@@ -2266,7 +2305,14 @@
     }    
   }
 
-  function restoreExternalPOI(states) {
+  function serializeExternPoiSwitch() {
+    const state = {};
+    extPOIs.forEach(poi => {
+      state[poi.description] = poi.visible;
+    });
+    return state;
+  }
+  function restoreExternalPoiSwitches(states) {
     if (states && extPOIs) {
       extPOIs.forEach(poi => {
         const wasVisible = states[poi.description];
@@ -2286,7 +2332,15 @@
     }
   }
 
-  function restoreOwnPOI(states) {
+  function serializeOwnPoiVisibility() {
+    const state = {};
+    pois.forEach(poi => {
+      if (poi.visible)
+        state[poi.id] = poi.visible;
+    });
+    return state;
+  }
+  function restoreOwnPoiVisibility(states) {
     if (states && pois) {
       pois.forEach(poi => {
         const wasVisible = states[poi.id];
@@ -2297,29 +2351,20 @@
     }
   }
 
-  function restoreWaypoints(data) {
-    if (Array.isArray(data)) {
-      data.forEach(wp => {
-        const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
-        if (wp.id !== undefined) restored.id = wp.id;
-        restored.segmentPreference = wp.segmentPreference; 
-        restored.avoidHighways = wp.avoidHighways;
-        waypoints.push(restored);
-      });
-
-      refreshWaypointIcons();
-      renderWaypointList();
-      maybeAutoRecalculateRoute();
+  function serializeMapView() {
+    const c = map.getCenter();
+    return {
+      center: [c.lat, c.lng],
+      zoom: map.getZoom()
+    };
+  }
+  function restoreMapView(mapview) {
+    if (!mapview || !Array.isArray(mapview.center) || mapview.center.length !== 2 || typeof mapview.zoom !== 'number') {
+      return;
     }
 
+    map.setView(mapview.center, mapview.zoom, { animate: false });
   }
-
-  function restoreAppState() {
-    restoreMapView(authState.settings.mapview);
-    restoreGlobalSettings(authState.settings.globalOptions);
-    restoreWaypoints(authState.settings.waypoints);
-    restoreExternalPOI(authState.settings.externPoiSwitches);
-  }  
 
   function saveAppState() {
     const state = {
@@ -2327,9 +2372,9 @@
       mapview: serializeMapView(),
       // savedAt: new Date().toISOString(),
       externPoiSwitches: serializeExternPoiSwitch(),
-      ownPOIs: serializeOwnPOIVisibility(), 
+      ownPOIs: serializeOwnPoiVisibility(), 
       waypoints: serializeWaypoints(),
-      globalOptions: serializeGlobalOptions(),
+      globalOptions: serializeGlobalSettings(),
     };
 
     try {
@@ -2343,10 +2388,15 @@
       console.warn('Save app state failed');
     }
   }
-  
+  function restoreAppState() {
+    restoreMapView(authState.settings.mapview);
+    restoreGlobalSettings(authState.settings.globalOptions);
+    restoreWaypoints(authState.settings.waypoints);
+    restoreExternalPoiSwitches(authState.settings.externPoiSwitches);
+  }  
+
   const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
-  
-  //#endregion
+    //#endregion
 
 
   // --------------- Text search (Nominatim) ---------------
@@ -2413,333 +2463,6 @@
   //#endregion
 
 
-  // --------------- Route calculation ---------------
-  //#region Route calculation
-  const routeResultEl = document.getElementById('route-result');
-  let appDbPromise = null;
-  const APP_DB_NAME = 'maps-planer-viewer';
-  const APP_DB_VERSION = 2;
-  const VIEWER_STORE_NAME = 'tracks';
-  const SETTINGS_STORE_NAME = 'settings';
-  const POI_STORE_NAME  = 'pois';
-
-  btnClearWaypoints.addEventListener('click', () => {
-    waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
-    waypoints.length = 0;
-    if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
-    routeResultEl.textContent = '';
-    routeResultEl.className = '';
-    renderWaypointList();
-  });
-  
-  function formatRouteDuration(seconds){
-    const totalMin = Math.round(seconds / 60);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return h > 0 ? `${h} Std ${String(m).padStart(2, '0')} min` : `${m} min`;
-  }
-
-  function buildRouteGroups(waypoints) {
-    const groups = [];
-    let group = null;
-
-    for (let i = 1; i < waypoints.length; i++) {
-      const from = waypoints[i - 1];
-      const to = waypoints[i];
-      const preference = to.segmentPreference || 'recommended';
-      const avoidHighways = !!to.avoidHighways;
-
-      // Neue Gruppe beginnen, wenn sich eine Routing-Option ändert.
-      if (!group || group.preference !== preference || group.avoidHighways !== avoidHighways) {
-        if (group) {
-          groups.push(group);
-        }
-        group = { waypoints: [from, to], preference, avoidHighways };
-      } 
-      else {
-        // Gleiche Optionen -> weiteren Wegpunkt in die bestehende
-        // ORS-Anfrage aufnehmen.
-        group.waypoints.push(to);
-      }
-    }
-
-    if (group) {
-      groups.push(group);
-    }
-    return groups;
-  }
-
-  async function calculateRoute(options){
-    const fitView = !options || options.fitView !== false;
-
-    /*
-      Alte laufende Berechnung abbrechen.
-      Dadurch kann z.B. ein mehrfach ausgelöstes "Route berechnen"
-      keine alte Berechnung mehr weiterlaufen lassen.
-    */
-    if (routeCalculationController) { routeCalculationController.abort(); }
-
-    routeCalculationController = new AbortController();
-    const controller = routeCalculationController;
-    const signal = controller.signal;
-
-    if (waypoints.length < 2){
-      routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
-      routeResultEl.className = 'error';
-      if (routeCalculationController === controller) {
-        routeCalculationController = null;
-      }
-      return;
-    }
-
-    const profileMap = {
-      foot: 'foot-walking',
-      bike: 'cycling-regular',
-      driving: 'driving-car'
-    };
-
-    const profile = profileMap[document.getElementById('planning-route-profile').value] || 'driving-car';
-
-    /*
-    * Globale Vermeidungen.
-    * Diese gelten für die komplette Berechnung.
-    */
-    const avoidFeatures = [];
-    if (document.getElementById('avoid-tollways').checked) {
-      avoidFeatures.push('tollways');
-    }
-    if (document.getElementById('avoid-ferries').checked) {
-      avoidFeatures.push('ferries');
-    }
-
-    /*
-    * Wegpunkte anhand ihrer Routing-Optionen gruppieren.
-    *
-    * Gleiche Optionen:
-    *   A -> B -> C
-    *
-    * Unterschiedliche Optionen:
-    *   A -> B -> C
-    *   C -> D -> E
-    *
-    * buildRouteGroups() berücksichtigt:
-    *   - segmentPreference
-    *   - avoidHighways
-    */
-    const groups = buildRouteGroups(waypoints);
-
-    let allCoords = [];
-    let totalDistance = 0;
-    let totalDuration = 0;
-    let collectedSegments = [];   
-
-    /*
-    * Jede Gruppe einzeln an ORS senden.
-    */
-    for (let groupIndex = 0; groupIndex < groups.length; groupIndex++){
-      /* Prüfen, ob diese Berechnung inzwischen abgebrochen wurde. */
-      if (signal.aborted) { return;}
-
-      const group = groups[groupIndex];
-      routeResultEl.textContent = `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
-      routeResultEl.className = '';
-
-      /*
-      * Alle Wegpunkte der Gruppe werden in EINER ORS-Anfrage übergeben.
-      *
-      * Beispiel:
-      * A -> B -> C
-      * wird:
-      * coordinates: [
-      *   [A.lng, A.lat],
-      *   [B.lng, B.lat],
-      *   [C.lng, C.lat]
-      * ]
-      */
-      const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
-      const body = { coordinates: coordinates, preference: group.preference };
-
-      /* Globale Vermeidungen übernehmen. */
-      const groupAvoidFeatures = [...avoidFeatures];
-
-      /*
-      * Autobahnen nur für diese Gruppe vermeiden,
-      * wenn die Gruppe entsprechend konfiguriert ist.
-      */
-      if (group.avoidHighways) { groupAvoidFeatures.push('highways'); }
-
-      /* Doppelte Werte verhindern. */
-      const uniqueAvoidFeatures = [...new Set(groupAvoidFeatures)];
-      if (uniqueAvoidFeatures.length) {
-        body.options = {
-          avoid_features: uniqueAvoidFeatures
-        };
-      }
-
-      try {
-        // const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
-        const resp = await apiFetch(`route?profile=${encodeURIComponent(profile)}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-
-            /*
-            * Wichtig:
-            * Dieser Fetch gehört zu genau dieser Berechnung.
-            * Wird eine neue Berechnung gestartet, wird dieser
-            * Request abgebrochen.
-            */
-            signal: signal
-          }
-        );
-
-        /*
-        * Während des Fetches könnte eine neue Berechnung
-        * gestartet worden sein.
-        */
-        if (signal.aborted) { return; }
-
-        const data = await resp.json();
-        /*
-        * Auch nach dem JSON-Parsing noch einmal prüfen.
-        */
-        if (signal.aborted) { return; }
-
-        if (!resp.ok || !data.features || !data.features[0] ){
-          const msg =
-            (
-              data.error &&
-              (
-                data.error.message ||
-                (
-                  typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
-                )
-              )
-            ) ||
-            ('HTTP ' + resp.status);
-
-          /*
-          * Falls zwischenzeitlich eine neue Berechnung
-          * gestartet wurde, keine alte Fehlermeldung anzeigen.
-          */
-          if (signal.aborted) { return; }
-          routeResultEl.textContent = `Fehler bei Gruppe ${groupIndex + 1}: ${msg}`;
-          routeResultEl.className = 'error';
-          return;
-        }
-
-        const feature = data.features[0];
-        /* ORS-Geometrie der kompletten Gruppe. */
-        const groupCoords = feature.geometry.coordinates.map(c => L.latLng(c[1], c[0]) );
-
-        /*
-        * Prüfen, ob die Berechnung währenddessen
-        * ersetzt wurde.
-        */
-        if (signal.aborted) { return; }
-
-        /*
-        * Gruppen haben einen gemeinsamen Wegpunkt.
-        *
-        * Beispiel:
-        * Gruppe 1: A -> B -> C
-        * Gruppe 2: C -> D -> E
-        *
-        * C würde sonst zweimal in allCoords stehen.
-        */
-        if (allCoords.length && groupCoords.length ){
-          const last = allCoords[allCoords.length - 1];
-          const first = groupCoords[0];
-
-          if (Math.abs(last.lat - first.lat) < 1e-7 && Math.abs(last.lng - first.lng) < 1e-7) {
-            groupCoords.shift();
-          }
-        }
-
-        /* Geometrie anhängen. */
-        allCoords = allCoords.concat(groupCoords);
-
-        /*
-        * Entfernung und Dauer der kompletten Gruppe
-        * genau einmal addieren.
-        */
-        if (feature.properties && feature.properties.summary ){
-          totalDistance += feature.properties.summary.distance || 0;
-          totalDuration += feature.properties.summary.duration || 0;
-        }
-
-        if (feature.properties && Array.isArray(feature.properties.segments)) {
-          collectedSegments = collectedSegments.concat(feature.properties.segments);
-        }
-      } 
-      catch (e) {
-
-        /*
-        * AbortController-Abbruch ist KEIN Fehler.
-        *
-        * Das passiert ganz normal, wenn z.B. während einer
-        * laufenden Berechnung eine neue Route gestartet wird.
-        */
-        if (e.name === 'AbortError' || signal.aborted) {
-          console.log(`[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`);
-          return;
-        }
-        console.error(`[Route Berechnung Gruppe ${groupIndex + 1}]`,e);
-        routeResultEl.textContent = `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
-        routeResultEl.className = 'error';
-        return;
-      }
-    }
-
-    /*
-    * Noch einmal sicherstellen, dass wir nicht gerade
-    * eine veraltete Berechnung fertigstellen.
-    */
-    if (signal.aborted) { return; }
-
-    /*
-    * ------------------------------------------------------------
-    * Route auf der Karte anzeigen
-    * ------------------------------------------------------------
-    */
-    if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
-
-    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
-                                                    weight: 5,
-                                                    opacity: 0.85,
-                                                    lineJoin: 'round'
-                                                  }
-                          ).addTo(planningLayer);
-
-    if (fitView && allCoords.length) {
-      map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
-    }
-
-    /*
-    * ------------------------------------------------------------
-    * Ergebnis anzeigen
-    * ------------------------------------------------------------
-    */
-    const distKm = (totalDistance / 1000).toFixed(1);
-    routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
-    routeResultEl.totalDistance = totalDistance;
-    routeResultEl.totalDuration = totalDuration;
-    routeResultEl.className = 'success';
-    updateWaypointTooltips(collectedSegments);   // NEU
-    /*
-    * Controller nur dann löschen, wenn er noch zu
-    * dieser Berechnung gehört.
-    */
-    if (routeCalculationController === controller) {
-      routeCalculationController = null;
-    }
-  }
-
-  document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
-  //#endregion
-
-
   // ============================================================
   // POIs (Tab "POI") -- persisted via IndexedDB (see dbGet/dbSet above)
   // ============================================================
@@ -2787,19 +2510,6 @@
     });
   }
 
-  const DEFAULT_POI_COLOR_FALLBACK = '#3b82f6';
-  const settingsDefaultPoiColorInput = document.getElementById('settings-default-poi-color');
-  let cachedDefaultPoiColor = DEFAULT_POI_COLOR_FALLBACK;
-
-  function getDefaultPoiColor(){
-    return cachedDefaultPoiColor;
-  }
-
-  dbGet('default_poi_color', DEFAULT_POI_COLOR_FALLBACK).then(color => {
-    cachedDefaultPoiColor = color || DEFAULT_POI_COLOR_FALLBACK;
-    settingsDefaultPoiColorInput.value = cachedDefaultPoiColor;
-  });
-
   function hexToRgb(hex){
     hex = hex.replace('#', '');
     if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -2811,21 +2521,6 @@
     const dist = Math.sqrt((ca.r - cb.r) ** 2 + (ca.g - cb.g) ** 2 + (ca.b - cb.b) ** 2);
     return dist <= (threshold || 30);
   }
-
-  settingsDefaultPoiColorInput.addEventListener('input', () => {
-    const oldDefault = getDefaultPoiColor();
-    const newDefault = settingsDefaultPoiColorInput.value;
-    cachedDefaultPoiColor = newDefault;
-    dbSet('default_poi_color', newDefault);
-    pois.forEach(poi => {
-      if (colorsAreSimilar(poi.color, oldDefault)){
-        poi.color = newDefault;
-        poi.marker.setIcon(poiIcon(poi.color));
-        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
-      }
-    });
-    renderPoiList();
-  });
 
   function buildPoiPopupContent(poi){
     const container = document.createElement('div');
@@ -3439,6 +3134,374 @@
   poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
   //#endregion
 
+
+  // --------------- Route calculation ---------------
+  //#region Route calculation
+  const routeResultEl = document.getElementById('route-result');
+  let appDbPromise = null;
+  const APP_DB_NAME = 'maps-planer-viewer';
+  const APP_DB_VERSION = 2;
+  const VIEWER_STORE_NAME = 'tracks';
+  const SETTINGS_STORE_NAME = 'settings';
+  const POI_STORE_NAME  = 'pois';
+
+  btnClearWaypoints.addEventListener('click', () => {
+    waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
+    waypoints.length = 0;
+    if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
+    routeResultEl.textContent = '';
+    routeResultEl.className = '';
+    renderWaypointList();
+  });
+  
+  function formatRouteDuration(seconds){
+    const totalMin = Math.round(seconds / 60);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h} Std ${String(m).padStart(2, '0')} min` : `${m} min`;
+  }
+
+  function buildRouteGroups(waypoints) {
+    const groups = [];
+    let group = null;
+
+    for (let i = 1; i < waypoints.length; i++) {
+      const from = waypoints[i - 1];
+      const to = waypoints[i];
+      const preference = to.segmentPreference || 'recommended';
+      const avoidHighways = !!to.avoidHighways;
+
+      // Neue Gruppe beginnen, wenn sich eine Routing-Option ändert.
+      if (!group || group.preference !== preference || group.avoidHighways !== avoidHighways) {
+        if (group) {
+          groups.push(group);
+        }
+        group = { waypoints: [from, to], preference, avoidHighways };
+      } 
+      else {
+        // Gleiche Optionen -> weiteren Wegpunkt in die bestehende
+        // ORS-Anfrage aufnehmen.
+        group.waypoints.push(to);
+      }
+    }
+
+    if (group) {
+      groups.push(group);
+    }
+    return groups;
+  }
+
+  function updateWaypointTooltips(segments) {
+    let cumulativeDistance = 0;
+    let cumulativeDuration = 0;
+
+    waypoints.forEach((wp, index) => {
+      wp.marker.unbindPopup();
+
+      let labelprefix = '';
+      let content = '';
+      if (index === 0) {
+        labelprefix = 'Start - ';
+        content = `<div class="waypoint-tooltip">
+                      <strong><span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
+                  </div>`;
+      }
+      else {
+        const segment = segments[index - 1];
+        if (!segment) return;
+
+        cumulativeDistance += segment.distance || 0;
+        cumulativeDuration += segment.duration || 0;
+
+        if (index === (waypoints.length-1)) {
+          labelprefix = 'Ziel - ';
+        }
+        content =  `<div class="waypoint-tooltip">
+                      <strong>${index}: <span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
+                      <hr>
+                      <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
+                      <small>   ab Start</small>
+                      <hr>
+                      ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
+                      <small>   seit letztem Punkt</small>
+                    </div>`;
+      }
+      wp.marker.bindPopup(content, { direction: 'top', sticky: true });
+    });
+  }
+
+
+  async function calculateRoute(options){
+    const fitView = !options || options.fitView !== false;
+
+    /*
+      Alte laufende Berechnung abbrechen.
+      Dadurch kann z.B. ein mehrfach ausgelöstes "Route berechnen"
+      keine alte Berechnung mehr weiterlaufen lassen.
+    */
+    if (routeCalculationController) { routeCalculationController.abort(); }
+
+    routeCalculationController = new AbortController();
+    const controller = routeCalculationController;
+    const signal = controller.signal;
+
+    if (waypoints.length < 2){
+      routeResultEl.textContent = 'Mindestens Start und Ziel setzen.';
+      routeResultEl.className = 'error';
+      if (routeCalculationController === controller) {
+        routeCalculationController = null;
+      }
+      return;
+    }
+
+    const profileMap = {
+      foot: 'foot-walking',
+      bike: 'cycling-regular',
+      driving: 'driving-car'
+    };
+
+    const profile = profileMap[document.getElementById('planning-route-profile').value] || 'driving-car';
+
+    /*
+    * Globale Vermeidungen.
+    * Diese gelten für die komplette Berechnung.
+    */
+    const avoidFeatures = [];
+    if (document.getElementById('avoid-tollways').checked) {
+      avoidFeatures.push('tollways');
+    }
+    if (document.getElementById('avoid-ferries').checked) {
+      avoidFeatures.push('ferries');
+    }
+
+    /*
+    * Wegpunkte anhand ihrer Routing-Optionen gruppieren.
+    *
+    * Gleiche Optionen:
+    *   A -> B -> C
+    *
+    * Unterschiedliche Optionen:
+    *   A -> B -> C
+    *   C -> D -> E
+    *
+    * buildRouteGroups() berücksichtigt:
+    *   - segmentPreference
+    *   - avoidHighways
+    */
+    const groups = buildRouteGroups(waypoints);
+
+    let allCoords = [];
+    let totalDistance = 0;
+    let totalDuration = 0;
+    let collectedSegments = [];   
+
+    /*
+    * Jede Gruppe einzeln an ORS senden.
+    */
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex++){
+      /* Prüfen, ob diese Berechnung inzwischen abgebrochen wurde. */
+      if (signal.aborted) { return;}
+
+      const group = groups[groupIndex];
+      routeResultEl.textContent = `Route wird berechnet … Gruppe ${groupIndex + 1}/${groups.length}`;
+      routeResultEl.className = '';
+
+      /*
+      * Alle Wegpunkte der Gruppe werden in EINER ORS-Anfrage übergeben.
+      *
+      * Beispiel:
+      * A -> B -> C
+      * wird:
+      * coordinates: [
+      *   [A.lng, A.lat],
+      *   [B.lng, B.lat],
+      *   [C.lng, C.lat]
+      * ]
+      */
+      const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
+      const body = { coordinates: coordinates, preference: group.preference };
+
+      /* Globale Vermeidungen übernehmen. */
+      const groupAvoidFeatures = [...avoidFeatures];
+
+      /*
+      * Autobahnen nur für diese Gruppe vermeiden,
+      * wenn die Gruppe entsprechend konfiguriert ist.
+      */
+      if (group.avoidHighways) { groupAvoidFeatures.push('highways'); }
+
+      /* Doppelte Werte verhindern. */
+      const uniqueAvoidFeatures = [...new Set(groupAvoidFeatures)];
+      if (uniqueAvoidFeatures.length) {
+        body.options = {
+          avoid_features: uniqueAvoidFeatures
+        };
+      }
+
+      try {
+        // const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
+        const resp = await apiFetch(`route?profile=${encodeURIComponent(profile)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+
+            /*
+            * Wichtig:
+            * Dieser Fetch gehört zu genau dieser Berechnung.
+            * Wird eine neue Berechnung gestartet, wird dieser
+            * Request abgebrochen.
+            */
+            signal: signal
+          }
+        );
+
+        /*
+        * Während des Fetches könnte eine neue Berechnung
+        * gestartet worden sein.
+        */
+        if (signal.aborted) { return; }
+
+        const data = await resp.json();
+        /*
+        * Auch nach dem JSON-Parsing noch einmal prüfen.
+        */
+        if (signal.aborted) { return; }
+
+        if (!resp.ok || !data.features || !data.features[0] ){
+          const msg =
+            (
+              data.error &&
+              (
+                data.error.message ||
+                (
+                  typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+                )
+              )
+            ) ||
+            ('HTTP ' + resp.status);
+
+          /*
+          * Falls zwischenzeitlich eine neue Berechnung
+          * gestartet wurde, keine alte Fehlermeldung anzeigen.
+          */
+          if (signal.aborted) { return; }
+          routeResultEl.textContent = `Fehler bei Gruppe ${groupIndex + 1}: ${msg}`;
+          routeResultEl.className = 'error';
+          return;
+        }
+
+        const feature = data.features[0];
+        /* ORS-Geometrie der kompletten Gruppe. */
+        const groupCoords = feature.geometry.coordinates.map(c => L.latLng(c[1], c[0]) );
+
+        /*
+        * Prüfen, ob die Berechnung währenddessen
+        * ersetzt wurde.
+        */
+        if (signal.aborted) { return; }
+
+        /*
+        * Gruppen haben einen gemeinsamen Wegpunkt.
+        *
+        * Beispiel:
+        * Gruppe 1: A -> B -> C
+        * Gruppe 2: C -> D -> E
+        *
+        * C würde sonst zweimal in allCoords stehen.
+        */
+        if (allCoords.length && groupCoords.length ){
+          const last = allCoords[allCoords.length - 1];
+          const first = groupCoords[0];
+
+          if (Math.abs(last.lat - first.lat) < 1e-7 && Math.abs(last.lng - first.lng) < 1e-7) {
+            groupCoords.shift();
+          }
+        }
+
+        /* Geometrie anhängen. */
+        allCoords = allCoords.concat(groupCoords);
+
+        /*
+        * Entfernung und Dauer der kompletten Gruppe
+        * genau einmal addieren.
+        */
+        if (feature.properties && feature.properties.summary ){
+          totalDistance += feature.properties.summary.distance || 0;
+          totalDuration += feature.properties.summary.duration || 0;
+        }
+
+        if (feature.properties && Array.isArray(feature.properties.segments)) {
+          collectedSegments = collectedSegments.concat(feature.properties.segments);
+        }
+      } 
+      catch (e) {
+
+        /*
+        * AbortController-Abbruch ist KEIN Fehler.
+        *
+        * Das passiert ganz normal, wenn z.B. während einer
+        * laufenden Berechnung eine neue Route gestartet wird.
+        */
+        if (e.name === 'AbortError' || signal.aborted) {
+          console.log(`[Route Berechnung abgebrochen] Gruppe ${groupIndex + 1}`);
+          return;
+        }
+        console.error(`[Route Berechnung Gruppe ${groupIndex + 1}]`,e);
+        routeResultEl.textContent = `Netzwerkfehler bei Gruppe ${groupIndex + 1}.`;
+        routeResultEl.className = 'error';
+        return;
+      }
+    }
+
+    /*
+    * Noch einmal sicherstellen, dass wir nicht gerade
+    * eine veraltete Berechnung fertigstellen.
+    */
+    if (signal.aborted) { return; }
+
+    /*
+    * ------------------------------------------------------------
+    * Route auf der Karte anzeigen
+    * ------------------------------------------------------------
+    */
+    if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
+
+    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
+                                                    weight: 5,
+                                                    opacity: 0.85,
+                                                    lineJoin: 'round'
+                                                  }
+                          ).addTo(planningLayer);
+
+    if (fitView && allCoords.length) {
+      map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+    }
+
+    /*
+    * ------------------------------------------------------------
+    * Ergebnis anzeigen
+    * ------------------------------------------------------------
+    */
+    const distKm = (totalDistance / 1000).toFixed(1);
+    routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
+    routeResultEl.totalDistance = totalDistance;
+    routeResultEl.totalDuration = totalDuration;
+    routeResultEl.className = 'success';
+    updateWaypointTooltips(collectedSegments);   // NEU
+    /*
+    * Controller nur dann löschen, wenn er noch zu
+    * dieser Berechnung gehört.
+    */
+    if (routeCalculationController === controller) {
+      routeCalculationController = null;
+    }
+  }
+
+  document.getElementById('btn-calc-route').addEventListener('click', () => calculateRoute());
+  //#endregion
+
+
   // ---------- Color palette for tracks ----------
   const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
   let colorCursor = 0;
@@ -3478,45 +3541,6 @@
     return meters >= 1000
       ? `${(meters / 1000).toFixed(1)} km`
       : `${Math.round(meters)} m`;
-  }
-
-  function updateWaypointTooltips(segments) {
-    let cumulativeDistance = 0;
-    let cumulativeDuration = 0;
-
-    waypoints.forEach((wp, index) => {
-      wp.marker.unbindPopup();
-
-      let labelprefix = '';
-      let content = '';
-      if (index === 0) {
-        labelprefix = 'Start - ';
-        content = `<div class="waypoint-tooltip">
-                      <strong><span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
-                  </div>`;
-      }
-      else {
-        const segment = segments[index - 1];
-        if (!segment) return;
-
-        cumulativeDistance += segment.distance || 0;
-        cumulativeDuration += segment.duration || 0;
-
-        if (index === (waypoints.length-1)) {
-          labelprefix = 'Ziel - ';
-        }
-        content =  `<div class="waypoint-tooltip">
-                      <strong>${index}: <span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
-                      <hr>
-                      <strong>${formatDistance(cumulativeDistance)} · ${formatRouteDuration(cumulativeDuration)}</strong>
-                      <br><small>ab Start</small>
-                      <hr>
-                      ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
-                      <br><small>seit letztem Punkt</small>
-                    </div>`;
-      }
-      wp.marker.bindPopup(content, { direction: 'top', sticky: true });
-    });
   }
 
   function updateSummary(){
