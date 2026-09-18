@@ -1869,7 +1869,7 @@ console.log('poi anzahl: ' + pois.length);
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
-    loadPoisFromStorage().then(e => { restoreOwnPoiVisibility(authState.settings.ownPOIs); });
+    loadPoisFromStorage().then(e => { if (authState.settings.ownPOIs) restoreOwnPoiVisibility(authState.settings.ownPOIs); });
     loadRoutesFromStorage().then(renderRoutesList);
     restoreAppState();
   }  
@@ -2389,10 +2389,12 @@ console.log('poi anzahl: ' + pois.length);
     }
   }
   function restoreAppState() {
-    restoreMapView(authState.settings.mapview);
-    restoreGlobalSettings(authState.settings.globalOptions);
-    restoreWaypoints(authState.settings.waypoints);
-    restoreExternalPoiSwitches(authState.settings.externPoiSwitches);
+    if (authState.settings) {
+      if (authState.settings.mapview) restoreMapView(authState.settings.mapview);
+      if (authState.settings.globalOptions) restoreGlobalSettings(authState.settings.globalOptions);
+      if (authState.settings.waypoints) restoreWaypoints(authState.settings.waypoints);
+      if (authState.settings.externPoiSwitches) restoreExternalPoiSwitches(authState.settings.externPoiSwitches);
+    }
   }  
 
   const saveAppStateDebounced = debounce(saveAppState, STORAGE_DEBOUNCE_MS);
