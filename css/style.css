@@ -4,6 +4,8 @@
     --bg-row-header: rgba(95, 94, 93, 0.16); 
     --bg-row-hover: #263229;
     --bg-btn-hover: #2a3830; 
+    --bg-auth-gate: rgba(20, 20, 20, 0.85);
+    --bg-poi-switch: rgba(7, 7, 7, 0.8);
     --text: #e8e6df;
     --text-dim: #e2e2e2;
     --text-faint: #929292;
@@ -13,7 +15,6 @@
     --font-display: system-ui, sans-serif;
     --font-body: system-ui, sans-serif;
     --font-mono: ui-monospace, monospace;
-    --poi-switch-background: rgba(7, 7, 7, 0.8);
 }
 
 [data-theme="light"] {
@@ -22,13 +23,15 @@
     --bg-row-header: rgba(0,0,0,0.04);
     --bg-row-hover: #ececec;
     --bg-btn-hover: #d8d8d8; 
+    --bg-auth-gate: rgba(201, 198, 198, 0.7);
+    --bg-poi-switch: #e9e9e9;
+
     --text: #222222;
     --text-dim: #555555;
     --text-faint: #888888;
     --accent: #c98a3e;
     --accent-soft: rgba(201,138,62,.16);
     --border: #d0d0d0;
-    --poi-switch-background: #e9e9e9;
 }
 
 html, body {
@@ -1213,7 +1216,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 7px 9px;
-    background: var(--poi-switch-background);
+    background: var(--bg-poi-switch);
     border-radius: 60px;
     cursor: pointer;
     font-size: 13px;
@@ -1448,7 +1451,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 20, 20, 0.85);
+  background: var(--bg-auth-gate);
   backdrop-filter: blur(4px);
 }
 

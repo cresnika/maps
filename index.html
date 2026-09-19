@@ -1822,22 +1822,22 @@ console.log('poi anzahl: ' + pois.length);
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body || {}),
       });
+
+      let data = null;
+      try {
+        data = await response.json();
+        console.log(JSON.stringify(data));
+      } catch {
+        // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
+      }
+
+      if (!response.ok) {
+        throw new Error((data && data.error) || `HTTP ${response.status}`);
+      }
+
+      return data;
     } catch (err) {
-
     }
-
-    let data = null;
-    try {
-      data = await response.json();
-    } catch {
-      // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
-    }
-
-    if (!response.ok) {
-      throw new Error((data && data.error) || `HTTP ${response.status}`);
-    }
-
-    return data;
   }
 
   function lockApp() {
@@ -2024,10 +2024,14 @@ console.log('poi anzahl: ' + pois.length);
   }
 
   function hideAuthModal() {
-    if (authModalEl) authModalEl.style.display = 'none';
-    const btn = authModalEl.querySelector('.auth-submit-invite');
-    btn.classList.remove('is-close-mode');
-    btn.textContent = 'Einladen';
+    if (authModalEl) {
+      authModalEl.style.display = 'none';
+      const btn = authModalEl.querySelector('.auth-submit-invite');
+      if (btn) {
+        btn.classList.remove('is-close-mode');
+        btn.textContent = 'Einladen';
+      }
+    }
     setAppAuthVisibility();
   }
 
@@ -2055,14 +2059,13 @@ console.log('poi anzahl: ' + pois.length);
 
     try {
       const data = await authRequest('login', { login, password });
-      unlockApp(data.email, data.username, data.admin, data.settings);
+      unlockApp(data.email, data.username, data.admin);
 
       view.querySelector('.auth-error').textContent = '';
       view.querySelector('.auth-password').value = '';
 
       setAppAuthVisibility();
-      updateAuthUI();
-      // hideAuthModal();
+      hideAuthModal();
     } catch (err) {
       showViewError(view, 'submitLogin: '+err.message);
       lockApp();
@@ -2090,8 +2093,6 @@ console.log('poi anzahl: ' + pois.length);
         alert('Invite-Link wurde in die Zwischenablage kopiert.');
       }
       setAppAuthVisibility();
-      updateAuthUI();
-      // hideAuthModal();
     } catch (err) {
       showViewError(view, err.message);
     }
@@ -2165,7 +2166,6 @@ console.log('poi anzahl: ' + pois.length);
     }
     lockApp();
     setAppAuthVisibility();
-    updateAuthUI();
   }
 
   // ------------------------------------------------------------
@@ -2204,12 +2204,6 @@ console.log('poi anzahl: ' + pois.length);
       container.innerHTML = `<button type="button" class="auth-control-login">Anmelden</button>`;
       container.querySelector('.auth-control-login').addEventListener('click', () => showAuthModal('login'));
     }
-  }
-
-  function updateAuthUI() {
-    // if (!authControlInstance) return;
-    // const container = authControlInstance.getContainer();
-    // if (container) renderAuthControl(container);
   }
 
   // set Button events
