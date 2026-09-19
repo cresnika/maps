@@ -1334,7 +1334,7 @@ body {
     border-radius: 8px;
 
     font-size: 14px;
-    z-index: 9999;
+    z-index: 11000;
 
     opacity: 0;
     pointer-events: none;
