@@ -1816,11 +1816,15 @@ console.log('poi anzahl: ' + pois.length);
   const minPasswordLength = 6;
 
   async function authRequest(endpoint, body) {
-    const response = await apiFetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {}),
-    });
+    try {
+      const response = await apiFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      });
+    } catch (err) {
+      
+    }
 
     let data = null;
     try {
@@ -2060,8 +2064,8 @@ console.log('poi anzahl: ' + pois.length);
       updateAuthUI();
       // hideAuthModal();
     } catch (err) {
-      lockApp();
       showViewError(view, err.message);
+      lockApp();
     }
   }
 
