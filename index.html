@@ -600,7 +600,7 @@ console.log('poi anzahl: ' + pois.length);
 
   L.control.layers(baseLayers, null, {
       collapsed: true,
-      position: 'bottomleft'
+      position: 'topright'
   }).addTo(map);
 
   TerrainStyle.addTo(map);
@@ -2175,7 +2175,7 @@ console.log('poi anzahl: ' + pois.length);
   // let authControlInstance = null;
 
   function createAuthControl() {
-    const control = L.control({ position: 'bottomleft' });
+    const control = L.control({ position: 'topright' });
 
     control.onAdd = function() {
       const container = L.DomUtil.create('div', 'leaflet-bar auth-control');
