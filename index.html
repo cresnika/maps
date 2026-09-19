@@ -1823,7 +1823,7 @@ console.log('poi anzahl: ' + pois.length);
         body: JSON.stringify(body || {}),
       });
     } catch (err) {
-      
+
     }
 
     let data = null;
@@ -2064,7 +2064,7 @@ console.log('poi anzahl: ' + pois.length);
       updateAuthUI();
       // hideAuthModal();
     } catch (err) {
-      showViewError(view, err.message);
+      showViewError(view, 'submitLogin: '+err.message);
       lockApp();
     }
   }
