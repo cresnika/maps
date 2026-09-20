@@ -174,14 +174,15 @@
       </div>
       <div class="settings-divider"></div>
 
-      <h4>persönliche POI:</h4>
-      <label>Lücken schließen ab (m)
-        <input type="number" id="gap-threshold" value="1000" min="10" max="20000" step="10">
-      </label>
+      <div class="settings-poi">
+        <label>Lücken schließen ab (m)
+          <input type="number" id="gap-threshold" value="1000" min="10" max="20000" step="10">
+        </label>
 
-      <label>Standardfarbe für neue POIs
-        <input type="color" id="settings-default-poi-color" value="#3b82f6">
-      </label>
+        <label>Standardfarbe für neue POIs
+          <input type="color" id="settings-default-poi-color" value="#3b82f6">
+        </label>
+      </div>
 
       <p class="attribution-text">
         Routing &amp; Ortssuche: © Powered by <a href="https://openrouteservice.org" target="_blank" rel="noopener">openrouteservice.org</a>
@@ -192,13 +193,14 @@
 
       <div class="settings-divider"></div>
 
-      <label>Theme</label>
-      <div class="theme-row">
-        <button class="btn" id="btn-theme" style="flex:2;">Theme umschalten</button>
-      </div>
+      <div class="settings-poi">
+        <!-- <div class="theme-row"> -->
+          <button class="btn" id="btn-theme" style="flex:2;">Theme umschalten</button>
+        <!-- </div> -->
 
-      <div class="modal-actions">
-        <button id="settings-modal-close" class="btn primary">Schließen</button>
+        <!-- <div class="modal-actions"> -->
+          <button id="settings-modal-close" class="btn primary">Schließen</button>
+        <!-- </div> -->
       </div>
     </div>
   </div>
@@ -902,9 +904,10 @@
     });
   }
 
-  function waypointTag(index){
+  function waypointTag(wp, index){
     if (index === 0) return 'Start';
     if (index === waypoints.length - 1) return 'Ziel';
+    // todo: zwischen waypoints: km ausrechnen und retour geben für info anzeige    
     return '';
   }
 
@@ -977,7 +980,6 @@
       labelIsKnown: hasKnownLabel
     };
 
-    // marker.getElement().classList.add('waypoint-marker');
     marker.on('mouseover', () => {
       if (mapEl.classList.contains('shift-active')) {
         marker.getElement().style.cursor = deleteMarkerCursor;
@@ -1238,15 +1240,12 @@
 
       const info = document.createElement('div');
       info.className = 'waypoint-info';
-      const tagText = waypointTag(i);
-      //const tagText = 'ID: ' + wp.id;
-      if (tagText)
-      {
-        const tag = document.createElement('div');
-        tag.className = 'waypoint-tag';
-        tag.textContent = tagText;
-        info.appendChild(tag);
-      }
+      const tagText = wp.tagText || waypointTag(wp, i);
+      const tag = document.createElement('div');
+      tag.className = 'waypoint-tag';
+      tag.textContent = tagText;
+      info.appendChild(tag);
+
       const label = document.createElement('div');
       label.className = 'waypoint-label';
       label.textContent = wp.label;
@@ -1281,6 +1280,7 @@
       actions.appendChild(delBtn);
 
       row.appendChild(actions);
+      wp.row = row;
       waypointListEl.appendChild(row);
 
       if (i < waypoints.length - 1){
@@ -3274,6 +3274,18 @@
                     </div>`;
       }
       wp.marker.bindPopup(content, { direction: 'top', sticky: true });
+
+      if ((index > 0) && (index < waypoints.length-1)) {
+        waypoints.forEach((wpitem, i) => {
+          if (wpitem === wp) {
+            if (wp.row) {
+              const tag = wp.row.querySelector('.waypoint-tag');
+              wp.tagText = formatDistance(cumulativeDistance);
+              tag.textContent = wp.tagText;
+            }
+          }
+        });
+      }
     });
   }
 
@@ -3534,7 +3546,8 @@
     routeResultEl.totalDistance = totalDistance;
     routeResultEl.totalDuration = totalDuration;
     routeResultEl.className = 'success';
-    updateWaypointTooltips(collectedSegments);   // NEU
+    updateWaypointTooltips(collectedSegments);
+
     /*
     * Controller nur dann löschen, wenn er noch zu
     * dieser Berechnung gehört.

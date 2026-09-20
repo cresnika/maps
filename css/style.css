@@ -357,8 +357,8 @@ body {
   .gap-row { margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--border); align-items: center; }
   .gap-input-wrap { display: flex; align-items: center; gap: 4px; }
   #gap-threshold {
-    width: 120px;
-    background: var(--bg-sidebar);
+    /* width: 120px; */
+    background: var(--bg-sidebar-raised);
     border: 1px solid var(--border);
     color: var(--text);
     font-family: var(--font-mono);
@@ -507,7 +507,7 @@ body {
     color: #ff0000;
     background: var(--bg-row-hover); opacity: 1;
   }
-.row-icon-wait {
+  .row-icon-wait {
     background: none;
     border: none;
     font-size: 15px;
@@ -761,7 +761,7 @@ body {
   .waypoint-info { flex: 1; min-width: 0; }
   .waypoint-tag {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: .04em;
     color: var(--text-faint);
@@ -818,7 +818,6 @@ body {
     color: #ff00ff;
     transform-box: view-box;
     transform-origin: center;
-    transform: scale(1.5);
     animation: fa-bounce 1s infinite ease-in-out;
   }
 
@@ -955,8 +954,24 @@ body {
     box-sizing: border-box;
   }
   #settings-default-poi-color {
-    width: 40px;
+    /* width: 40px; */
   }
+  .settings-poi {
+    display: flex;
+    gap: 20px;
+}
+
+.settings-poi label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.settings-poi input {
+    margin-top: 5px;
+}
+
   .modal-box input:focus { outline: none; border-color: var(--accent); }
   .modal-actions {
     display: flex;
@@ -1499,10 +1514,23 @@ body {
 }
 
 @keyframes fa-bounce {
-    0%,
-    64%,
-    100% { transform: translateY(0); }
-    10% { transform: translateY(-10px) scale(1); }
-    30% { transform: translateY(0) scaleY(0.9); }
-    50% { transform: translateY(-4px) scale(1); }
+    0%, 100% {
+        transform: translateY(0) scale(1);
+    }
+
+    15% {
+        transform: translateY(-12px) scale(1.4);
+    }
+
+    35% {
+        transform: translateY(0) scale(0.85);
+    }
+
+    55% {
+        transform: translateY(-5px) scale(1.15);
+    }
+
+    75% {
+        transform: translateY(0) scale(1);
+    }
 }
