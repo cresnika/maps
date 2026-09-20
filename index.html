@@ -333,6 +333,10 @@
   const hourGlassSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
                           <path fill="currentColor" d="M128 560C128 568.8 135.2 576 144 576L496 576C504.8 576 512 568.8 512 560C512 551.2 504.8 544 496 544L480 544L480 502.4C480 453 457.2 406.4 418.2 376.1L346 320L418.2 263.9C457.2 233.6 480 187 480 137.6L480 96L496 96C504.8 96 512 88.8 512 80C512 71.2 504.8 64 496 64L144 64C135.2 64 128 71.2 128 80C128 88.8 135.2 96 144 96L160 96L160 137.6C160 187 182.8 233.6 221.8 263.9L294 320L221.8 376.1C182.8 406.4 160 453.1 160 502.4L160 544L144 544C135.2 544 128 551.2 128 560zM192 544L192 502.4C192 462.9 210.2 425.6 241.4 401.4L320 340.3L398.6 401.4C429.8 425.6 448 462.9 448 502.4L448 544L192 544zM241.4 238.6C225.3 226.1 212.6 210 204.1 192L435.8 192C427.3 210 414.7 226.1 398.5 238.6L319.9 299.7L241.3 238.6zM194 160C192.7 152.7 192 145.2 192 137.6L192 96L448 96L448 137.6C448 145.2 447.3 152.7 446 160L194 160z"/>
                         </svg>`;
+  const circleSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                      <path fill="currentColor" opacity=".4" d="M64 320C64 461.4 178.6 576 320 576C427.8 576 520 509.4 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.2C470.1 462 400.9 512 320 512C214 512 128 426 128 320C128 214 214 128 320 128C329.3 128 338.5 128.7 347.5 129.9C330 127.4 317.9 111.2 320.4 93.7C322.9 76.5 338.6 64.4 355.8 66.4C344.1 64.8 332.2 63.9 320 63.9C178.6 63.9 64 178.5 64 319.9z"/>
+                      <path fill="currentColor" d="M320.3 93.7C322.8 76.2 339 64.1 356.5 66.6C480.6 84.4 576 191 576 320C576 353.5 569.5 385.6 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.3C507.2 369.3 512.1 345.3 512.1 320C512.1 223.3 440.6 143.3 347.6 129.9C330.1 127.4 318 111.2 320.5 93.7z"/>
+                    </svg>`
   //#endregion
   
   
@@ -454,30 +458,10 @@
   settingsDefaultPoiColorInput.addEventListener('change', () => { defaultPoiColorChanged(); })
 
   document.getElementById('btn-theme').addEventListener('click', () => {
-      const current =
-          document.documentElement.getAttribute('data-theme')
-          || 'dark';
-
-      setTheme(
-          current === 'dark'
-              ? 'light'
-              : 'dark'
-      );
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(current === 'dark' ? 'light' : 'dark');
   });
 
-  /*
-console.log('poi anzahl: ' + pois.length);
-    pois.forEach(poi => {
-      console.log('poi: ' + poi.color + '  old: '+oldDefault);
-      if (colorsAreSimilar(poi.color, oldDefault)){
-        console.log('similar color changed');
-        poi.color = newDefault;
-        poi.marker.setIcon(poiIcon(poi.color));
-        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
-      }
-    });
-
-  */
   //#endregion
 
 
@@ -1137,7 +1121,7 @@ console.log('poi anzahl: ' + pois.length);
 
     setTimeout(() => {
         el.classList.remove('is-selected');
-    }, 2000);
+    }, 3000);
   }
 
   function renderWaypointList(){
@@ -1376,12 +1360,6 @@ console.log('poi anzahl: ' + pois.length);
             layer: null,
             visible: false,
             _loadingActive: false,
-            get loadingActive() { return this._loadingActive; },
-            set loadingActive(value) {
-              this._loadingActive = value;
-              const Licon = document.getElementById(`${this.description}-load-icon`);
-              if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
-            },
             zoomVisibility: false,
             tileSizeDeg: 0.3,
             poiData: null,
@@ -1419,6 +1397,12 @@ console.log('poi anzahl: ' + pois.length);
         zoomLimit: 7,
         dataFilename: 'data/mountain_passes.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
         description: 'Tankstellen',
@@ -1443,6 +1427,12 @@ console.log('poi anzahl: ' + pois.length);
         zoomLimit: 9,
         dataFilename: 'data/fuel.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
         description: 'Hotels',
@@ -1466,6 +1456,12 @@ console.log('poi anzahl: ' + pois.length);
         zoomLimit: 9,
         dataFilename: 'data/hotels.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
       description: 'Pensionen',
@@ -1489,6 +1485,12 @@ console.log('poi anzahl: ' + pois.length);
       zoomLimit: 9,
       dataFilename: 'data/guesthouses.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
       description: 'Restaurants',
@@ -1511,7 +1513,13 @@ console.log('poi anzahl: ' + pois.length);
       zoomLimit: 9,
       dataFilename: 'data/food.json',
       overpassQuery: 'nwr["tourism"="camp_site"]',
-        ...POI_DEFAULTS,
+      ...POI_DEFAULTS,
+      get loadingActive() { return this._loadingActive; },
+      set loadingActive(value) {
+        this._loadingActive = value;
+        const Licon = document.getElementById(`${this.description}-load-icon`);
+        if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+      },
     },
     {
       description: 'Ladestationen',
@@ -1536,6 +1544,12 @@ console.log('poi anzahl: ' + pois.length);
       zoomLimit: 9,
       dataFilename: 'data/charging_stations.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
       description: 'Camping',
@@ -1560,6 +1574,12 @@ console.log('poi anzahl: ' + pois.length);
       zoomLimit: 9,
       dataFilename: 'data/campsites.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
     {
       description: 'Aussichtspunkte',
@@ -1584,6 +1604,12 @@ console.log('poi anzahl: ' + pois.length);
       zoomLimit: 9,
       dataFilename: 'data/viewpoints.json',
         ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
+          this._loadingActive = value;
+          const Licon = document.getElementById(`${this.description}-load-icon`);
+          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+        },
     },
   ];  
  
@@ -1739,15 +1765,13 @@ console.log('poi anzahl: ' + pois.length);
           'leaflet-bar extern-poi-control'
         );
         const htmlIcon = L.divIcon({
-                              html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                                        <path fill="var(--text)" d="M128 560C128 568.8 135.2 576 144 576L496 576C504.8 576 512 568.8 512 560C512 551.2 504.8 544 496 544L480 544L480 502.4C480 453 457.2 406.4 418.2 376.1L346 320L418.2 263.9C457.2 233.6 480 187 480 137.6L480 96L496 96C504.8 96 512 88.8 512 80C512 71.2 504.8 64 496 64L144 64C135.2 64 128 71.2 128 80C128 88.8 135.2 96 144 96L160 96L160 137.6C160 187 182.8 233.6 221.8 263.9L294 320L221.8 376.1C182.8 406.4 160 453.1 160 502.4L160 544L144 544C135.2 544 128 551.2 128 560zM192 544L192 502.4C192 462.9 210.2 425.6 241.4 401.4L320 340.3L398.6 401.4C429.8 425.6 448 462.9 448 502.4L448 544L192 544zM241.4 238.6C225.3 226.1 212.6 210 204.1 192L435.8 192C427.3 210 414.7 226.1 398.5 238.6L319.9 299.7L241.3 238.6zM194 160C192.7 152.7 192 145.2 192 137.6L192 96L448 96L448 137.6C448 145.2 447.3 152.7 446 160L194 160z"/>
-                                     </svg>`,
+                              html: circleSVG,
                             });
         container.innerHTML = `
           <label class="extern-poi-switch">
             <span class="extern-poi-label">${poi.labelicon.options.html}</span>
             <span class="extern-poi-label">${poi.description}</span>
-            <span class="extern-poi-label" id="${poi.description}-load-icon" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
+            <span class="extern-poi-label poi-icon-load" id="${poi.description}-load-icon" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
             <input type="checkbox" id="extern-poi-toggle">
             <span class="extern-poi-slider ${poi.mapicon.options.className}"></span>
           </label>`;
@@ -1826,7 +1850,6 @@ console.log('poi anzahl: ' + pois.length);
       let data = null;
       try {
         data = await response.json();
-        console.log(JSON.stringify(data));
       } catch {
         // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
       }
@@ -3543,7 +3566,6 @@ console.log('poi anzahl: ' + pois.length);
     if (!ok) return;
     deleteTrack(track);
   }
-
   async function delTrackGroupHelper(group, groupPath) {
     const ok = await confirmDialog(`"${groupPath}" mit ${group.length} Track(s) (inkl. Unterordner) wirklich löschen?`);
     if (!ok) return;
@@ -3555,7 +3577,6 @@ console.log('poi anzahl: ' + pois.length);
     renderTree();
   }
 
-  // ---------- Button events ----------
   async function gzipString(text) {
     const stream = new CompressionStream("gzip");
     const writer = stream.writable.getWriter();
@@ -3583,8 +3604,10 @@ console.log('poi anzahl: ' + pois.length);
       }
       return btoa(binary);
   }
+
   async function saveTrackToStorage(track) {
     try {
+      if (track.loadIcon) { track.loadIcon.classList.remove('hidden'); }
       const compressed = await gzipString(track.gpxText);
       const base64 = uint8ToBase64(compressed);
       const fsize = track.gpxText.length;
@@ -3595,6 +3618,7 @@ console.log('poi anzahl: ' + pois.length);
         body: JSON.stringify(data),
       });
       const resp = await response.json();
+      if (track.loadIcon) { track.loadIcon.classList.add('hidden'); }
       return resp.id;
     }
     catch (error) {
@@ -3604,6 +3628,7 @@ console.log('poi anzahl: ' + pois.length);
   }
   async function updateTrackToStorage(track, includeGPX = false) {
     try {
+      if (track.loadIcon) { track.loadIcon.classList.remove('hidden'); }
       if (includeGPX && track.gpxText) {
         const compressed = await gzipString(track.gpxText);
         const base64 = uint8ToBase64(compressed);
@@ -3622,9 +3647,11 @@ console.log('poi anzahl: ' + pois.length);
         body: JSON.stringify(data),
       });
       const resp = await response.json();
+      if (track.loadIcon) { track.loadIcon.classList.add('hidden'); }
       return resp.id;
     }
     catch (error) {
+      if (track.loadIcon) { track.loadIcon.classList.add('hidden'); }
       showToast('Fehler beim updaten vom Track' + error, 2000);
       return -1;
     }
@@ -3681,6 +3708,8 @@ console.log('poi anzahl: ' + pois.length);
   }
   async function loadTrackGPXFromStorage(entry) {
     try {
+      if (entry.loadIcon !== null) { entry.loadIcon.classList.remove('hidden'); }
+
       const response = await apiFetch('getTrackGPX', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json'},
@@ -3689,8 +3718,10 @@ console.log('poi anzahl: ' + pois.length);
       const resp = await response.json();
       const compressed = new Uint8Array(resp.gpx);
       entry.gpxText = await ungzipToString(compressed);
+      if (entry.loadIcon !== null) { entry.loadIcon.classList.add('hidden'); }
     }
     catch (error) {
+      if (entry.loadIcon !== null) { entry.loadIcon.classList.add('hidden'); }
       showToast('Fehler beim laden der Tracks: ' + error, 7000);
       console.warn('Fehler beim laden der Tracks ', error);
     }
@@ -4127,9 +4158,7 @@ console.log('poi anzahl: ' + pois.length);
     if (!entry) return;
     if (entry.gpxText !== null) return;
 
-    if (entry.loadIcon !== null) {
-      entry.loadIcon.classList.remove('hidden');
-    }
+    if (entry.loadIcon) { entry.loadIcon.classList.remove('hidden'); }
     
     await loadTrackGPXFromStorage(entry);
 
@@ -4182,17 +4211,7 @@ console.log('poi anzahl: ' + pois.length);
       entry.layer = gpxLayer;
       if (!entry.visible) map.removeLayer(gpxLayer);
     }
-
-
-
-
-
-
-    if (entry.loadIcon !== null) {
-      entry.loadIcon.classList.add('hidden');
-    }
-
-
+    if (entry.loadIcon) { entry.loadIcon.classList.add('hidden'); }
   }
 
   function renderViewerFileRow(entry, fileList){
@@ -4263,7 +4282,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
         if (!entry.loadIcon) {
           const lIcon = document.createElement('span');
           lIcon.className = 'row-icon-btn row-icon-wait';
-          lIcon.innerHTML = hourGlassSVG;
+          lIcon.innerHTML = circleSVG;
           lIcon.classList.add('hidden');
           entry.loadIcon = lIcon;
         }
