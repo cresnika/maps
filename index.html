@@ -3774,7 +3774,7 @@
       const compressed = await gzipString(track.gpxText);
       const base64 = uint8ToBase64(compressed);
       const fsize = track.gpxText.length;
-      const data = {id: track.id, name: track.name, color: track.color, fileSize: fsize, trackDate: track.trackDate, distance: track.distanceKm, track_group: track.groupName, gpx: base64};
+      const data = {id: track.id, name: track.name, color: track.color, fileSize: fsize, trackDate: track.trackDate, distance: track.distanceKm, track_group: track.track_group, gpx: base64};
       const response = await apiFetch('addTrack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3801,7 +3801,7 @@
                     name: track.name, 
                     trackDate: track.trackDate, 
                     distance: track.distanceKm, 
-                    track_group: track.groupName, 
+                    track_group: track.track_group, 
                     color: track.color,
                     gpx: gpxdata};
       const response = await apiFetch('updateTrack', {
@@ -3844,7 +3844,7 @@
       data.forEach(track => {
         const id = track.id;
         const color = track.color || nextColor();
-        const g = groupFor(track.group);
+        const g = groupFor(track.track_group);
 
         const entry = { id, 
                         name: track.name, 
@@ -3857,7 +3857,7 @@
                         originalSegments: [], 
                         customLayers: [], 
                         loadIcon: null,
-                        groupName: track.group, 
+                        track_group: track.track_group, 
                         gpxText: track.gpx || null 
                       };
         g.files.set(id, entry);
@@ -4199,7 +4199,7 @@
     const record = {
       id: entry.id,
       name: entry.name,
-      groupName: entry.groupName,
+      track_group: entry.track_group,
       color: entry.color,
       visible: entry.visible,
       gpxText: entry.gpxText
@@ -4264,7 +4264,7 @@
     records.forEach(record => {
       if (!record.gpxText) return;
       const file = new File([record.gpxText], record.name, { type: 'application/gpx+xml' });
-      loadGPXFile(file, record.groupName, {
+      loadGPXFile(file, record.track_group, {
         persist: false,
         id: record.id,
         sourceText: record.gpxText,
@@ -4498,7 +4498,7 @@
     oldGroup.files.delete(Number(entryId));
     if (oldGroup.files.size === 0) groups.delete(oldGroupPath);
 
-    entry.groupName = newGroupPath;
+    entry.track_group = newGroupPath;
     groupFor(newGroupPath).files.set(Number(entryId), entry);
     updateTrackToStorage(entry);
     renderTracksTree();
@@ -4517,13 +4517,13 @@
       const existing = groups.get(newPath);
       if (existing){
         group.files.forEach((entry, id) => {
-          entry.groupName = newPath;
+          entry.track_group = newPath;
           existing.files.set(id, entry);
           saveViewerEntry(entry);
         });
       } else {
         group.files.forEach(entry => {
-          entry.groupName = newPath;
+          entry.track_group = newPath;
           updateTrackToStorage(entry);
           // saveViewerEntry(entry);
         });
@@ -4632,7 +4632,7 @@
               const renamedPath = newPath + path.slice(child.path.length);
               groups.set(renamedPath, group);
               group.files.forEach(entry => {
-                entry.groupName = renamedPath;
+                entry.track_group = renamedPath;
                 updateTrackToStorage(entry);
               });
             }
@@ -4932,10 +4932,10 @@
 
   async function deleteTrack(track){
     if (track.layer && map.hasLayer(track.layer)) map.removeLayer(track.layer);
-    const g = groups.get(track.groupName);
+    const g = groups.get(track.track_group);
     if (g){
       g.files.delete(track.id);
-      if (g.files.size === 0) groups.delete(track.groupName);
+      if (g.files.size === 0) groups.delete(track.track_group);
     }
     // deleteViewerEntry(track.id);
     delTrackFromStorage(track.id).then(renderTracksTree);
