@@ -2751,11 +2751,11 @@
     return container;
   }
 
-  function addPoiInternal(name, poi_group, lat, lng, visible, color, dbid = -1){
+  function addPoiInternal(name, poi_group, lat, lng, visible, color, dbid = -1, isShared){
     const id = dbid || -1;
     const poiColor = color || getDefaultPoiColor();
     const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
-    const poi = { id, name, poi_group, lat, lng, marker, visible: visible !== false, color: poiColor };
+    const poi = { id, name, poi_group, lat, lng, marker, visible: visible !== false, color: poiColor, isShared: isShared };
     marker.bindTooltip(() => {
       const content = document.createElement('div');
       const nameEl = document.createElement('div');
@@ -2825,7 +2825,7 @@
       const resp = await response.json()
       const data = resp.pois;
       clearPOIs();
-      (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id,));
+      (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id));
     }
     catch (error) {
       showToast('Fehler beim laden der POIs: ' + error, 7000);
@@ -2833,9 +2833,9 @@
     }
   }
 
-  async function savePoiToStorage(lat, lng, name, poi_group, color, id) {
+  async function savePoiToStorage(lat, lng, name, poi_group, color, id, isShared) {
     try {
-      const poi = {lat, lng, name, poi_group, color, id};
+      const poi = {lat, lng, name, poi_group, color, id, isShared};
       const response = await apiFetch('addPOI', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2852,10 +2852,10 @@
   }
 
   async function addPoi(latlng, name, poi_group){
-    const poi = {lat:latlng.lat, lng:latlng.lng, name:name, poi_group:poi_group, color:getDefaultPoiColor(), id:-1};
+    const poi = {lat:latlng.lat, lng:latlng.lng, name:name, poi_group:poi_group, color:getDefaultPoiColor(), id:-1, isShared: false};
     const id = await savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
     if (id != -1) {
-      addPoiInternal(name, poi_group, latlng.lat, latlng.lng, true, getDefaultPoiColor(), id);
+      addPoiInternal(name, poi_group, latlng.lat, latlng.lng, true, getDefaultPoiColor(), id, poi.isShared);
       renderPoiList();
     }
   }
