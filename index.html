@@ -154,7 +154,7 @@
       </div>
     </div>
 
-    <div id="sidebar-footer">Kartendaten © OpenStreetMap Mitwirkende</div>
+    <div id="sidebar-footer">Kartendaten © OpenStreetMap</div>
 
     <div id="sidebar-resizer" title="Breite ziehen"></div>
   </aside>
@@ -289,6 +289,37 @@
     </div>
 </div>
 
+<div id="share-route-backdrop" class="modal-backdrop">
+  <div class="modal-box">
+    <h3>Route mit Benutzer teilen</h3>
+    <div class="share-route-name"></div>
+    <!-- <label>Benutzer suchen</label>
+    <input
+      type="text"
+      id="share-user-filter"
+      placeholder="Benutzername eingeben">
+    <div id="share-user-list"></div> -->
+    <label id="share-user-select">
+        Benutzer auswählen
+    </label>
+    <input 
+        id="share-user" 
+        list="user-list" 
+        data-bwignore="true"
+        placeholder="aus Liste auswählen">
+    <datalist id="user-list"></datalist>
+
+    <div class="modal-actions">
+      <button class="btn" id="share-cancel">
+        Abbrechen
+      </button>
+      <button class="btn primary" id="share-save">
+        Teilen
+      </button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="input-files" accept=".gpx" multiple style="display:none">
 <input type="file" id="input-folder" webkitdirectory directory multiple style="display:none">
 
@@ -309,7 +340,7 @@
   const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/';
 
   // ============================================================
-  // ---------- Cursor svg ----------
+  // ---------- svg's ----------
   //#region svg data
   const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
                         <!-- Mauszeiger (kleiner, weiß) -->
@@ -339,6 +370,9 @@
                       <path fill="currentColor" opacity=".4" d="M64 320C64 461.4 178.6 576 320 576C427.8 576 520 509.4 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.2C470.1 462 400.9 512 320 512C214 512 128 426 128 320C128 214 214 128 320 128C329.3 128 338.5 128.7 347.5 129.9C330 127.4 317.9 111.2 320.4 93.7C322.9 76.5 338.6 64.4 355.8 66.4C344.1 64.8 332.2 63.9 320 63.9C178.6 63.9 64 178.5 64 319.9z"/>
                       <path fill="currentColor" d="M320.3 93.7C322.8 76.2 339 64.1 356.5 66.6C480.6 84.4 576 191 576 320C576 353.5 569.5 385.6 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.3C507.2 369.3 512.1 345.3 512.1 320C512.1 223.3 440.6 143.3 347.6 129.9C330.1 127.4 318 111.2 320.5 93.7z"/>
                     </svg>`
+  const shareSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
+                      <path fill="currentColor" d="M512 160C512 124.7 483.3 96 448 96C412.7 96 384 124.7 384 160C384 165.6 384.7 171 386 176.1C388.6 186.3 393.7 195.5 400.6 203C400.9 203.4 401.2 203.7 401.6 204C413.3 216.3 429.7 223.9 448 223.9C483.3 223.9 512 195.2 512 159.9zM357.5 192C354 182 352 171.2 352 160C352 107 395 64 448 64C501 64 544 107 544 160C544 213 501 256 448 256C417.7 256 390.6 241.9 373 220L250.5 288C254 298 256 308.8 256 320C256 331.2 254.1 342 250.5 352L373 420C390.6 398 417.6 384 448 384C501 384 544 427 544 480C544 533 501 576 448 576C395 576 352 533 352 480C352 468.8 353.9 458 357.5 448L235 380C217.4 402 190.4 416 160 416C107 416 64 373 64 320C64 267 107 224 160 224C190.3 224 217.4 238.1 235 260L357.5 192zM206.4 275.9C194.7 263.6 178.3 256 160 256C124.7 256 96 284.7 96 320C96 355.3 124.7 384 160 384C178.3 384 194.7 376.3 206.4 364.1C213.1 357.1 218.2 348.5 221.1 339.1C221.4 338.1 221.7 337.2 221.9 336.2C223.2 331.1 223.9 325.6 223.9 320.1C223.9 314.6 223.2 309.1 221.9 304C219.3 293.8 214.2 284.6 207.3 277.1C207 276.7 206.7 276.4 206.3 276.1zM448 544C483.3 544 512 515.3 512 480C512 444.7 483.3 416 448 416C429.7 416 413.3 423.6 401.6 435.9C401.3 436.2 400.9 436.6 400.6 436.9C393.7 444.4 388.7 453.6 386 463.8C384.7 468.9 384 474.3 384 479.9C384 515.2 412.7 543.9 448 543.9z"/>
+                    </svg>`;
   //#endregion
   
   
@@ -712,6 +746,88 @@
   //#endregion
 
 
+
+  // ============================================================
+  // ---------- sharing stuff  ----------
+  //#region Sharing with users
+  async function shareRouteFetch(route, user) {
+    try {
+      const response = await apiFetch('shareRoute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({route_id: route.id, user_id: user.id}),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        showToast('Fehler beim teilen der Route', 7000);
+      }
+      else {
+        if (resp.alreadyShared)
+          showToast('Route wurde bereits mit dem User geteilt', 5000);
+        else
+          showToast(`Route erfolgreich mit ${user.username} geteilt`, 5000);
+      }
+      console.log('own routes: ' + resp.length);
+      console.log(JSON.stringify('resp'));
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen der Route: ' + error, 7000);
+      console.warn('Fehler beim teilen der Route: ', error);
+    }
+
+  }
+
+  async function showRouteShareDialog(route) {
+      return new Promise(resolve => {
+          const backdrop = document.getElementById('share-route-backdrop');
+          const routeName = backdrop.querySelector('.share-route-name');
+          const userInput = document.getElementById('share-user');
+          const userList = document.getElementById('user-list');
+          const btnSave = document.getElementById('share-save');
+          const btnCancel = document.getElementById('share-cancel');
+          routeName.textContent = `Route: ${route.name}`;
+          userInput.value = '';
+          userList.innerHTML = '';
+          users.forEach(user => {
+              if (user.email != authState.email) {
+                const option = document.createElement('option');
+                // option.value = `${user.username} - ${user.email}`;
+                option.value = `${user.username}`;
+                userList.appendChild(option);
+              }
+          });
+          backdrop.classList.add('active');
+          function close(result) {
+              backdrop.classList.remove('active');
+              btnSave.onclick = null;
+              btnCancel.onclick = null;
+              resolve(result);
+          }
+          btnCancel.onclick = () => close(null);
+          btnSave.onclick = () => {
+              const username = userInput.value.trim();
+              if (!username) {
+                  showToast('Bitte Benutzer auswählen', 1000);
+                  return;
+              }
+              const user = users.find(u => u.username === username);
+              if (!user) { return; }
+              close(user);
+          };
+      });
+  }
+
+  async function shareRouteWithUser(route) {
+    const user = await showRouteShareDialog(route);
+    if (!user) return;
+    console.log('share route with ' + user.username + ' id ' + user.id);
+    await shareRouteFetch(route, user);
+  }
+  //#endregion
+
+
+
   // ============================================================
   // ---------- Route planning (waypoints) ----------
   //#region Tab Routing
@@ -907,7 +1023,6 @@
   function waypointTag(wp, index){
     if (index === 0) return 'Start';
     if (index === waypoints.length - 1) return 'Ziel';
-    // todo: zwischen waypoints: km ausrechnen und retour geben für info anzeige    
     return '';
   }
 
@@ -1129,9 +1244,13 @@
   function renderWaypointList(){
     if (waypoints.length > 1) {
       document.getElementById('btn-calc-route').disabled = false;
+      document.getElementById('btn-export-route').disabled = false;
+      document.getElementById('btn-save-route').disabled = false;
     } 
     else {
       document.getElementById('btn-calc-route').disabled = true;
+      document.getElementById('btn-export-route').disabled = true;
+      document.getElementById('btn-save-route').disabled = true;
     }
 
     waypointListEl.innerHTML = '';
@@ -1838,6 +1957,8 @@
     };
   const authState = {loggedIn: false, email: null, username: null, admin: false, settings: emptySettings};
   const minPasswordLength = 6;
+  let users = [];
+  let usersById = new Map();
 
   async function authRequest(endpoint, body) {
     try {
@@ -1873,7 +1994,10 @@
     document.getElementById('btn-user-invite').classList.add('hidden');
     document.getElementById('btn-user-savePOI').classList.add('hidden');
     clearPOIs();
+    clearWaypoints();
+    clearRoutes();
     clearTracks();
+    clearUsers();
 
     const authOverlay = document.getElementById('auth-gate');
     authOverlay.classList.remove('hidden');
@@ -1886,7 +2010,7 @@
     setAppAuthVisibility();
   }
 
-  function unlockApp(email, username, admin, settings) {
+  async function unlockApp(email, username, admin, settings) {
     authState.loggedIn = true;
     authState.username = username || '';
     authState.email = email || '';
@@ -1905,14 +2029,33 @@
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
+    clearWaypoints();
+    clearTracks();
+    clearRoutes();
     restoreAppState();
-    loadPoisFromStorage().then(e => { 
+    await getUserList();
+    await loadPoisFromStorage().then(e => { 
       if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
     });
-    clearTracks();
-    loadRoutesFromStorage().then(renderRoutesList);
-    loadTracksFromStorage().then(renderTree)
+    await loadSharedRoutesFromStorage();
+    await loadRoutesFromStorage().then(renderRoutesList);
+    await loadTracksFromStorage().then(renderTracksTree)
   }  
+
+  async function getUserList() {
+    try {
+      const response = await apiFetch('getUserList', {
+        method: 'GET'
+      });
+      const data = await response.json()
+      clearUsers();
+      (data || []).forEach(u => { users.push(u); usersById.set(u.id, u) });
+    }
+    catch (error) {
+      showToast('Fehler beim laden der User: ' + error, 7000);
+      console.warn('Fehler beim laden der User: ', error);
+    }
+  }
 
   async function checkExistingSession() {
     try {
@@ -2070,9 +2213,7 @@
     if (password === '') return 'Passwort darf nicht leer sein';
     if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
     if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
-
     if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
-
   }
 
   async function submitLogin() {
@@ -2579,7 +2720,7 @@
 
     const groupEl = document.createElement('div');
     groupEl.className = 'poi-popup-group';
-    groupEl.textContent = poi.group;
+    groupEl.textContent = poi.poi_group;
     container.appendChild(groupEl);
 
     const btnRow = document.createElement('div');
@@ -2610,11 +2751,11 @@
     return container;
   }
 
-  function addPoiInternal(name, group, lat, lng, visible, color, dbid = -1){
+  function addPoiInternal(name, poi_group, lat, lng, visible, color, dbid = -1){
     const id = dbid || -1;
     const poiColor = color || getDefaultPoiColor();
     const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
-    const poi = { id, name, group, lat, lng, marker, visible: visible !== false, color: poiColor };
+    const poi = { id, name, poi_group, lat, lng, marker, visible: visible !== false, color: poiColor };
     marker.bindTooltip(() => {
       const content = document.createElement('div');
       const nameEl = document.createElement('div');
@@ -2623,7 +2764,7 @@
       content.appendChild(nameEl);
       const groupEl = document.createElement('div');
       groupEl.className = 'poi-hover-group';
-      groupEl.textContent = poi.group;
+      groupEl.textContent = poi.poi_group;
       content.appendChild(groupEl);
       return content;
     }, { direction: 'top', offset: [0, -10], className: 'poi-hover-tooltip' });
@@ -2641,7 +2782,7 @@
       const pos = marker.getLatLng();
       poi.lat = pos.lat;
       poi.lng = pos.lng;
-      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
     });
     if (poi.visible) marker.addTo(poiLayer);
     pois.push(poi);
@@ -2652,7 +2793,7 @@
     document.getElementById('btn-user-savePOI').disabled = true;
     const data = {pois: pois.map(p => ({
                   name: p.name,
-                  group: p.group,
+                  poi_group: p.poi_group,
                   lat: p.lat,
                   lng: p.lng,
                   color: p.color
@@ -2684,7 +2825,7 @@
       const resp = await response.json()
       const data = resp.pois;
       clearPOIs();
-      (data || []).forEach(p => addPoiInternal(p.name, p.group, p.lat, p.lng, false, p.color, p.id,));
+      (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id,));
     }
     catch (error) {
       showToast('Fehler beim laden der POIs: ' + error, 7000);
@@ -2692,9 +2833,9 @@
     }
   }
 
-  async function savePoiToStorage(lat, lng, name, group, color, id) {
+  async function savePoiToStorage(lat, lng, name, poi_group, color, id) {
     try {
-      const poi = {lat, lng, name, group, color, id};
+      const poi = {lat, lng, name, poi_group, color, id};
       const response = await apiFetch('addPOI', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2710,11 +2851,11 @@
     }
   }
 
-  async function addPoi(latlng, name, group){
-    const poi = {lat:latlng.lat, lng:latlng.lng, name:name, group:group, color:getDefaultPoiColor(), id:-1};
-    const id = await savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+  async function addPoi(latlng, name, poi_group){
+    const poi = {lat:latlng.lat, lng:latlng.lng, name:name, poi_group:poi_group, color:getDefaultPoiColor(), id:-1};
+    const id = await savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
     if (id != -1) {
-      addPoiInternal(name, group, latlng.lat, latlng.lng, true, getDefaultPoiColor(), id);
+      addPoiInternal(name, poi_group, latlng.lat, latlng.lng, true, getDefaultPoiColor(), id);
       renderPoiList();
     }
   }
@@ -2752,13 +2893,12 @@
   function buildPoiGroupTree(){
     const root = { children: new Map(), items: [] };
     pois.forEach(p => {
-      // const parts = (p.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
-      const parts = String(p.group?.trim() || 'Ohne Gruppe')
+      const parts = String(p.poi_group?.trim() || 'POI')
                              .split('/')
                              .map(s => s.trim())
                              .filter(Boolean);
       if (parts.length === 0) {
-        parts.push('Ohne Gruppe');
+        parts.push('POI');
       }
       let node = root;
       let pathSoFar = '';
@@ -2780,9 +2920,9 @@
 
   function movePoiToGroup(poiId, newGroupPath){
     const poi = pois.find(p => p.id === Number(poiId));
-    if (!poi || poi.group === newGroupPath) return;
-    poi.group = newGroupPath;
-    savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+    if (!poi || poi.poi_group === newGroupPath) return;
+    poi.poi_group = newGroupPath;
+    savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
     renderPoiList();
   }
 
@@ -2817,7 +2957,7 @@
   }
 
   function getGroupState(groupName) {
-    const groupPois = pois.filter(p => p.group.startsWith(groupName));
+    const groupPois = pois.filter(p => p.poi_group.startsWith(groupName));
 
     const visibleCount = groupPois.filter(
         p => p.visible
@@ -2860,6 +3000,7 @@
     cb.checked = poi.visible;
     cb.addEventListener('change', () => { 
       setPoiVisible(poi, cb.checked);
+      renderPoiList();
     });
     row.appendChild(cb);
 
@@ -2880,7 +3021,7 @@
       poi.marker.setIcon(poiIcon(poi.color));
     });
     colorInput.addEventListener('change', () => { 
-      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id); 
+      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id); 
     });    
     colorInput.addEventListener('click', (ev) => ev.stopPropagation());
     swWrap.appendChild(colorInput);
@@ -2891,7 +3032,7 @@
     const nm = document.createElement('div');
     nm.className = 'file-name';
     nm.textContent = poi.name;
-    // nm.textContent = `${poi.name} (id:${poi.id})`;
+    if (authState.admin) nm.textContent = nm.textContent + `   (id:${+poi.id})`;
     nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
     nm.style.cursor = 'pointer';
     nm.addEventListener('click', () => {
@@ -2906,7 +3047,7 @@
         if (newName.includes('/')) {
             const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
             poi.name = parts.pop();           // letzter Teil = Name
-            poi.group = parts.join('/');      // alles davor = Gruppe
+            poi.poi_group = parts.join('/');      // alles davor = Gruppe
         } else {
             poi.name = newName.trim();
         }
@@ -2914,7 +3055,7 @@
         
         poi.name = newName;
 
-        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
         renderPoiList();
       });
     });
@@ -2948,6 +3089,7 @@
   function renderPoiGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllPoisInNode(child);
+      // const entries = collectViewerEntries(child);
         
       if (!poiGroupsInitialized) {
         if (child.items.length > 0) 
@@ -2972,12 +3114,19 @@
       twist.textContent = '▾';
       header.appendChild(twist);
 
-      const allVisible = descendants.every(p => p.visible);
-      const noneVisible = descendants.every(p => !p.visible);
+      // geht nicht 
+      // const allVisible = descendants.every(p => p.visible);
+      // const noneVisible = descendants.every(p => !p.visible);
+
+      // von routen, da gehts
+      const allVisible = descendants.length > 0 && descendants.every(entry => entry.visible);
+      const noneVisible = descendants.every(entry => !entry.visible);
+
       const groupCb = document.createElement('input');
       groupCb.type = 'checkbox';
       groupCb.checked = allVisible;
       groupCb.indeterminate = !allVisible && !noneVisible;
+
 
       // am schluss nach dem rendern machen, wenn alle childs vorhanden sind
       // const state = getGroupState(child.label);
@@ -3028,13 +3177,13 @@
           const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
           const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
           pois.forEach(poi => {
-            if (poi.group === child.path) {
-              poi.group = newPath;
-              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+            if (poi.poi_group === child.path) {
+              poi.poi_group = newPath;
+              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
             }
-            else if (poi.group.startsWith(child.path + '/')) { 
-              poi.group = newPath + poi.group.slice(child.path.length);
-              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.group, poi.color, poi.id);
+            else if (poi.poi_group.startsWith(child.path + '/')) { 
+              poi.poi_group = newPath + poi.poi_group.slice(child.path.length);
+              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
             }
           });
           renderPoiList();
@@ -3154,7 +3303,7 @@
     poiNameInput.value = '';
     poiGroupInput.value = '';
     poiGroupOptions.innerHTML = '';
-    [...new Set(pois.map(p => p.group))].forEach(g => {
+    [...new Set(pois.map(p => p.poi_group))].forEach(g => {
       const opt = document.createElement('option');
       opt.value = g;
       poiGroupOptions.appendChild(opt);
@@ -3172,7 +3321,7 @@
   poiModalBackdrop.addEventListener('click', (e) => { if (e.target === poiModalBackdrop) closePoiModal(); });
   document.getElementById('poi-modal-save').addEventListener('click', () => {
     const name = poiNameInput.value.trim() || 'Unbenannt';
-    const group = poiGroupInput.value.trim() || 'Ohne Gruppe';
+    const group = poiGroupInput.value.trim() || 'POI';
     if (pendingPoiLatLng) addPoi(pendingPoiLatLng, name, group);
     closePoiModal();
   });
@@ -3192,14 +3341,15 @@
   const SETTINGS_STORE_NAME = 'settings';
   const POI_STORE_NAME  = 'pois';
 
-  btnClearWaypoints.addEventListener('click', () => {
+  function clearWaypoints() {
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
     waypoints.length = 0;
     if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
     routeResultEl.textContent = '';
     routeResultEl.className = '';
     renderWaypointList();
-  });
+  }
+  btnClearWaypoints.addEventListener('click', () => { clearWaypoints(); saveAppState() });
   
   function formatRouteDuration(seconds){
     const totalMin = Math.round(seconds / 60);
@@ -3587,7 +3737,7 @@
           await deleteTrack(entry);
         });
     [...groups.entries()].forEach(([path, group]) => { if (group.files.size === 0) groups.delete(path); });
-    renderTree();
+    renderTracksTree();
   }
 
   async function gzipString(text) {
@@ -3711,7 +3861,7 @@
                         gpxText: track.gpx || null 
                       };
         g.files.set(id, entry);
-        renderTree();
+        renderTracksTree();
       });
     }
     catch (error) {
@@ -3845,7 +3995,7 @@
 
       g.files.set(entry.id, entry);
       updateSummary();
-      renderTree();
+      renderTracksTree();
 
       const url = URL.createObjectURL(file);
       const gpxLayer = new L.GPX(url, {
@@ -4244,7 +4394,7 @@
         cb.addEventListener('change', async () => {
           // await loadGPXData(entry);
           setFileVisible(entry, cb.checked);
-          renderTree();
+          renderTracksTree();
         });
         row.appendChild(cb);
 
@@ -4279,7 +4429,7 @@
         const nm = document.createElement('div');
         nm.className = 'file-name';
         nm.textContent = entry.name;
-nm.textContent = entry.name + '   (id:'+entry.id+')';
+        if (authState.admin) nm.textContent = nm.textContent + `   (id:${+entry.id})`;
         nm.title = entry.name;
         const meta = document.createElement('div');
         meta.className = 'file-meta';
@@ -4351,7 +4501,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     entry.groupName = newGroupPath;
     groupFor(newGroupPath).files.set(Number(entryId), entry);
     updateTrackToStorage(entry);
-    renderTree();
+    renderTracksTree();
   }
 
   function moveViewerGroupToGroup(sourcePath, targetPath){
@@ -4380,7 +4530,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
         groups.set(newPath, group);
       }
     });
-    renderTree();
+    renderTracksTree();
   }
 
   function renderViewerGroupNode(node, container){
@@ -4413,7 +4563,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       groupCb.addEventListener('click', event => event.stopPropagation());
       groupCb.addEventListener('change', () => {
         entries.forEach(entry => setFileVisible(entry, groupCb.checked));
-        renderTree();
+        renderTracksTree();
       });
       header.appendChild(groupCb);
 
@@ -4464,7 +4614,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
         if (event.target === nameEl) return;
         if (collapsedViewerGroups.has(child.path)) collapsedViewerGroups.delete(child.path);
         else collapsedViewerGroups.add(child.path);
-        renderTree();
+        renderTracksTree();
       });
 
       nameEl.addEventListener('dblclick', event => {
@@ -4473,7 +4623,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
         startInlineRenameGeneric(nameEl, child.label, newLabel => {
           const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
           if ([...groups.keys()].some(path => path === newPath || path.startsWith(newPath + '/'))){
-            renderTree();
+            renderTracksTree();
             return;
           }
           [...groups.entries()].forEach(([path, group]) => {
@@ -4487,8 +4637,8 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
               });
             }
           });
-          renderTree();
-        }, renderTree);
+          renderTracksTree();
+        }, renderTracksTree);
       });
 
       groupEl.appendChild(header);
@@ -4519,12 +4669,22 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     });
   }
 
+  function clearRoutes() {
+    routes.length = 0;
+    sharedRoutes.length = 0;
+    renderRoutesList();
+  }
   function clearTracks() {
     groups.length = 0;
-    renderTree();
+    renderTracksTree();
   }
 
-  function renderTree(clearBefore){
+  function clearUsers() {
+    users.length = 0;
+    usersById = new Map();
+  }
+
+  function renderTracksTree(clearBefore){
     const scrollPos = tracksTree.scrollTop;
     tracksTree.querySelectorAll('.group').forEach(el => el.remove());
     renderViewerGroupNode(buildViewerGroupTree(), tracksTree);
@@ -4727,22 +4887,20 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
   function openGpxExportMenu(event, provider, route){
     if (event) event.stopPropagation();
 
-/*    
-    const result = provider();
-    if (!result || !result.xml) 
-    { 
-      alert('Keine Route-Daten zum Exportieren vorhanden.'); 
-      return; 
-    }
-    const {xml, filename} = result;
-    const items = [
-      { label: '💾 Als GPX-Datei speichern', action: () => downloadGpxString(xml, filename) },
-      { label: '📤 BMW CRN speichern', action: () => downloadGpxString(crnresult.xml, crnresult.filename) },
-      { label: '📤 Teilen…', action: () => shareGpxString(xml, filename) },
-      { label: '✉️ Per E-Mail', action: () => emailGpxString(xml, filename) }
-    ];
-    showCustomContextMenu(event.clientX, event.clientY, items);
-*/    
+    // const result = provider();
+    // if (!result || !result.xml) 
+    // { 
+    //   alert('Keine Daten in der Route zum Exportieren vorhanden.'); 
+    //   return; 
+    // }
+    // const {xml, filename} = result;
+    // const items = [
+    //   { label: '💾 Als GPX-Datei speichern', action: () => downloadGpxString(xml, filename) },
+    //   { label: '📤 BMW CRN speichern', action: () => downloadGpxString(crnresult.xml, crnresult.filename) },
+    //   { label: '📤 Teilen…', action: () => shareGpxString(xml, filename) },
+    //   { label: '✉️ Per E-Mail', action: () => emailGpxString(xml, filename) }
+    // ];
+    // showCustomContextMenu(event.clientX, event.clientY, items);
 
     var items = new Array;
 
@@ -4751,7 +4909,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     {
       const CRNxml = CRNresult.xml;
       const CRNfilename = CRNresult.filename;
-      items.push({ label: 'Export für BMW CRN', action: () => downloadGpxString(CRNresult.xml, CRNresult.filename) });
+      items.push({ label: 'BMW Connected Ride Navigator', action: () => downloadGpxString(CRNresult.xml, CRNresult.filename) });
     }
 
     const Rresult = buildRouteGpxXml(route);
@@ -4760,7 +4918,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       const Rxml = Rresult.xml;
       const Rfilename = Rresult.filename;
       items.push({ label: 'Als GPX-Datei speichern', action: () => downloadGpxString(Rxml, Rfilename) });
-      items.push({ label: 'Teilen…', action: () => shareGpxString(Rxml, Rfilename) });
+      // items.push({ label: 'Teilen…', action: () => shareGpxString(Rxml, Rfilename) });
       items.push({ label: 'Per E-Mail', action: () => emailGpxString(Rxml, Rfilename)});
     }
 
@@ -4780,7 +4938,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       if (g.files.size === 0) groups.delete(track.groupName);
     }
     // deleteViewerEntry(track.id);
-    delTrackFromStorage(track.id).then(renderTree);
+    delTrackFromStorage(track.id).then(renderTracksTree);
     // renderTree();
   }
 
@@ -4811,7 +4969,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     groups.forEach(g => g.files.forEach(f => { if (f.layer) map.removeLayer(f.layer); }));
     groups.clear();
     clearViewerStorage();
-    renderTree();
+    renderTracksTree();
   }
 
   document.getElementById('btn-clear').addEventListener('click', clearAll);
@@ -5037,6 +5195,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
   // navigation devices (route + track combo, GPX 1.1).
   //#region Route saving
   const routes = [];
+  const sharedRoutes = [];
   const collapsedRouteGroups = new Set();
   const routesListEl = document.getElementById('routes-list');
 
@@ -5055,29 +5214,47 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       return -1;
     }
   }
-
-  async function loadRoutesFromStorage(){
+  async function loadRoutesFromStorage() {
     try {
       const response = await apiFetch('getRouteList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.routes;
+      // console.log('own routes: ' + data.length);
+      // console.log(JSON.stringify('data'));
       routes.length = 0;
-      (data || []).forEach(r => { routes.push(r); });
+      (data || []).forEach(r => {  r.isShared = false; routes.push(r); });
     }
     catch (error) {
-      showToast('Fehler beim laden der POIs: ' + error, 7000);
-      console.warn('Fehler beim laden der POIs: ', error);
+      showToast('Fehler beim laden der Routen: ' + error, 7000);
+      console.warn('Fehler beim laden der Routen: ', error);
+    }
+  }
+  async function loadSharedRoutesFromStorage() {
+    try {
+      const response = await apiFetch('getSharedRouteList', {
+        method: 'GET'
+      });
+      const resp = await response.json()
+      const data = resp.routes;
+      // console.log('shared routes: ' + data.length);
+      // console.log(JSON.stringify(data));''
+      sharedRoutes.length = 0;
+      (data || []).forEach(r => { r.isShared = true; sharedRoutes.push(r); });
+    }
+    catch (error) {
+      showToast('Fehler beim laden der Shared-Routen: ' + error, 7000);
+      console.warn('Fehler beim laden der Shared-Routen: ', error);
     }
   }
 
-  async function saveCurrentAsRoute(name, group){
+  async function saveCurrentAsRoute(name, route_group, routeID){
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
-    let id = -1;
+    let id = routeID || -1;
     const dbRoute = {
-      id, name, group,
+      id, name, route_group,
       waypoints: wpSnapshot,
       routeCoords: coordsSnapshot,
       profile: document.getElementById('planning-route-profile').value,
@@ -5086,17 +5263,21 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
     id = await saveRouteToStorage(dbRoute);
-    // if (result.success) {
-      dbRoute.id = id;
-      routes.push(dbRoute);
-      // saveRoutesToStorage();
-      renderRoutesList();
-    // }
-    // else {
-    //   console.log('Error adding route');
-    // }
-  }
 
+    dbRoute.id = id;
+    if (id != routeID) {
+      routes.push(dbRoute);
+    } else 
+    {
+      const index = routes.findIndex(r => r.id === routeID);
+      if (index >= 0) {
+          routes[index] = dbRoute;
+      } else {
+          routes.push(dbRoute);
+      }
+    }
+    renderRoutesList();
+  }
   async function delRouteFromStorage(id) {
     try {
       await apiFetch('delRoute', {
@@ -5110,19 +5291,44 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       return -1;
     }
   };
-
   async function deleteRoute(id){
     const idx = routes.findIndex(r => r.id === Number(id));
-    if (idx === -1) return;
-    delRouteFromStorage(id);
-    routes.splice(idx, 1);
-    renderRoutesList();
+    const sharedIdx = sharedRoutes.findIndex(r => r.id === Number(id));
+    if (idx != -1) {
+      delRouteFromStorage(id);
+      routes.splice(idx, 1);
+      renderRoutesList();
+      return
+    }
+    if (sharedIdx != -1) {
+      delRouteFromStorage(id);
+      sharedRoutes.splice(sharedIdx, 1);
+      renderRoutesList();
+      return
+    }
+  }
+
+  async function routeNameExists(name, group) {
+    try {
+      const response = await apiFetch('routeNameExists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({name: name, route_group: group})
+      });
+      const resp = await response.json();
+      if (resp.nameExists) return resp.routeId;
+      else return -1;
+    }
+    catch (error) {
+      showToast('Fehler beim speichern der Route: ' + error, 2000);
+      return -1;
+    }
   }
 
   function moveRouteToGroup(routeId, newGroupPath){
     const route = routes.find(r => r.id === Number(routeId));
-    if (!route || route.group === newGroupPath) return;
-    route.group = newGroupPath;
+    if (!route || route.route_group === newGroupPath) return;
+    route.route_group = newGroupPath;
     saveRouteToStorage(route);
     renderRoutesList();
   }
@@ -5246,10 +5452,19 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     return { xml, filename };
   }
 
-  function buildRouteGroupTree(){
+  function buildRouteGroupTree(routeSource){
     const root = { children: new Map(), items: [] };
-    routes.forEach(r => {
-      const parts = (r.group || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+    routeSource.forEach(r => {
+      let finalGroup = r.route_group;
+      if (r.isShared) {
+        const username = usersById.get(r.owner_user_id)?.username;
+        if (username)
+          finalGroup = username + '/' + finalGroup;
+        else  
+          finalGroup = 'geteilte Routen/';
+      }
+
+      const parts = (finalGroup || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
       if (parts.length === 0) parts.push('Ohne Gruppe');
       let node = root;
       let pathSoFar = '';
@@ -5295,48 +5510,92 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     row.className = 'file-row';
     row.draggable = true;
 
-    row.addEventListener('dragstart', (e) => {
+    if (!route.isShared) {
+      row.addEventListener('dragstart', (e) => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/x-route-id', route.id);
       row.classList.add('dragging');
     });
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
 
-    const handle = document.createElement('span');
-    handle.className = 'waypoint-drag-handle';
-    handle.innerHTML = '&#8942;&#8942;';
-    handle.title = 'Ziehen, um die Gruppe zu ändern';
-    row.appendChild(handle);
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'Ziehen, um die Gruppe zu ändern';
+      row.appendChild(handle);
+    }
 
     const info = document.createElement('div');
     info.className = 'file-info';
     const nm = document.createElement('div');
     nm.className = 'file-name';
     nm.textContent = route.name;
-// nm.textContent = route.name + ' (id:'+route.id+')';
-    nm.title = 'Klick: auf Karte anzeigen · Doppelklick: umbenennen';
-    nm.style.cursor = 'pointer';
+    if (authState.admin) nm.textContent = nm.textContent + `   (id:${+route.id})`;
+
+    if (!route.isShared)
+      nm.title = 'Klick: auf Karte anzeigen · Doppelklick: umbenennen';
+    else
+      nm.title = 'Klick: auf Karte anzeigen';
     const meta = document.createElement('div');
     meta.className = 'file-meta';
     meta.textContent = route.summaryText ? route.summaryText.replace(/<[^>]+>/g, '') : (route.waypoints.length + ' Punkte');
-    nm.addEventListener('click', () => previewRouteOnMap(route));
-    nm.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      startInlineRenameGeneric(nm, route.name, (newName) => {
-        if (newName.includes('/')) {
-            const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
-            route.name = parts.pop();           // letzter Teil = Name
-            route.group = parts.join('/');      // alles davor = Gruppe
-        } else {
-            route.name = newName.trim();
-        }
-        saveRouteToStorage(route);
-        renderRoutesList();
-      }, renderRoutesList);
+    if (!route.isShared)
+      info.style.cursor = 'pointer';
+    info.addEventListener('click', () => previewRouteOnMap(route));
+
+    if (!route.isShared)
+      info.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startInlineRenameGeneric(nm, route.name, async (newName) => {
+                let newRouteName;
+                let newGroup;
+                if (newName.includes('/')) {
+                    const parts = newName
+                        .split('/')
+                        .map(p => p.trim())
+                        .filter(Boolean);
+
+                    newRouteName = parts.pop();
+                    newGroup = parts.join('/');
+                } else {
+                    newRouteName = newName.trim();
+                    newGroup = route.route_group;
+                }
+
+                const existingRouteId = await routeNameExists(newRouteName, newGroup);
+                if (existingRouteId >= 0 && existingRouteId !== route.id ) {
+                    const overwrite = await confirmDialog(`Die Route "${newRouteName}" existiert bereits.\n\nSoll sie überschrieben werden?`);
+                    if (!overwrite) {
+                        renderRoutesList();
+                        return;
+                    }
+                    deleteRoute(existingRouteId);
+                }
+
+                route.name = newRouteName;
+                route.route_group = newGroup;
+                saveRouteToStorage(route);
+                renderRoutesList();
+            },
+            renderRoutesList
+        );
     });
+
     info.appendChild(nm);
     info.appendChild(meta);
     row.appendChild(info);
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'row-icon-btn';
+    const shareIcon = document.createElement('span');
+    shareIcon.innerHTML = shareSVG;
+    shareBtn.appendChild(shareIcon);
+    shareBtn.title = 'mit Benutzer teilen';
+    shareBtn.addEventListener('click', (ev) => { 
+      ev.stopPropagation();  
+      shareRouteWithUser(route);
+    });
+    row.appendChild(shareBtn);
 
     const loadBtn = document.createElement('button');
     loadBtn.className = 'row-icon-btn';
@@ -5347,21 +5606,8 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(route); });
     row.appendChild(loadBtn);
 
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'row-icon-btn';
-    const saveicon = document.createElement('span');
-    saveicon.innerHTML = saveSVG;
-    exportBtn.appendChild(saveicon);
-
-    exportBtn.title = 'Als GPX exportieren (Route + Track)';
-    exportBtn.addEventListener('click', (ev) => {
-      openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
-    });
-    row.appendChild(exportBtn);
-
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
-
     const icon = document.createElement('span');
     icon.innerHTML = trashSVG;
     delBtn.appendChild(icon);
@@ -5369,18 +5615,26 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     delBtn.addEventListener('click', (ev) => { 
       ev.stopPropagation(); 
       delRouteHelper(route);
-      // deleteRoute(route.id); 
     });
     row.appendChild(delBtn);
 
     return row;
   }
 
+  function hasSharedRoutes(node) {
+    if (node.items.some(r => r.isShared)) { return true; }
+    for (const child of node.children.values()) {
+        if (hasSharedRoutes(child)) { return true; }
+    }
+    return false;
+  }
+
   function renderRouteGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllRoutesInNode(child);
       const collapsed = collapsedRouteGroups.has(child.path);
-
+      const isSharedGroup = hasSharedRoutes(child)
+      
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
 
@@ -5399,7 +5653,8 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
       const nameEl = document.createElement('span');
       nameEl.className = 'group-name';
       nameEl.textContent = child.label;
-      nameEl.title = 'Doppelklick: Gruppe umbenennen';
+      if (!isSharedGroup) 
+        nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
       const countEl = document.createElement('span');
@@ -5414,40 +5669,45 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
         renderRoutesList();
       });
 
-      nameEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
-          const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
-          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
-          routes.forEach(r => {
-            if (r.group === child.path) r.group = newPath;
-            else if (r.group.startsWith(child.path + '/')) r.group = newPath + r.group.slice(child.path.length);
-            saveRouteToStorage(r);
-          });
-        }, renderRoutesList);
-      });
+      if (!isSharedGroup)
+        nameEl.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
+            const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
+            const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
+            routes.forEach(r => {
+              if (r.route_group === child.path) r.route_group = newPath;
+              else if (r.route_group.startsWith(child.path + '/')) r.route_group = newPath + r.route_group.slice(child.path.length);
+              saveRouteToStorage(r);
+              renderRoutesList();
+            });
+          }, renderRoutesList);
+        });
 
-      header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
-      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
-      header.addEventListener('drop', (e) => {
+      if (!isSharedGroup)  {
+        header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
+        header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+        header.addEventListener('drop', (e) => {
         e.preventDefault(); e.stopPropagation();
         header.classList.remove('drop-target');
         const routeId = e.dataTransfer.getData('text/x-route-id');
         if (!routeId) return;
         moveRouteToGroup(routeId, child.path);
       });
-
+      }
       groupEl.appendChild(header);
 
-      groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
-      groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
-      groupEl.addEventListener('drop', (e) => {
+      if (!isSharedGroup)  {
+        groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
+        groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
+        groupEl.addEventListener('drop', (e) => {
         e.preventDefault();
         groupEl.classList.remove('drop-target-box');
         const routeId = e.dataTransfer.getData('text/x-route-id');
         if (!routeId) return;
         moveRouteToGroup(routeId, child.path);
       });
+    }
 
       const childWrap = document.createElement('div');
       childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
@@ -5462,15 +5722,17 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
   function renderRoutesList(){
     const scrollPos = routesListEl.scrollTop;
     routesListEl.innerHTML = '';
-    if (routes.length === 0){
+    if ((routes.length === 0) && (sharedRoutes.length === 0)) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.innerHTML = '<div>Noch keine gespeicherten Routen.<br>Im Planen-Tab eine Route berechnen<br>und dort "Route speichern" nutzen.</div>';
       routesListEl.appendChild(empty);
       return;
     }
-    const root = buildRouteGroupTree();
+    const root = buildRouteGroupTree(routes);
     renderRouteGroupNode(root, routesListEl);
+    const sharedRoot = buildRouteGroupTree(sharedRoutes);
+    renderRouteGroupNode(sharedRoot, routesListEl);
     routesListEl.scrollTop = scrollPos;
   }
 
@@ -5533,7 +5795,7 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
     document.getElementById('route-group-input').value = '';
     const dl = document.getElementById('route-group-options');
     dl.innerHTML = '';
-    [...new Set(routes.map(r => r.group))].forEach(g => {
+    [...new Set(routes.map(r => r.route_group))].forEach(g => {
       const opt = document.createElement('option');
       opt.value = g;
       dl.appendChild(opt);
@@ -5547,14 +5809,17 @@ nm.textContent = entry.name + '   (id:'+entry.id+')';
   document.getElementById('route-modal-backdrop').addEventListener('click', (e) => {
     if (e.target.id === 'route-modal-backdrop') e.target.classList.remove('active');
   });
-  document.getElementById('route-modal-save').addEventListener('click', () => {
-    const name = document.getElementById('route-name-input').value.trim() || 'Unbenannte Route';
-    const group = document.getElementById('route-group-input').value.trim() || 'Ohne Gruppe';
-    saveCurrentAsRoute(name, group);
-    document.getElementById('route-modal-backdrop').classList.remove('active');
+  document.getElementById('route-modal-save').addEventListener('click', async () => {
+      const name = document.getElementById('route-name-input').value.trim() || 'Unbenannte Route';
+      const group = document.getElementById('route-group-input').value.trim() || 'Ohne Gruppe';
+      const id = await routeNameExists(name, group);
+      if (id != -1) {
+          const overwrite = await confirmDialog(`Die Route "${name}" existiert in der Gruppe "${group}" bereits.\n\nSoll sie überschrieben werden?`);
+          if (!overwrite) { return; }
+      }
+      saveCurrentAsRoute(name, group, id);
+      document.getElementById('route-modal-backdrop').classList.remove('active');
   });
-
-  // loadViewerList();
 })
 ();
 </script>
