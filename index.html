@@ -2082,8 +2082,77 @@
         });
         return container;
     };
-  poi.control.addTo(map);  
-});
+    poi.control.addTo(map);     
+  });
+
+  const poiMenuButton = L.control({ position: 'topright' });
+
+  const poiPanel = document.createElement('div');
+  poiPanel.className = "poi-panel";
+  poiPanel.id = "poi-panel";
+  poiPanel.innerHTML = `<div class="poi-panel-header">
+                          Externe POIs
+                        </div>
+                        <div id="poi-panel-content"></div>`
+  document.getElementById('map').appendChild(poiPanel);
+  
+  poiMenuButton.onAdd = function() {
+    const btn = L.DomUtil.create(
+        'div',
+        'leaflet-bar leaflet-control'
+    );
+
+    btn.innerHTML = '📍';
+
+    btn.style.width = '36px';
+    btn.style.height = '36px';
+    btn.style.lineHeight = '36px';
+    btn.style.textAlign = 'center';
+    btn.style.cursor = 'pointer';
+    btn.style.background = '#fff';
+
+    L.DomEvent.disableClickPropagation(btn);
+
+    btn.addEventListener('click', () => {
+        document.getElementById('poi-panel').classList.toggle('open');
+    });
+
+    return btn;
+  };
+
+  poiMenuButton.addTo(map);
+
+  const panel = document.getElementById('poi-panel-content');
+
+  extPOIs.forEach(poi => {
+    const row = document.createElement('div');
+    row.className = 'poi-item';
+    row.innerHTML = `
+        <input type="checkbox">
+        <label>${poi.description}</label>
+        <span id="${poi.description}-load-icon"
+              style="display:none">
+          ⟳
+        </span>
+    `;
+    const checkbox = row.querySelector('input');
+    checkbox.checked = poi.visible;
+    checkbox.addEventListener('change', () => {
+        poi.visible = checkbox.checked;
+        if (poi.visible) {
+            poi.layer.addTo(map);
+            loadExternPOI(poi);
+        } else {
+            poi.layer.clearLayers();
+            map.removeLayer(poi.layer);
+            poi.loadingActive = false;
+        }
+        saveAppStateDebounced();
+    });
+    panel.appendChild(row);
+  });
+
+
   //#endregion
 
 
@@ -2164,11 +2233,9 @@
     document.getElementById('btn-user-invite').classList.add('hidden');
     document.getElementById('btn-user-savePOI').classList.add('hidden');
     clearPOIs();
-    clearSharedPOIs();
     clearWaypoints();
     clearRoutes();
     clearTracks();
-    clearSharedTracks();
     clearUsers();
 
     const authOverlay = document.getElementById('auth-gate');
@@ -2201,22 +2268,16 @@
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
     clearPOIs();
-    clearSharedPOIs();
     clearWaypoints();
     clearTracks();
-    clearSharedTracks();
     clearRoutes();
     restoreAppState();
     await getUserList();
-    await loadSharedPoisFromStorage();
+    await loadRoutesFromStorage().then(renderRoutesList);
     await loadPoisFromStorage().then(e => { 
-      renderPoiList();
       if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
     });
 
-    await loadSharedRoutesFromStorage();
-    await loadRoutesFromStorage().then(renderRoutesList);
-    await loadSharedTracksFromStorage();
     await loadTracksFromStorage().then(renderTrackList)
   }  
 
@@ -3018,16 +3079,18 @@
 }
   async function loadPoisFromStorage(){
     try {
+      clearPOIs();
       poiListEl.classList.add('isLoading');
       const response = await apiFetch('getPOIList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.pois;
-      await delay(4000);
-      clearPOIs();
       (data || []).forEach(p => { p.isShared = false;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared); });
-      // poiListEl.classList.remove('isLoading');
+
+      await loadSharedPoisFromStorage();
+      poiListEl.classList.remove('isLoading');
+      renderPoiList();
     }
     catch (error) {
       poiListEl.classList.remove('isLoading');
@@ -3043,8 +3106,6 @@
       });
       const resp = await response.json()
       const data = resp.pois;
-      await delay(4000);
-      clearSharedPOIs();
       (data || []).forEach(p => { p.isShared = true;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared, p.owner_user_id); });
       // poiListEl.classList.remove('isLoading');
     }
@@ -3356,9 +3417,6 @@
   let poiGroupsInitialized = false;
   function clearPOIs() {
     pois.length = 0;
-    renderPoiList();
-  }
-  function clearSharedPOIs() {
     sharedPois.length = 0;
     renderPoiList();
   }
@@ -4022,9 +4080,6 @@
   function clearTracks() {
     tracks.forEach(t => { if (t.layer) map.removeLayer(t.layer); });
     tracks.length = 0;
-    renderTrackList();
-  }
-  function clearSharedTracks() {
     sharedTracks.forEach(t => { if (t.layer) map.removeLayer(t.layer); });
     sharedTracks.length = 0;
     renderTrackList();
@@ -4141,15 +4196,12 @@
 
   async function loadSharedTracksFromStorage() {
     try {
-      trackListEl.classList.add('isLoading');
       const response = await apiFetch('getSharedTrackList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.tracks;
-      await delay(4000);
 
-      clearSharedTracks();
       (data || []).forEach(track => { 
         const entry = { id: track.id, 
                         isShared: true,
@@ -4169,11 +4221,9 @@
                         gpxText: track.gpx || null 
                       };        
         sharedTracks.push(entry); 
-        trackListEl.classList.remove('isLoading');
       });
     }
     catch (error) {
-      trackListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der Tracks: ' + error, 7000);
       console.warn('Fehler beim laden der Tracks ', error);
     }
@@ -4181,14 +4231,13 @@
   
   async function loadTracksFromStorage() {
     try {
+      clearTracks();
       trackListEl.classList.add('isLoading');
       const response = await apiFetch('getTrackList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.tracks;
-      await delay(4000);
-      clearTracks();
       (data || []).forEach(track => { 
         const entry = { id: track.id, 
                         isShared: false,
@@ -4209,7 +4258,11 @@
                       };        
         tracks.push(entry); 
       });
+
+      await loadSharedTracksFromStorage();
+
       trackListEl.classList.remove('isLoading');
+      renderTrackList();
     }
     catch (error) {
       trackListEl.classList.remove('isLoading');
@@ -5460,16 +5513,19 @@
   }
   async function loadRoutesFromStorage() {
     try {
+      clearRoutes();
       routesListEl.classList.add('isLoading');
       const response = await apiFetch('getRouteList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.routes;
-      await delay(4000);
       routes.length = 0;
       (data || []).forEach(r => {  r.isShared = false; routes.push(r); });
+
+      await loadSharedRoutesFromStorage();
       routesListEl.classList.remove('isLoading');
+      renderRoutesList();
     }
     catch (error) {
       routesListEl.classList.remove('isLoading');
@@ -5477,21 +5533,17 @@
       console.warn('Fehler beim laden der Routen: ', error);
     }
   }
+
   async function loadSharedRoutesFromStorage() {
     try {
-      routesListEl.classList.add('isLoading');
       const response = await apiFetch('getSharedRouteList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.routes;
-      sharedRoutes.length = 0;
-      await delay(4000);
       (data || []).forEach(r => { r.isShared = true; sharedRoutes.push(r); });
-      routesListEl.classList.remove('isLoading');
     }
     catch (error) {
-      routesListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der Shared-Routen: ' + error, 7000);
       console.warn('Fehler beim laden der Shared-Routen: ', error);
     }
