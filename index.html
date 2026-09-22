@@ -44,6 +44,14 @@
       <button class="tab-btn" data-tab="viewer">Viewer</button>
     </div>
 
+    <div id="loading-overlay" class="loading-overlay">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+        <path fill="currentColor" opacity=".4" d="M64 320C64 461.4 178.6 576 320 576C427.8 576 520 509.4 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.2C470.1 462 400.9 512 320 512C214 512 128 426 128 320C128 214 214 128 320 128C329.3 128 338.5 128.7 347.5 129.9C330 127.4 317.9 111.2 320.4 93.7C322.9 76.5 338.6 64.4 355.8 66.4C344.1 64.8 332.2 63.9 320 63.9C178.6 63.9 64 178.5 64 319.9z"/>
+        <path fill="currentColor" d="M320.3 93.7C322.8 76.2 339 64.1 356.5 66.6C480.6 84.4 576 191 576 320C576 353.5 569.5 385.6 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.3C507.2 369.3 512.1 345.3 512.1 320C512.1 223.3 440.6 143.3 347.6 129.9C330.1 127.4 318 111.2 320.5 93.7z"/>
+      </svg>
+    </div>
+
+
     <div id="panel-viewer" class="tab-panel">
       <div class="btn-row">
         <button class="btn primary" id="btn-open-files">+ Dateien</button>
@@ -78,12 +86,13 @@
         </div>
       </div>
 
-      <div id="tree">
+      <div id="track-list">
         <div class="empty-state" id="empty-state">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
           <div>Noch keine Tracks geladen.<br>Dateien/Ordner öffnen oder<br>GPX-Dateien hierher ziehen.</div>
         </div>
       </div>
+
     </div>
 
     <div id="panel-planning" class="tab-panel active">
@@ -291,7 +300,7 @@
 
 <div id="share-route-backdrop" class="modal-backdrop">
   <div class="modal-box">
-    <h3>Route mit Benutzer teilen</h3>
+    <h3>Inhalt mit Benutzer teilen</h3>
     <div class="share-route-name"></div>
     <!-- <label>Benutzer suchen</label>
     <input
@@ -331,6 +340,7 @@
 <link href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js"></script>
 
+<!-- <script src="./poi.js"></script> -->
 
 
 <script>
@@ -439,6 +449,9 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'planning') {
+        routePreviewLayer.clearLayers();
+      }
       saveAppStateDebounced();
       setTimeout(() => map.invalidateSize(), 50);
     });
@@ -750,6 +763,79 @@
   // ============================================================
   // ---------- sharing stuff  ----------
   //#region Sharing with users
+  async function shareTrackFetch(track, user) {
+    try {
+      const response = await apiFetch('shareTrack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({track_id: track.id, user_id: user.id}),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen des Tracks', 7000);
+      }
+      else {
+        if (resp.alreadyShared)
+          showToast('Track wurde bereits mit dem User geteilt', 5000);
+        else
+          showToast(`Track erfolgreich mit ${user.username} geteilt`, 5000);
+      }
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen des Tracks: ' + error, 7000);
+      console.warn('Fehler beim teilen des Tracks: ', error);
+    }
+
+  }
+  async function showTrackShareDialog(track) {
+      return new Promise(resolve => {
+          const backdrop = document.getElementById('share-route-backdrop');
+          const routeName = backdrop.querySelector('.share-route-name');
+          const userInput = document.getElementById('share-user');
+          const userList = document.getElementById('user-list');
+          const btnSave = document.getElementById('share-save');
+          const btnCancel = document.getElementById('share-cancel');
+          routeName.textContent = `Track: ${track.name}`;
+          userInput.value = '';
+          userList.innerHTML = '';
+          users.forEach(user => {
+              if (user.email != authState.email) {
+                const option = document.createElement('option');
+                // option.value = `${user.username} - ${user.email}`;
+                option.value = `${user.username}`;
+                userList.appendChild(option);
+              }
+          });
+          backdrop.classList.add('active');
+          function close(result) {
+              backdrop.classList.remove('active');
+              btnSave.onclick = null;
+              btnCancel.onclick = null;
+              resolve(result);
+          }
+          btnCancel.onclick = () => close(null);
+          btnSave.onclick = () => {
+              const username = userInput.value.trim();
+              if (!username) {
+                  showToast('Bitte Benutzer auswählen', 1000);
+                  return;
+              }
+              const user = users.find(u => u.username === username);
+              if (!user) { return; }
+              close(user);
+          };
+      });
+  }
+  async function shareTrackWithUser(track) {
+    const user = await showTrackShareDialog(track);
+    if (!user) return;
+    await shareTrackFetch(track, user);
+  }
+
   async function shareRouteFetch(route, user) {
     try {
       const response = await apiFetch('shareRoute', {
@@ -759,7 +845,10 @@
       });
       const resp = await response.json()
       if (!resp.success) {
-        showToast('Fehler beim teilen der Route', 7000);
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen der Route', 7000);
       }
       else {
         if (resp.alreadyShared)
@@ -767,8 +856,6 @@
         else
           showToast(`Route erfolgreich mit ${user.username} geteilt`, 5000);
       }
-      console.log('own routes: ' + resp.length);
-      console.log(JSON.stringify('resp'));
       return
     }
     catch (error) {
@@ -777,7 +864,6 @@
     }
 
   }
-
   async function showRouteShareDialog(route) {
       return new Promise(resolve => {
           const backdrop = document.getElementById('share-route-backdrop');
@@ -817,12 +903,83 @@
           };
       });
   }
-
   async function shareRouteWithUser(route) {
     const user = await showRouteShareDialog(route);
     if (!user) return;
-    console.log('share route with ' + user.username + ' id ' + user.id);
     await shareRouteFetch(route, user);
+  }
+
+  async function sharePoiFetch(poi, user) {
+    try {
+      const response = await apiFetch('sharePOI', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({poi_id: poi.id, user_id: user.id}),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen des POI', 7000);
+      }
+      else {
+        if (resp.alreadyShared)
+          showToast('POI wurde bereits mit dem User geteilt', 5000);
+        else
+          showToast(`POI erfolgreich mit ${user.username} geteilt`, 5000);
+      }
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen des POI: ' + error, 7000);
+      // console.warn('Fehler beim teilen des POI: ', error);
+    }
+
+  }
+  async function showPoiShareDialog(poi) {
+      return new Promise(resolve => {
+          const backdrop = document.getElementById('share-route-backdrop');
+          const routeName = backdrop.querySelector('.share-route-name');
+          const userInput = document.getElementById('share-user');
+          const userList = document.getElementById('user-list');
+          const btnSave = document.getElementById('share-save');
+          const btnCancel = document.getElementById('share-cancel');
+          routeName.textContent = `POI: ${poi.name}`;
+          userInput.value = '';
+          userList.innerHTML = '';
+          users.forEach(user => {
+              if (user.email != authState.email) {
+                const option = document.createElement('option');
+                // option.value = `${user.username} - ${user.email}`;
+                option.value = `${user.username}`;
+                userList.appendChild(option);
+              }
+          });
+          backdrop.classList.add('active');
+          function close(result) {
+              backdrop.classList.remove('active');
+              btnSave.onclick = null;
+              btnCancel.onclick = null;
+              resolve(result);
+          }
+          btnCancel.onclick = () => close(null);
+          btnSave.onclick = () => {
+              const username = userInput.value.trim();
+              if (!username) {
+                  showToast('Bitte Benutzer auswählen', 1000);
+                  return;
+              }
+              const user = users.find(u => u.username === username);
+              if (!user) { return; }
+              close(user);
+          };
+      });
+  }
+  async function sharePoiWithUser(poi) {
+    const user = await showPoiShareDialog(poi);
+    if (!user) return;
+    await sharePoiFetch(poi, user);
   }
   //#endregion
 
@@ -1960,6 +2117,11 @@
   let users = [];
   let usersById = new Map();
 
+  function clearUsers() {
+    users.length = 0;
+    usersById = new Map();
+  }
+
   async function authRequest(endpoint, body) {
     try {
       const response = await apiFetch(endpoint, {
@@ -1970,13 +2132,21 @@
 
       let data = null;
       try {
-        data = await response.json();
+        if (response.status === 200) {
+          data = await response.json();
+        } else {
+          if (response.status === 403) {
+            data = await response.json();
+          }
+          else {
+            if (!response.ok) {
+              throw new Error((data && data.error) || `HTTP ${response.status}`);
+            }
+          }
+        }
       } catch {
         // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
-      }
-
-      if (!response.ok) {
-        throw new Error((data && data.error) || `HTTP ${response.status}`);
+        data = { success: false, error: "Fehler beim decodieren der Serverantwort"};
       }
 
       return data;
@@ -1994,9 +2164,11 @@
     document.getElementById('btn-user-invite').classList.add('hidden');
     document.getElementById('btn-user-savePOI').classList.add('hidden');
     clearPOIs();
+    clearSharedPOIs();
     clearWaypoints();
     clearRoutes();
     clearTracks();
+    clearSharedTracks();
     clearUsers();
 
     const authOverlay = document.getElementById('auth-gate');
@@ -2028,18 +2200,24 @@
 
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
-    clearPOIs();
+    // clearPOIs();
+    // clearSharedPOIs();
     clearWaypoints();
-    clearTracks();
+    // clearTracks();
+    // clearSharedTracks();
     clearRoutes();
     restoreAppState();
     await getUserList();
+    await loadSharedPoisFromStorage();
     await loadPoisFromStorage().then(e => { 
+      renderPoiList();
       if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
     });
+
     await loadSharedRoutesFromStorage();
     await loadRoutesFromStorage().then(renderRoutesList);
-    await loadTracksFromStorage().then(renderTracksTree)
+    await loadSharedTracksFromStorage();
+    await loadTracksFromStorage().then(renderTrackList)
   }  
 
   async function getUserList() {
@@ -2223,13 +2401,24 @@
 
     try {
       const data = await authRequest('login', { login, password });
-      unlockApp(data.email, data.username, data.admin);
+      // const resp = await data.json();
+      const resp = data;
+      if (resp) {
+        if (resp.success) {
+          unlockApp(data.email, data.username, data.admin);
+          view.querySelector('.auth-error').textContent = '';
+          view.querySelector('.auth-password').value = '';
+          setAppAuthVisibility();
+          hideAuthModal();
+        } else {
+          if (resp.error)
+            view.querySelector('.auth-error').textContent = resp.error;
+          else
+            view.querySelector('.auth-error').textContent = 'Fehler';
+        }
+      }
 
-      view.querySelector('.auth-error').textContent = '';
-      view.querySelector('.auth-password').value = '';
 
-      setAppAuthVisibility();
-      hideAuthModal();
     } catch (err) {
       showViewError(view, 'submitLogin: '+err.message);
       lockApp();
@@ -2658,6 +2847,7 @@
   const poiLayer = L.layerGroup().addTo(map);
   const poiSearchPreviewLayer = L.layerGroup().addTo(map);
   const pois = [];
+  const sharedPois = [];
   let poiCounter = 0;
   let pendingPoiLatLng = null;
   let poiSearchPreviewMarker = null;
@@ -2751,11 +2941,11 @@
     return container;
   }
 
-  function addPoiInternal(name, poi_group, lat, lng, visible, color, dbid = -1, isShared){
+  function addPoiInternal(name, poi_group, lat, lng, visible, color, dbid = -1, isShared = false, ownerId = -1){
     const id = dbid || -1;
     const poiColor = color || getDefaultPoiColor();
-    const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: true });
-    const poi = { id, name, poi_group, lat, lng, marker, visible: visible !== false, color: poiColor, isShared: isShared };
+    const marker = L.marker([lat, lng], { icon: poiIcon(poiColor), draggable: !isShared });
+    const poi = { id, name, poi_group, lat, lng, marker, visible: visible !== false, color: poiColor, isShared: isShared, owner_user_id: ownerId };
     marker.bindTooltip(() => {
       const content = document.createElement('div');
       const nameEl = document.createElement('div');
@@ -2778,14 +2968,21 @@
       ];
       showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
     });
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
-      poi.lat = pos.lat;
-      poi.lng = pos.lng;
-      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
-    });
+    if (!isShared) {
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        poi.lat = pos.lat;
+        poi.lng = pos.lng;
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
+      });
+    }
     if (poi.visible) marker.addTo(poiLayer);
-    pois.push(poi);
+    if (isShared) {
+      sharedPois.push(poi);
+    }
+    else {
+      pois.push(poi);
+    }
     return poi;
   }
 
@@ -2819,17 +3016,38 @@
   
   async function loadPoisFromStorage(){
     try {
+      poiListEl.classList.add('isLoading');
       const response = await apiFetch('getPOIList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.pois;
       clearPOIs();
-      (data || []).forEach(p => addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id));
+      (data || []).forEach(p => { p.isShared = false;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared); });
+      // poiListEl.classList.remove('isLoading');
     }
     catch (error) {
+      poiListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der POIs: ' + error, 7000);
       console.warn('Fehler beim laden der POIs: ', error);
+    }
+  }
+  async function loadSharedPoisFromStorage() {
+    try {
+      poiListEl.classList.add('isLoading');
+      const response = await apiFetch('getSharedPOIList', {
+        method: 'GET'
+      });
+      const resp = await response.json()
+      const data = resp.pois;
+      clearSharedPOIs();
+      (data || []).forEach(p => { p.isShared = true;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared, p.owner_user_id); });
+      // poiListEl.classList.remove('isLoading');
+    }
+    catch (error) {
+      poiListEl.classList.remove('isLoading');
+      showToast('Fehler beim laden der Shared-POIs: ' + error, 7000);
+      console.warn('Fehler beim laden der Shared-POIs: ', error);
     }
   }
 
@@ -2843,10 +3061,21 @@
         // body: poi,
       });
       const resp = await response.json();
-      return resp.id;
+      if (resp) {
+        if (resp.success) {
+          return resp.id;
+        } else {
+          if (resp.error)
+            showToast(resp.error, 5000);
+          else
+            showToast('Fehler beim speichern vom POI', 5000);
+          return -1;
+        }
+      }
+      return -1;
     }
-    catch (error) {
-      showToast('Fehler beim speichern vom POI' + error, 2000);
+    catch (err) {
+      showToast('Fehler beim speichern vom POI: ' + err, 5000);
       return -1;
     }
   }
@@ -2876,11 +3105,21 @@
 
   function deletePoi(id){
     const idx = pois.findIndex(p => p.id === Number(id));
-    if (idx === -1) return;
-    delPoiFromStorage(id);
-    poiLayer.removeLayer(pois[idx].marker);
-    pois.splice(idx, 1);
-    renderPoiList();
+    const sharedIdx = sharedPois.findIndex(p => p.id === Number(id));
+    if (idx != -1) {
+      delPoiFromStorage(id);
+      poiLayer.removeLayer(pois[idx].marker);
+      pois.splice(idx, 1);
+      renderPoiList();
+      return
+    }
+    if (sharedIdx != -1) {
+      delPoiFromStorage(id);
+      poiLayer.removeLayer(sharedPois[sharedIdx].marker);
+      sharedPois.splice(sharedIdx, 1);
+      renderPoiList();
+      return;
+    }
   }
 
   function setPoiVisible(poi, visible){
@@ -2890,10 +3129,19 @@
     saveAppStateDebounced();
   }
 
-  function buildPoiGroupTree(){
+  function buildPoiGroupTree(poiSource){
     const root = { children: new Map(), items: [] };
-    pois.forEach(p => {
-      const parts = String(p.poi_group?.trim() || 'POI')
+    poiSource.forEach(p => {
+      let finalGroup = p.poi_group;
+      if (p.isShared) {
+        const username = usersById.get(p.owner_user_id)?.username;
+        if (username)
+          finalGroup = username + '/' + finalGroup;
+        else  
+          finalGroup = 'geteilte POI/';
+      }
+
+      const parts = String(finalGroup?.trim() || 'POI')
                              .split('/')
                              .map(s => s.trim())
                              .filter(Boolean);
@@ -2971,14 +3219,23 @@
   function buildPoiRow(poi){
     const row = document.createElement('div');
     row.className = 'file-row';
-    row.draggable = true;
+    row.draggable = !poi.isShared;
+    if (poi.isShared) row.classList.add('file-row-shared');
 
-    row.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/x-poi-id', poi.id);
-      row.classList.add('dragging');
-    });
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    if (!poi.isShared) {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-poi-id', poi.id);
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'Ziehen, um die Gruppe zu ändern';
+      row.appendChild(handle);
+    }
     row.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       const items = [
@@ -2989,11 +3246,6 @@
       showCustomContextMenu(e.clientX, e.clientY, items);
     });
 
-    const handle = document.createElement('span');
-    handle.className = 'waypoint-drag-handle';
-    handle.innerHTML = '&#8942;&#8942;';
-    handle.title = 'Ziehen, um die Gruppe zu ändern';
-    row.appendChild(handle);
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -3011,6 +3263,7 @@
     sw.className = 'swatch';
     sw.style.background = poi.color;
     swWrap.appendChild(sw);
+
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
     colorInput.className = 'swatch-input';
@@ -3020,10 +3273,13 @@
       sw.style.background = poi.color;
       poi.marker.setIcon(poiIcon(poi.color));
     });
-    colorInput.addEventListener('change', () => { 
-      savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id); 
-    });    
-    colorInput.addEventListener('click', (ev) => ev.stopPropagation());
+
+    if (!poi.isShared) {
+      colorInput.addEventListener('change', () => { 
+        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id); 
+      });    
+      colorInput.addEventListener('click', (ev) => ev.stopPropagation());
+    }
     swWrap.appendChild(colorInput);
     row.appendChild(swWrap);
 
@@ -3033,34 +3289,50 @@
     nm.className = 'file-name';
     nm.textContent = poi.name;
     if (authState.admin) nm.textContent = nm.textContent + `   (id:${+poi.id})`;
-    nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
-    nm.style.cursor = 'pointer';
+    if (!poi.isShared)
+      nm.title = 'Klick: zur Karte springen · Doppelklick: umbenennen';
+    else
+      nm.title = 'Klick: zur Karte springen';
+    if (!poi.isShared) nm.style.cursor = 'pointer';
     nm.addEventListener('click', () => {
       cb.checked = true;
       setPoiVisible(poi, cb.checked);
       map.setView([poi.lat, poi.lng], Math.max(map.getZoom(), 13));
       // poi.marker.openPopup();
     });
-    nm.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      startInlineRename(nm, poi.name, (newName) => {
-        if (newName.includes('/')) {
-            const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
-            poi.name = parts.pop();           // letzter Teil = Name
-            poi.poi_group = parts.join('/');      // alles davor = Gruppe
-        } else {
-            poi.name = newName.trim();
-        }
-
-        
-        poi.name = newName;
-
-        savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
-        renderPoiList();
+    if (!poi.isShared) {
+      nm.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startInlineRename(nm, poi.name, (newName) => {
+          if (newName.includes('/')) {
+              const parts = newName.split('/').map(p => p.trim()).filter(Boolean);
+              poi.name = parts.pop();           // letzter Teil = Name
+              poi.poi_group = parts.join('/');      // alles davor = Gruppe
+          } else {
+              poi.name = newName.trim();
+          }
+          poi.name = newName.trim();
+          savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
+          renderPoiList();
+        });
       });
-    });
+    }
     info.appendChild(nm);
     row.appendChild(info);
+
+    if (!poi.isShared) {
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        sharePoiWithUser(poi);
+      });
+      row.appendChild(shareBtn);
+    }
 
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
@@ -3078,6 +3350,14 @@
   }
 
   let poiGroupsInitialized = false;
+  function clearPOIs() {
+    pois.length = 0;
+    renderPoiList();
+  }
+  function clearSharedPOIs() {
+    sharedPois.length = 0;
+    renderPoiList();
+  }
     
   async function delPOIGroupHelper(child, descendants) {
     const ok = await confirmDialog(`Möchten Sie die Gruppe "${child.label}"" mit ${descendants.length} POIs wirklich löschen?`);
@@ -3086,10 +3366,18 @@
     descendants.forEach(p => { deletePoi(p.id); });
   }
   
+  function hasSharedPois(node) {
+    if (node.items.some(p => p.isShared)) { return true; }
+    for (const child of node.children.values()) {
+        if (hasSharedPois(child)) { return true; }
+    }
+    return false;
+  }
+
   function renderPoiGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllPoisInNode(child);
-      // const entries = collectViewerEntries(child);
+      const isShared = hasSharedPois(child);
         
       if (!poiGroupsInitialized) {
         if (child.items.length > 0) 
@@ -3108,17 +3396,13 @@
 
       const header = document.createElement('div');
       header.className = 'group-header' + (collapsed ? ' collapsed' : '');
-
+      if (isShared) header.classList.add('group-header-shared');
+      
       const twist = document.createElement('span');
       twist.className = 'twist';
       twist.textContent = '▾';
       header.appendChild(twist);
 
-      // geht nicht 
-      // const allVisible = descendants.every(p => p.visible);
-      // const noneVisible = descendants.every(p => !p.visible);
-
-      // von routen, da gehts
       const allVisible = descendants.length > 0 && descendants.every(entry => entry.visible);
       const noneVisible = descendants.every(entry => !entry.visible);
 
@@ -3171,58 +3455,61 @@
         renderPoiList();
       });
 
-      nameEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        startInlineRename(nameEl, child.label, (newLabel) => {
-          const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
-          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
-          pois.forEach(poi => {
-            if (poi.poi_group === child.path) {
-              poi.poi_group = newPath;
-              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
-            }
-            else if (poi.poi_group.startsWith(child.path + '/')) { 
-              poi.poi_group = newPath + poi.poi_group.slice(child.path.length);
-              savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
-            }
+      if (!isShared) {
+        nameEl.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          startInlineRename(nameEl, child.label, (newLabel) => {
+            const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
+            const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
+            pois.forEach(poi => {
+              if (poi.poi_group === child.path) {
+                poi.poi_group = newPath;
+                savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
+              }
+              else if (poi.poi_group.startsWith(child.path + '/')) { 
+                poi.poi_group = newPath + poi.poi_group.slice(child.path.length);
+                savePoiToStorage(poi.lat, poi.lng, poi.name, poi.poi_group, poi.color, poi.id);
+              }
+            });
+            renderPoiList();
           });
-          renderPoiList();
         });
-      });
-
-      header.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        header.classList.add('drop-target');
-      });
-      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
-      header.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        header.classList.remove('drop-target');
-        const poiId = e.dataTransfer.getData('text/x-poi-id');
-        if (!poiId) return;
-        movePoiToGroup(poiId, child.path);
-      });
+        header.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          header.classList.add('drop-target');
+        });
+        header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+        header.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          header.classList.remove('drop-target');
+          const poiId = e.dataTransfer.getData('text/x-poi-id');
+          if (!poiId) return;
+          movePoiToGroup(poiId, child.path);
+        });
+      }
 
       groupEl.appendChild(header);
 
       // Fallback: dropping anywhere else in this group's box (not on a more
       // specific nested header, which stops propagation) also files under it.
-      groupEl.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        groupEl.classList.add('drop-target-box');
-      });
-      groupEl.addEventListener('dragleave', (e) => {
-        if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box');
-      });
-      groupEl.addEventListener('drop', (e) => {
-        e.preventDefault();
-        groupEl.classList.remove('drop-target-box');
-        const poiId = e.dataTransfer.getData('text/x-poi-id');
-        if (!poiId) return;
-        movePoiToGroup(poiId, child.path);
-      });
+      if (!isShared) {
+        groupEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          groupEl.classList.add('drop-target-box');
+        });
+        groupEl.addEventListener('dragleave', (e) => {
+          if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box');
+        });
+        groupEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          groupEl.classList.remove('drop-target-box');
+          const poiId = e.dataTransfer.getData('text/x-poi-id');
+          if (!poiId) return;
+          movePoiToGroup(poiId, child.path);
+        });
+      }
 
       const childWrap = document.createElement('div');
       childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
@@ -3238,26 +3525,24 @@
   function renderPoiList(){
     const scrollPos = poiListEl.scrollTop;
     poiListEl.innerHTML = '';
-
-    if (pois.length === 0){
+    if ((pois.length === 0) && (sharedPois.length === 0)) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.innerHTML = '<div>Noch keine POIs gespeichert.<br>Rechtsklick auf die Karte →<br>"Als POI speichern".</div>';
       poiListEl.appendChild(empty);
+      poiListEl.appendChild(loadingOverlay);
       return;
     }
 
-    const root = buildPoiGroupTree();
+    const root = buildPoiGroupTree(pois);
     renderPoiGroupNode(root, poiListEl);
+    const sharedRoot = buildPoiGroupTree(sharedPois);
+    renderPoiGroupNode(sharedRoot, poiListEl);
     poiGroupsInitialized = true;
 
     poiListEl.scrollTop = scrollPos;
   }
 
-  function clearPOIs() {
-    pois.length = 0;
-    renderPoiList();
-  }
   const poiSearchInput = document.getElementById('poi-search');
   const btnSearchPoi = document.getElementById('btn-search-poi');
   const poiSearchResultsEl = document.getElementById('poi-search-results');
@@ -3327,6 +3612,7 @@
   });
   poiNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') poiGroupInput.focus(); });
   poiGroupInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('poi-modal-save').click(); });
+  
   //#endregion
 
 
@@ -3714,20 +4000,34 @@
   // ============================================================
   // --------------- Tracks/Viewer ---------------
   //#region Tracks - Viewer
-  const tracksTree = document.getElementById('tree');
+  const trackListEl = document.getElementById('track-list');
   const emptyState = document.getElementById('empty-state');
+  const loadingOverlay = document.getElementById('loading-overlay');
   const totalEl = document.getElementById('track-total');
   const PALETTE = ['#e8622c','#2f8f9d','#c9a227','#7d5ba6','#3f9142','#d64550','#4472ca','#9c6b30','#2fa39d','#b3467c'];
   let colorCursor = 0;
   function nextColor(){ const c = PALETTE[colorCursor % PALETTE.length]; colorCursor++; return c; }
-  const groups = new Map();
+  const tracksMap = new Map();
+  const tracks = [];
+  const sharedTracks = [];
   let fileCounter = 0;
-  const collapsedViewerGroups = new Set();
+  const collapsedTracksGroups = new Set();
+
+  function clearTracks() {
+    tracks.forEach(t => { if (t.layer) map.removeLayer(t.layer); });
+    tracks.length = 0;
+    renderTrackList();
+  }
+  function clearSharedTracks() {
+    sharedTracks.forEach(t => { if (t.layer) map.removeLayer(t.layer); });
+    sharedTracks.length = 0;
+    renderTrackList();
+  }
 
   async function delTrackHelper(track) {
     const ok = await confirmDialog(`Möchten Sie den Track "${track.name}" wirklich löschen?`);
     if (!ok) return;
-    deleteTrack(track);
+    deleteTrack(track.id);
   }
   async function delTrackGroupHelper(group, groupPath) {
     const ok = await confirmDialog(`"${groupPath}" mit ${group.length} Track(s) (inkl. Unterordner) wirklich löschen?`);
@@ -3736,8 +4036,8 @@
           if (entry.layer && map.hasLayer(entry.layer)) map.removeLayer(entry.layer);
           await deleteTrack(entry);
         });
-    [...groups.entries()].forEach(([path, group]) => { if (group.files.size === 0) groups.delete(path); });
-    renderTracksTree();
+    [...tracksMap.entries()].forEach(([path, group]) => { if (group.files.size === 0) tracksMap.delete(path); });
+    renderTrackList();
   }
 
   async function gzipString(text) {
@@ -3833,23 +4133,24 @@
     }
   };
 
-  async function loadTracksFromStorage() {
+  async function loadSharedTracksFromStorage() {
     try {
-      const response = await apiFetch('getTrackList', {
+      trackListEl.classList.add('isLoading');
+      const response = await apiFetch('getSharedTrackList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.tracks;
 
-      data.forEach(track => {
-        const id = track.id;
-        const color = track.color || nextColor();
-        const g = groupFor(track.track_group);
-
-        const entry = { id, 
+      clearSharedTracks();
+      (data || []).forEach(track => { 
+        const entry = { id: track.id, 
+                        isShared: true,
                         name: track.name, 
                         trackDate: track.trackDate,
-                        color: track.color, 
+                        owner_user_id: track.owner_user_id,
+                        color: track.color || nextColor(),
+                        file_size: track.file_size,
                         layer: null, 
                         visible: false, 
                         distanceKm: track.distance, 
@@ -3859,16 +4160,56 @@
                         loadIcon: null,
                         track_group: track.track_group, 
                         gpxText: track.gpx || null 
-                      };
-        g.files.set(id, entry);
-        renderTracksTree();
+                      };        
+        sharedTracks.push(entry); 
+        trackListEl.classList.remove('isLoading');
       });
     }
     catch (error) {
+      trackListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der Tracks: ' + error, 7000);
       console.warn('Fehler beim laden der Tracks ', error);
     }
   }
+  
+  async function loadTracksFromStorage() {
+    try {
+      trackListEl.classList.add('isLoading');
+      const response = await apiFetch('getTrackList', {
+        method: 'GET'
+      });
+      const resp = await response.json()
+      const data = resp.tracks;
+      clearTracks();
+      (data || []).forEach(track => { 
+        const entry = { id: track.id, 
+                        isShared: false,
+                        name: track.name, 
+                        trackDate: track.trackDate,
+                        owner_user_id: track.owner_user_id,
+                        color: track.color || nextColor(),
+                        file_size: track.file_size,
+                        layer: null, 
+                        visible: false, 
+                        distanceKm: track.distance, 
+                        durationMs: null, 
+                        originalSegments: [], 
+                        customLayers: [], 
+                        loadIcon: null,
+                        track_group: track.track_group, 
+                        gpxText: track.gpx || null 
+                      };        
+        tracks.push(entry); 
+      });
+      trackListEl.classList.remove('isLoading');
+    }
+    catch (error) {
+      trackListEl.classList.remove('isLoading');
+      showToast('Fehler beim laden der Tracks: ' + error, 7000);
+      console.warn('Fehler beim laden der Tracks ', error);
+    }
+  }
+
   async function loadTrackGPXFromStorage(entry) {
     try {
       if (entry.loadIcon !== null) { entry.loadIcon.classList.remove('hidden'); }
@@ -3995,7 +4336,7 @@
 
       g.files.set(entry.id, entry);
       updateSummary();
-      renderTracksTree();
+      renderTrackList();
 
       const url = URL.createObjectURL(file);
       const gpxLayer = new L.GPX(url, {
@@ -4027,6 +4368,7 @@
         updateFileMeta(entry);
         updateSummary();
         URL.revokeObjectURL(url);
+        map.fitBounds(gpxLayer.getBounds());
       });
 
       gpxLayer.on('error', function(){
@@ -4067,13 +4409,13 @@
   // fileEntry: { id, name, color, layer, visible, distanceKm, groupEl, checkboxEl, rowEl }
 
   function groupFor(name){
-    if (!groups.has(name)) groups.set(name, { files: new Map(), collapsed: false });
-    return groups.get(name);
+      if (!tracksMap.has(name)) tracksMap.set(name, { files: new Map(), collapsed: false });
+      return tracksMap.get(name);
   }
 
-  function totalFileCount(){
+  function totalFileCount() {
     let n = 0;
-    groups.forEach(g => n += g.files.size);
+    tracksMap.forEach(g => n += g.files.size);
     return n;
   }
 
@@ -4093,12 +4435,19 @@
 
   function updateSummary(){
     let count = 0, distSum = 0, durSum = 0, anyDist = false, anyDur = false;
-    groups.forEach(g => g.files.forEach(f => {
+    tracks.forEach(f => {
       if (!f.visible) return;
       count++;
       if (f.distanceKm && !isNaN(parseFloat(f.distanceKm))) { distSum += parseFloat(f.distanceKm); anyDist = true; }
       if (f.durationMs) { durSum += f.durationMs; anyDur = true; }
-    }));
+    });
+    sharedTracks.forEach(f => {
+      if (!f.visible) return;
+      count++;
+      if (f.distanceKm && !isNaN(parseFloat(f.distanceKm))) { distSum += parseFloat(f.distanceKm); anyDist = true; }
+      if (f.durationMs) { durSum += f.durationMs; anyDur = true; }
+    });
+
     document.getElementById('summary-count').textContent = count + (count === 1 ? ' Track' : ' Tracks');
     document.getElementById('summary-distance').textContent = anyDist ? distSum.toFixed(1).replace('.', ',') + ' km' : '–';
     document.getElementById('summary-duration').textContent = anyDur ? formatDuration(durSum) : '–';
@@ -4134,150 +4483,6 @@
     return hasDuration ? totalMs : null;
   }
 
-
-  // ---------- Generic key/value settings storage (IndexedDB, with localStorage fallback) ----------
-  // Used for POIs, routes, the ORS API key and the default POI color.
-  // On first use per key, an existing localStorage value (from before the
-  // IndexedDB migration) is picked up automatically so nothing is lost.
-  function openAppDb(){
-    if (appDbPromise) return appDbPromise;
-    if (!window.indexedDB) return Promise.resolve(null);
-    appDbPromise = new Promise(resolve => {
-      const request = indexedDB.open(APP_DB_NAME, APP_DB_VERSION);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(VIEWER_STORE_NAME)) db.createObjectStore(VIEWER_STORE_NAME, { keyPath: 'id' });
-        if (!db.objectStoreNames.contains(SETTINGS_STORE_NAME)) db.createObjectStore(SETTINGS_STORE_NAME, { keyPath: 'key' });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    });
-    return appDbPromise;
-  }
-  async function dbGet(key, fallback){
-    const db = await openAppDb();
-    if (db){
-      const fromDb = await new Promise(resolve => {
-        const req = db.transaction(SETTINGS_STORE_NAME, 'readonly').objectStore(SETTINGS_STORE_NAME).get(key);
-        req.onsuccess = () => resolve(req.result ? req.result.value : undefined);
-        req.onerror = () => resolve(undefined);
-      });
-      if (fromDb !== undefined) return fromDb;
-      // Not in IndexedDB yet -- check for a legacy localStorage value to migrate once.
-      try {
-        const legacy = localStorage.getItem(key);
-        if (legacy !== null){
-          const parsed = (() => { try { return JSON.parse(legacy); } catch (e){ return legacy; } })();
-          await dbSet(key, parsed);
-          return parsed;
-        }
-      } catch (e){ /* ignore */ }
-      return fallback;
-    }
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw === null) return fallback;
-      try { return JSON.parse(raw); } catch (e){ return raw; }
-    } catch (e){ return fallback; }
-  }
-  async function dbSet(key, value){
-    const db = await openAppDb();
-    if (db){
-      await new Promise(resolve => {
-        const tx = db.transaction(SETTINGS_STORE_NAME, 'readwrite');
-        tx.objectStore(SETTINGS_STORE_NAME).put({ key, value });
-        tx.oncomplete = resolve;
-        tx.onerror = resolve;
-      });
-      return;
-    }
-    try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); }
-    catch (e){ /* storage unavailable or full */ }
-  }
-  async function saveViewerEntry(entry){
-    if (!entry.gpxText) return;
-    const record = {
-      id: entry.id,
-      name: entry.name,
-      track_group: entry.track_group,
-      color: entry.color,
-      visible: entry.visible,
-      gpxText: entry.gpxText
-    };
-    const db = await openAppDb();
-    if (db){
-      await new Promise(resolve => {
-        const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
-        transaction.objectStore(VIEWER_STORE_NAME).put(record);
-        transaction.oncomplete = resolve;
-        transaction.onerror = resolve;
-      });
-      return;
-    }
-    try {
-      const records = JSON.parse(localStorage.getItem('gpxviewer_viewer') || '[]');
-      const index = records.findIndex(item => item.id === record.id);
-      if (index === -1) records.push(record);
-      else records[index] = record;
-      localStorage.setItem('gpxviewer_viewer', JSON.stringify(records));
-    } catch (e){ /* storage unavailable or full */ }
-  }
-  async function deleteViewerEntry(id){
-    const db = await openAppDb();
-    if (db){
-      const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
-      transaction.objectStore(VIEWER_STORE_NAME).delete(id);
-      return;
-    }
-    try {
-      const records = JSON.parse(localStorage.getItem('gpxviewer_viewer') || '[]');
-      localStorage.setItem('gpxviewer_viewer', JSON.stringify(records.filter(item => item.id !== id)));
-    } catch (e){ /* storage unavailable */ }
-  }
-  async function clearViewerStorage(){
-    const db = await openAppDb();
-    if (db){
-      const transaction = db.transaction(VIEWER_STORE_NAME, 'readwrite');
-      transaction.objectStore(VIEWER_STORE_NAME).clear();
-      return;
-    }
-    try { localStorage.removeItem('gpxviewer_viewer'); } catch (e){ /* storage unavailable */ }
-  }
-  async function loadViewerRecords(){
-    const db = await openAppDb();
-    if (db){
-      return await new Promise(resolve => {
-        const request = db.transaction(VIEWER_STORE_NAME, 'readonly').objectStore(VIEWER_STORE_NAME).getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => resolve([]);
-      });
-    }
-    try { return JSON.parse(localStorage.getItem('gpxviewer_viewer') || '[]'); }
-    catch (e){ return []; }
-  }
-  async function loadViewerList(){
-    const records = await loadViewerRecords();
-    records.forEach(record => {
-      const match = /^f(\d+)$/.exec(record.id || '');
-      if (match) fileCounter = Math.max(fileCounter, parseInt(match[1], 10) + 1);
-    });
-    records.forEach(record => {
-      if (!record.gpxText) return;
-      const file = new File([record.gpxText], record.name, { type: 'application/gpx+xml' });
-      loadGPXFile(file, record.track_group, {
-        persist: false,
-        id: record.id,
-        sourceText: record.gpxText,
-        color: record.color,
-        visible: record.visible
-      });
-    });
-  }
-
-
-
-
-
   // ---------- Tree rendering ----------
   function formatIsoDate(isoString) {
     if (!isoString) return '';
@@ -4295,26 +4500,30 @@
     });
   }  
 
-  function buildViewerGroupTree(){
-    const root = { children: new Map(), files: new Map(), path: '', label: '' };
-    groups.forEach((group, groupPath) => {
-      const parts = groupPath.split('/').map(part => part.trim()).filter(Boolean);
+  function buildTrackGroupTree(trackSource){
+    const root = { children: new Map(), items: [] };
+    trackSource.forEach(t => {
+      let finalGroup = t.track_group;
+      if (t.isShared) {
+        const username = usersById.get(t.owner_user_id)?.username;
+        if (username)
+          finalGroup = username + '/' + finalGroup;
+        else  
+          finalGroup = 'geteilte Tracks/';
+      }
+
+      const parts = (finalGroup || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) parts.push('Ohne Gruppe');
       let node = root;
-      let path = '';
+      let pathSoFar = '';
       parts.forEach(part => {
-        path = path ? path + '/' + part : part;
-        if (!node.children.has(part)) node.children.set(part, { children: new Map(), files: new Map(), path, label: part });
+        pathSoFar = pathSoFar ? pathSoFar + '/' + part : part;
+        if (!node.children.has(part)) node.children.set(part, { children: new Map(), items: [], path: pathSoFar, label: part });
         node = node.children.get(part);
       });
-      group.files.forEach((entry, id) => node.files.set(id, entry));
+      node.items.push(t);
     });
     return root;
-  }
-
-  function collectViewerEntries(node){
-    const entries = [...node.files.values()];
-    node.children.forEach(child => entries.push(...collectViewerEntries(child)));
-    return entries;
   }
 
   async function loadGPXData(entry) {
@@ -4328,8 +4537,6 @@
     const info = calculateGpxInfo(entry.gpxText);
     entry.durationMs = info.durationMs;
     entry.trackDate = info.trackDate;
-
-
 
     if (entry.layer === null) {
       const blob = new Blob([entry.gpxText], { type: 'application/gpx+xml' });
@@ -4363,6 +4570,7 @@
         updateFileMeta(entry);
         updateSummary();
         URL.revokeObjectURL(url);
+        map.fitBounds(gpxLayer.getBounds());
       });
 
       gpxLayer.on('error', function(){
@@ -4377,178 +4585,212 @@
     if (entry.loadIcon) { entry.loadIcon.classList.add('hidden'); }
   }
 
-  function renderViewerFileRow(entry, fileList){
-        const row = document.createElement('div');
-        row.className = 'file-row';
-        row.draggable = true;
-        row.addEventListener('dragstart', event => {
-          event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/x-viewer-id', entry.id);
-          row.classList.add('dragging');
-        });
-        row.addEventListener('dragend', () => row.classList.remove('dragging'));
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = entry.visible;
-        cb.addEventListener('change', async () => {
-          // await loadGPXData(entry);
-          setFileVisible(entry, cb.checked);
-          renderTracksTree();
-        });
-        row.appendChild(cb);
-
-        const swWrap = document.createElement('label');
-        swWrap.className = 'swatch-wrap';
-        swWrap.title = 'Farbe ändern';
-
-        const sw = document.createElement('span');
-        sw.className = 'swatch';
-        sw.style.background = entry.color;
-        swWrap.appendChild(sw);
-
-        const colorInput = document.createElement('input');
-        colorInput.type = 'color';
-        colorInput.className = 'swatch-input';
-        colorInput.value = entry.color;
-        colorInput.addEventListener('input', () => {
-          entry.color = colorInput.value;
-          sw.style.background = entry.color;
-          setTrackColor(entry, entry.color);
-        });
-        colorInput.addEventListener('change', () => {
-          updateTrackToStorage(entry);
-        });
-        colorInput.addEventListener('click', (ev) => ev.stopPropagation());
-        swWrap.appendChild(colorInput);
-
-        row.appendChild(swWrap);
-
-        const info = document.createElement('div');
-        info.className = 'file-info';
-        const nm = document.createElement('div');
-        nm.className = 'file-name';
-        nm.textContent = entry.name;
-        if (authState.admin) nm.textContent = nm.textContent + `   (id:${+entry.id})`;
-        nm.title = entry.name;
-        const meta = document.createElement('div');
-        meta.className = 'file-meta';
-        meta.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '';
-        meta.textContent += entry.trackDate ? `  (${formatIsoDate(entry.trackDate)})` : '';
-        info.appendChild(nm);
-        info.appendChild(meta);
-        row.appendChild(info);
-
-        entry.rowEl = row;
-        fileList.appendChild(row);
-
-        if (!entry.loadIcon) {
-          const lIcon = document.createElement('span');
-          lIcon.className = 'row-icon-btn row-icon-wait';
-          lIcon.innerHTML = circleSVG;
-          lIcon.classList.add('hidden');
-          entry.loadIcon = lIcon;
-        }
-        row.appendChild(entry.loadIcon);
-
-
-        const exportBtn = document.createElement('button');
-        exportBtn.className = 'row-icon-btn';
-        exportBtn.title = 'Exportieren / Teilen';
-        const eicon = document.createElement('span');
-        eicon.innerHTML = saveSVG;
-        exportBtn.appendChild(eicon);
-
-        exportBtn.addEventListener('click', (ev) => {
-          openGpxExportMenu(ev, () => {
-            const g = buildEntryGpxXml(entry);
-            return g ? { xml: g.xml, filename: g.filename } : null;
-          });
-        });
-        row.appendChild(exportBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'row-icon-btn';
-        delBtn.title = 'Track entfernen';
-        const icon = document.createElement('span');
-        icon.innerHTML = trashSVG;
-        delBtn.appendChild(icon);
-
-        delBtn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          delTrackHelper(entry);
-          // deleteTrack(entry);
-        });
-        row.appendChild(delBtn);
+  function moveTrackToGroup(trackId, newGroupPath){
+    const track = tracks.find(t => t.id === Number(trackId));
+    if (!track || track.track_group === newGroupPath) return;
+    track.track_group = newGroupPath;
+    updateTrackToStorage(track);
+    renderTrackList();
   }
 
-  function moveViewerEntryToGroup(entryId, newGroupPath){
-    let entry = null;
-    let oldGroupPath = null;
-    
-    groups.forEach((group, groupPath) => {
-      if (group.files.has(Number(entryId))){
-        entry = group.files.get(Number(entryId));
-        oldGroupPath = groupPath;
-      }
-    });
-    if (!entry || oldGroupPath === newGroupPath) return;
-
-    const oldGroup = groups.get(oldGroupPath);
-    oldGroup.files.delete(Number(entryId));
-    if (oldGroup.files.size === 0) groups.delete(oldGroupPath);
-
-    entry.track_group = newGroupPath;
-    groupFor(newGroupPath).files.set(Number(entryId), entry);
-    updateTrackToStorage(entry);
-    renderTracksTree();
-  }
-
-  function moveViewerGroupToGroup(sourcePath, targetPath){
+  function moveTrackGroupToGroup(sourcePath, targetPath){
+    return;
     if (!sourcePath || !targetPath || sourcePath === targetPath || targetPath.startsWith(sourcePath + '/')) return;
     const sourcePrefix = sourcePath + '/';
     const newRootPath = targetPath + '/' + sourcePath.slice(sourcePath.lastIndexOf('/') + 1);
-    const affectedGroups = [...groups.entries()].filter(([path]) => path === sourcePath || path.startsWith(sourcePrefix));
+    const affectedGroups = [...tracksMap.entries()].filter(([path]) => path === sourcePath || path.startsWith(sourcePrefix));
     if (!affectedGroups.length) return;
 
     affectedGroups.forEach(([path, group]) => {
-      groups.delete(path);
+      tracksMap.delete(path);
       const newPath = newRootPath + path.slice(sourcePath.length);
-      const existing = groups.get(newPath);
+      const existing = tracksMap.get(newPath);
       if (existing){
         group.files.forEach((entry, id) => {
           entry.track_group = newPath;
           existing.files.set(id, entry);
-          saveViewerEntry(entry);
+          updateTrackToStorage(entry);
         });
       } else {
         group.files.forEach(entry => {
           entry.track_group = newPath;
           updateTrackToStorage(entry);
-          // saveViewerEntry(entry);
         });
-        groups.set(newPath, group);
+        tracksMap.set(newPath, group);
       }
     });
-    renderTracksTree();
+    renderTrackList();
   }
 
-  function renderViewerGroupNode(node, container){
+  function buildTrackRow(track){
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.draggable = !track.isShared;;
+    if (track.isShared) row.classList.add('file-row-shared');
+
+    if (!track.isShared) {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-track-id', track.id);
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+
+      const handle = document.createElement('span');
+      handle.className = 'waypoint-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'Ziehen, um die Gruppe zu ändern';
+      row.appendChild(handle);
+    }
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = track.visible;
+    cb.addEventListener('change', async () => {
+      // await loadGPXData(entry);
+      setFileVisible(track, cb.checked);
+      renderTrackList();
+    });
+    row.appendChild(cb);
+
+    const swWrap = document.createElement('label');
+    swWrap.className = 'swatch-wrap';
+    swWrap.title = 'Farbe ändern';
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = track.color;
+    swWrap.appendChild(sw);
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = 'swatch-input';
+    colorInput.value = track.color;
+    if (!track.isShared) {
+      colorInput.addEventListener('input', () => {
+        track.color = colorInput.value;
+        sw.style.background = track.color;
+        setTrackColor(track, track.color);
+      });
+      colorInput.addEventListener('change', () => {
+        updateTrackToStorage(track);
+      });
+      colorInput.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+    swWrap.appendChild(colorInput);
+    row.appendChild(swWrap);
+
+
+    const info = document.createElement('div');
+    info.className = 'file-info';
+    const nm = document.createElement('div');
+    nm.className = 'file-name';
+    nm.textContent = track.name;
+    if (authState.admin) {
+      if (track.isShared) nm.textContent = '*' + nm.textContent;
+      nm.textContent = nm.textContent + `   (id:${+track.id})`;
+    }
+
+    if (!track.isShared)
+      nm.title = 'Klick: auf Karte anzeigen · Doppelklick: umbenennen';
+    else
+      nm.title = 'Klick: auf Karte anzeigen';
+    info.addEventListener('click', () => {
+      if ((track.layer) && (track.visible))
+        map.fitBounds(track.layer.getBounds())
+    }); 
+
+    
+    const meta = document.createElement('div');
+    meta.className = 'file-meta';
+    meta.textContent = `${track.distanceKm}km` || '';
+    
+    if (track.trackDate) {
+      (meta.textContent !== '') ? (meta.textContent = meta.textContent + `  (${formatIsoDate(track.trackDate)})`)  : meta.textContent = `${formatIsoDate(track.trackDate)}`;
+    }
+    info.appendChild(nm);
+    info.appendChild(meta);   
+    row.appendChild(info);
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'row-icon-btn';
+    const editicon = document.createElement('span');
+    editicon.innerHTML = editSVG;
+    loadBtn.appendChild(editicon);
+    loadBtn.title = 'Zum Bearbeiten laden';
+    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(track); });
+    row.appendChild(loadBtn);
+
+    if (!track.isShared) {
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        shareTrackWithUser(track);
+      });
+      row.appendChild(shareBtn);
+    }
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'row-icon-btn';
+    exportBtn.title = 'Exportieren / Teilen';
+    const eicon = document.createElement('span');
+    eicon.innerHTML = saveSVG;
+    exportBtn.appendChild(eicon);
+
+    exportBtn.addEventListener('click', (ev) => {
+      openGpxExportMenu(ev, () => {
+        const g = buildEntryGpxXml(track);
+        return g ? { xml: g.xml, filename: g.filename } : null;
+      });
+    });
+    row.appendChild(exportBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-icon-btn';
+    const icon = document.createElement('span');
+    icon.innerHTML = trashSVG;
+    delBtn.appendChild(icon);
+    delBtn.title = 'Track löschen';
+    delBtn.addEventListener('click', (ev) => { 
+      ev.stopPropagation(); 
+      delTrackHelper(track);
+    });
+    row.appendChild(delBtn);
+
+    return row;
+  }
+
+  function hasSharedTracks(node) {
+    if (node.items.some(r => r.isShared)) { return true; }
+    for (const child of node.children.values()) {
+        if (hasSharedRoutes(child)) { return true; }
+    }
+    return false;
+  }
+
+  function collectAllTracksInNode(node){
+    let all = [...node.items];
+    node.children.forEach(child => { all = all.concat(collectAllTracksInNode(child)); });
+    return all;
+  }
+
+  function renderTrackGroupNode(node, container){
     node.children.forEach(child => {
-      const entries = collectViewerEntries(child);
-      const collapsed = collapsedViewerGroups.has(child.path);
+      const descendants = collectAllTracksInNode(child);
+      const collapsed = collapsedTracksGroups.has(child.path);
+      const isSharedGroup  = hasSharedTracks(child)
+      
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
 
       const header = document.createElement('div');
       header.className = 'group-header' + (collapsed ? ' collapsed' : '');
-      header.draggable = true;
-      header.addEventListener('dragstart', event => {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/x-viewer-group-path', child.path);
-        header.classList.add('dragging');
-      });
-      header.addEventListener('dragend', () => header.classList.remove('dragging'));
+      if (isSharedGroup) header.classList.add('group-header-shared');
+
       const twist = document.createElement('span');
       twist.className = 'twist';
       twist.textContent = '▾';
@@ -4556,26 +4798,31 @@
 
       const groupCb = document.createElement('input');
       groupCb.type = 'checkbox';
-      const allVisible = entries.length > 0 && entries.every(entry => entry.visible);
-      const noneVisible = entries.every(entry => !entry.visible);
+      const allVisible = descendants.length > 0 && descendants.every(entry => entry.visible);
+      const noneVisible = descendants.every(entry => !entry.visible);
       groupCb.checked = allVisible;
       groupCb.indeterminate = !allVisible && !noneVisible;
       groupCb.addEventListener('click', event => event.stopPropagation());
       groupCb.addEventListener('change', () => {
-        entries.forEach(entry => setFileVisible(entry, groupCb.checked));
-        renderTracksTree();
+        descendants.forEach(entry => setFileVisible(entry, groupCb.checked));
+        renderTrackList();
       });
       header.appendChild(groupCb);
+
+      const spacer = document.createElement('span');
+      spacer.style.width = '15px';
+      header.appendChild(spacer);
 
       const nameEl = document.createElement('span');
       nameEl.className = 'group-name';
       nameEl.textContent = child.label;
-      nameEl.title = 'Doppelklick: Gruppe umbenennen';
+      if (!isSharedGroup) 
+        nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
       const countEl = document.createElement('span');
       countEl.className = 'group-count';
-      countEl.textContent = entries.length;
+      countEl.textContent = descendants.length;
       header.appendChild(countEl);
 
       const groupDelBtn = document.createElement('button');
@@ -4583,115 +4830,94 @@
       const icon = document.createElement('span');
       icon.innerHTML = trashSVG;
       groupDelBtn.appendChild(icon);
-
       groupDelBtn.title = 'Ganze Gruppe inklusive Unterordner löschen';
       groupDelBtn.addEventListener('click', event => {
         event.stopPropagation();
-        delTrackGroupHelper(entries, child.path);
-      });
-      header.appendChild(groupDelBtn);
-
-      header.addEventListener('dragover', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        header.classList.add('drop-target');
-      });
-      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
-      header.addEventListener('drop', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        header.classList.remove('drop-target');
-        const sourcePath = event.dataTransfer.getData('text/x-viewer-group-path');
-        if (sourcePath){
-          moveViewerGroupToGroup(sourcePath, child.path);
-          return;
-        }
-        const entryId = event.dataTransfer.getData('text/x-viewer-id');
-        if (entryId) moveViewerEntryToGroup(entryId, child.path);
+        delTrackGroupHelper(descendants, child.path);
       });
 
-      header.addEventListener('click', event => {
-        if (event.target === nameEl) return;
-        if (collapsedViewerGroups.has(child.path)) collapsedViewerGroups.delete(child.path);
-        else collapsedViewerGroups.add(child.path);
-        renderTracksTree();
+      header.addEventListener('click', (e) => {
+        if (e.target === nameEl) return;
+        if (collapsedTracksGroups.has(child.path)) collapsedTracksGroups.delete(child.path);
+        else collapsedTracksGroups.add(child.path);
+        renderTrackList();
       });
 
-      nameEl.addEventListener('dblclick', event => {
-        event.stopPropagation();
-        const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
-        startInlineRenameGeneric(nameEl, child.label, newLabel => {
-          const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
-          if ([...groups.keys()].some(path => path === newPath || path.startsWith(newPath + '/'))){
-            renderTracksTree();
-            return;
-          }
-          [...groups.entries()].forEach(([path, group]) => {
-            if (path === child.path || path.startsWith(child.path + '/')){
-              groups.delete(path);
-              const renamedPath = newPath + path.slice(child.path.length);
-              groups.set(renamedPath, group);
-              group.files.forEach(entry => {
-                entry.track_group = renamedPath;
-                updateTrackToStorage(entry);
-              });
-            }
-          });
-          renderTracksTree();
-        }, renderTracksTree);
-      });
+      if (!isSharedGroup)
+        nameEl.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
+            const parentPath = child.path.includes('/') ? child.path.slice(0, child.path.lastIndexOf('/')) : '';
+            const newPath = parentPath ? parentPath + '/' + newLabel : newLabel;
+            tracks.forEach(t => {
+              if (t.track_group === child.path) t.track_group = newPath;
+              else if (t.track_group.startsWith(child.path + '/')) t.track_group = newPath + t.track_group.slice(child.path.length);
+              updateTrackToStorage(t);
+            });
+            renderTrackList();
+          }, renderTrackList);
+        });
 
+      if (!isSharedGroup)  {
+        header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
+        header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+        header.addEventListener('drop', (e) => {
+          e.preventDefault(); 
+          e.stopPropagation();
+          header.classList.remove('drop-target');
+          const trackId = e.dataTransfer.getData('text/x-track-id');
+          if (!trackId) return;
+          moveTrackToGroup(trackId, child.path);
+          header.classList.remove('drop-target');
+        });
+      }
       groupEl.appendChild(header);
-      const fileList = document.createElement('div');
-      fileList.className = 'file-list' + (collapsed ? ' collapsed' : '');
-      groupEl.addEventListener('dragover', event => {
-        event.preventDefault();
-        groupEl.classList.add('drop-target-box');
-      });
-      groupEl.addEventListener('dragleave', event => {
-        if (!groupEl.contains(event.relatedTarget)) groupEl.classList.remove('drop-target-box');
-      });
-      groupEl.addEventListener('drop', event => {
-        event.preventDefault();
-        groupEl.classList.remove('drop-target-box');
-        const sourcePath = event.dataTransfer.getData('text/x-viewer-group-path');
-        if (sourcePath){
-          moveViewerGroupToGroup(sourcePath, child.path);
-          return;
-        }
-        const entryId = event.dataTransfer.getData('text/x-viewer-id');
-        if (entryId) moveViewerEntryToGroup(entryId, child.path);
-      });
-      child.files.forEach(entry => renderViewerFileRow(entry, fileList));
-      renderViewerGroupNode(child, fileList);
-      groupEl.appendChild(fileList);
+
+      if (!isSharedGroup)  {
+        groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
+        groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
+        groupEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          groupEl.classList.remove('drop-target-box');
+          const trackId = e.dataTransfer.getData('text/x-track-id');
+          if (!trackId) return;
+          moveTrackToGroup(trackId, child.path);
+        });
+      }
+
+      const childWrap = document.createElement('div');
+      childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
+      child.items.forEach(route => childWrap.appendChild(buildTrackRow(route)));
+      renderTrackGroupNode(child, childWrap);
+      groupEl.appendChild(childWrap);
       container.appendChild(groupEl);
     });
   }
 
-  function clearRoutes() {
-    routes.length = 0;
-    sharedRoutes.length = 0;
-    renderRoutesList();
-  }
-  function clearTracks() {
-    groups.length = 0;
-    renderTracksTree();
-  }
+  function renderTrackList() {
+    const scrollPos = trackListEl.scrollTop;
+    trackListEl.innerHTML = '';
+    trackListEl.appendChild(loadingOverlay);
+  // const trackListEl = document.getElementById('track-list');
+  // const emptyState = document.getElementById('empty-state');
+  // const loadingOverlay = document.getElementById('loading-overlay');
 
-  function clearUsers() {
-    users.length = 0;
-    usersById = new Map();
-  }
+    if ((tracks.length === 0) && (sharedTracks.length === 0)) {
+      trackListEl.appendChild(emptyState);
+      return;
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                         <div>Noch keine gespeicherten Tracks.<br>Dateien/Ordner öffnen oder<br>GPX-Dateien hierher ziehen.</div>`;
+      trackListEl.appendChild(empty);
+      return;
+    }
 
-  function renderTracksTree(clearBefore){
-    const scrollPos = tracksTree.scrollTop;
-    tracksTree.querySelectorAll('.group').forEach(el => el.remove());
-    renderViewerGroupNode(buildViewerGroupTree(), tracksTree);
-
-    updateTotal();
-    updateSummary();
-    tracksTree.scrollTop = scrollPos;
+    const root = buildTrackGroupTree(tracks);
+    renderTrackGroupNode(root, trackListEl);
+    const sharedRoot = buildTrackGroupTree(sharedTracks);
+    renderTrackGroupNode(sharedRoot, trackListEl);
+    trackListEl.scrollTop = scrollPos;
   }
 
   let gapThreshold = 1000; // meters -- points further apart than this are drawn dashed
@@ -4740,7 +4966,7 @@
   gapInput.addEventListener('change', () => {
     const val = parseInt(gapInput.value, 10);
     gapThreshold = (isNaN(val) || val < 10) ? 1000 : val;
-    groups.forEach(g => g.files.forEach(entry => {
+    tracksMap.forEach(g => g.files.forEach(entry => {
       if (entry.originalSegments.length) renderTrackSegments(entry);
     }));
   });
@@ -4765,7 +4991,7 @@
     const profile = document.getElementById('route-profile').value;
 
     const gapLayers = [];
-    groups.forEach(g => g.files.forEach(entry => {
+    tracksMap.forEach(g => g.files.forEach(entry => {
       entry.customLayers.forEach(l => { if (l._isDashedGap) gapLayers.push({ entry, layer: l }); });
     }));
 
@@ -4930,16 +5156,21 @@
     showCustomContextMenu(event.clientX, event.clientY, items);
   }
 
-  async function deleteTrack(track){
-    if (track.layer && map.hasLayer(track.layer)) map.removeLayer(track.layer);
-    const g = groups.get(track.track_group);
-    if (g){
-      g.files.delete(track.id);
-      if (g.files.size === 0) groups.delete(track.track_group);
+  async function deleteTrack(id){
+    const idx = tracks.findIndex(r => r.id === Number(id));
+    const sharedIdx = sharedTracks.findIndex(r => r.id === Number(id));
+    if (idx != -1) {
+      delTrackFromStorage(id);
+      tracks.splice(idx, 1);
+      renderTrackList();
+      return
     }
-    // deleteViewerEntry(track.id);
-    delTrackFromStorage(track.id).then(renderTracksTree);
-    // renderTree();
+    if (sharedIdx != -1) {
+      delTrackFromStorage(id);
+      sharedTracks.splice(sharedIdx, 1);
+      renderTrackList();
+      return
+    }
   }
 
   async function setFileVisible(entry, visible){
@@ -4949,30 +5180,31 @@
       await loadGPXData(entry);
     }
     if (!entry.layer) { return; }
-    if (visible) { if (!map.hasLayer(entry.layer)) entry.layer.addTo(map); }
+    if (visible) { 
+      if (!map.hasLayer(entry.layer)) entry.layer.addTo(map); 
+      if (entry.layer.getBounds())
+        map.fitBounds(entry.layer.getBounds(), { padding: [30, 30] });
+    }
     else { if (map.hasLayer(entry.layer)) map.removeLayer(entry.layer); }
-    saveViewerEntry(entry);
+    // if (entry.bounds)
+      
+    // saveViewerEntry(entry);
+    // wird nicht mehr in der db gespeichert, später in den app settings !
   }
 
   // ---------- Zoom to all visible tracks ----------
   function zoomToAll(){
     const fg = L.featureGroup();
     let any = false;
-    groups.forEach(g => g.files.forEach(f => {
+    tracksMap.forEach(g => g.files.forEach(f => {
       if (f.visible && f.layer) { fg.addLayer(f.layer); any = true; }
     }));
     if (any) map.fitBounds(fg.getBounds(), { padding: [30,30] });
   }
 
   // ---------- Clear all ----------
-  function clearAll(){
-    groups.forEach(g => g.files.forEach(f => { if (f.layer) map.removeLayer(f.layer); }));
-    groups.clear();
-    clearViewerStorage();
-    renderTracksTree();
-  }
 
-  document.getElementById('btn-clear').addEventListener('click', clearAll);
+  document.getElementById('btn-clear').addEventListener('click', clearTracks);
 
 
   // ---------- Drag & drop (files and folders) ----------
@@ -5180,7 +5412,7 @@
   document.getElementById('poi-import-modal-confirm').addEventListener('click', () => {
     const group = document.getElementById('poi-import-group-input').value.trim() || 'Import';
     if (pendingPoiImportPoints){
-      pendingPoiImportPoints.forEach(p => addPoiInternal(p.name || 'Unbenannt', group, p.lat, p.lng, true));
+      pendingPoiImportPoints.forEach(p => addPoiInternal(p.name || 'Unbenannt', group, p.lat, p.lng, true, p.color, -1, false));
       renderPoiList();
     }
     document.getElementById('poi-import-modal-backdrop').classList.remove('active');
@@ -5198,6 +5430,12 @@
   const sharedRoutes = [];
   const collapsedRouteGroups = new Set();
   const routesListEl = document.getElementById('routes-list');
+
+  function clearRoutes() {
+    routes.length = 0;
+    sharedRoutes.length = 0;
+    renderRoutesList();
+  }
 
   async function saveRouteToStorage(route) {
     try {
@@ -5221,8 +5459,6 @@
       });
       const resp = await response.json()
       const data = resp.routes;
-      // console.log('own routes: ' + data.length);
-      // console.log(JSON.stringify('data'));
       routes.length = 0;
       (data || []).forEach(r => {  r.isShared = false; routes.push(r); });
     }
@@ -5238,8 +5474,6 @@
       });
       const resp = await response.json()
       const data = resp.routes;
-      // console.log('shared routes: ' + data.length);
-      // console.log(JSON.stringify(data));''
       sharedRoutes.length = 0;
       (data || []).forEach(r => { r.isShared = true; sharedRoutes.push(r); });
     }
@@ -5484,8 +5718,8 @@
     return all;
   }
 
+  routePreviewLayer.clearLayers();
   function previewRouteOnMap(route){
-    routePreviewLayer.clearLayers();
     let lineCoords;
     if (route.routeCoords && route.routeCoords.length > 1){
       lineCoords = route.routeCoords.map(c => L.latLng(c[0], c[1]));
@@ -5508,7 +5742,8 @@
   function buildRouteRow(route){
     const row = document.createElement('div');
     row.className = 'file-row';
-    row.draggable = true;
+    row.draggable = !route.isShared;;
+    if (route.isShared) row.classList.add('file-row-shared');
 
     if (!route.isShared) {
       row.addEventListener('dragstart', (e) => {
@@ -5585,17 +5820,19 @@
     info.appendChild(meta);
     row.appendChild(info);
 
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'row-icon-btn';
-    const shareIcon = document.createElement('span');
-    shareIcon.innerHTML = shareSVG;
-    shareBtn.appendChild(shareIcon);
-    shareBtn.title = 'mit Benutzer teilen';
-    shareBtn.addEventListener('click', (ev) => { 
-      ev.stopPropagation();  
-      shareRouteWithUser(route);
-    });
-    row.appendChild(shareBtn);
+    if (!route.isShared) {
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        shareRouteWithUser(route);
+      });
+      row.appendChild(shareBtn);
+    }
 
     const loadBtn = document.createElement('button');
     loadBtn.className = 'row-icon-btn';
@@ -5640,6 +5877,7 @@
 
       const header = document.createElement('div');
       header.className = 'group-header' + (collapsed ? ' collapsed' : '');
+      if (isSharedGroup) header.classList.add('group-header-shared');
 
       const twist = document.createElement('span');
       twist.className = 'twist';
@@ -5783,7 +6021,6 @@
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
 
-//    console.log(`[Export route]`, JSON.stringify(route));
     openGpxExportMenu(ev, () => buildRouteGpxXml(route), route);
   });
   //#endregion

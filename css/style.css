@@ -432,7 +432,7 @@ body {
   .group-header:hover { 
     background: var(--bg-row-hover); 
   }
-  
+ 
   .group-header .twist {
     font-size: 20px;
     color: var(--text-dim);
@@ -441,7 +441,10 @@ body {
     flex-shrink: 0;
   }
   .group-header.collapsed .twist { transform: rotate(-90deg); }
-
+  .group-header-shared {
+    color: var(--text-faint);
+    cursor: default;
+  }
   .group-name {
     font-family: var(--font-display);
     font-weight: 600;
@@ -479,6 +482,10 @@ body {
   }
   .file-row:hover .row-icon-btn { 
     opacity: 1; 
+  }
+  .file-row-shared {
+    color: var(--text-faint);
+    cursor: default;
   }
 
   .row-icon-btn {
@@ -602,14 +609,14 @@ body {
     min-width: 0;
   }
   .file-name {
-    font-size: 13px;
+    font-size: 16px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .file-meta {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 14px;
     color: var(--text-faint);
   }
 
@@ -986,6 +993,36 @@ body {
     margin-top: 20px;
   }
   .modal-actions .btn { flex: none; padding: 8px 16px; }
+
+  #track-list {
+     position: relative;
+  }
+
+  .loading-overlay {
+      position: absolute;
+      inset: 0;
+
+      display: none;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(2px);
+
+      z-index: 1000;
+  }
+
+  #track-list.isLoading .loading-overlay {
+      display: flex;
+  }
+
+  .loading-overlay svg {
+      width: 64px;
+      height: 64px;
+      color: #fff;
+
+      animation: spin 1s linear infinite;
+  }
 
   .user-settings {
     display: flex;
