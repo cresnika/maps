@@ -2200,11 +2200,11 @@
 
     document.getElementById('auth-gate').classList.add('hidden');
     setAppAuthVisibility();
-    // clearPOIs();
-    // clearSharedPOIs();
+    clearPOIs();
+    clearSharedPOIs();
     clearWaypoints();
-    // clearTracks();
-    // clearSharedTracks();
+    clearTracks();
+    clearSharedTracks();
     clearRoutes();
     restoreAppState();
     await getUserList();
@@ -3013,7 +3013,9 @@
       document.getElementById('btn-user-savePOI').disabled = false;
     }
   }
-  
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
   async function loadPoisFromStorage(){
     try {
       poiListEl.classList.add('isLoading');
@@ -3022,6 +3024,7 @@
       });
       const resp = await response.json()
       const data = resp.pois;
+      await delay(4000);
       clearPOIs();
       (data || []).forEach(p => { p.isShared = false;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared); });
       // poiListEl.classList.remove('isLoading');
@@ -3040,6 +3043,7 @@
       });
       const resp = await response.json()
       const data = resp.pois;
+      await delay(4000);
       clearSharedPOIs();
       (data || []).forEach(p => { p.isShared = true;  addPoiInternal(p.name, p.poi_group, p.lat, p.lng, false, p.color, p.id, p.isShared, p.owner_user_id); });
       // poiListEl.classList.remove('isLoading');
@@ -3524,13 +3528,15 @@
 
   function renderPoiList(){
     const scrollPos = poiListEl.scrollTop;
+
     poiListEl.innerHTML = '';
+    poiListEl.appendChild(loadingOverlay);
+    
     if ((pois.length === 0) && (sharedPois.length === 0)) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.innerHTML = '<div>Noch keine POIs gespeichert.<br>Rechtsklick auf die Karte →<br>"Als POI speichern".</div>';
       poiListEl.appendChild(empty);
-      poiListEl.appendChild(loadingOverlay);
       return;
     }
 
@@ -4141,6 +4147,7 @@
       });
       const resp = await response.json()
       const data = resp.tracks;
+      await delay(4000);
 
       clearSharedTracks();
       (data || []).forEach(track => { 
@@ -4180,6 +4187,7 @@
       });
       const resp = await response.json()
       const data = resp.tracks;
+      await delay(4000);
       clearTracks();
       (data || []).forEach(track => { 
         const entry = { id: track.id, 
@@ -4896,11 +4904,9 @@
 
   function renderTrackList() {
     const scrollPos = trackListEl.scrollTop;
+
     trackListEl.innerHTML = '';
     trackListEl.appendChild(loadingOverlay);
-  // const trackListEl = document.getElementById('track-list');
-  // const emptyState = document.getElementById('empty-state');
-  // const loadingOverlay = document.getElementById('loading-overlay');
 
     if ((tracks.length === 0) && (sharedTracks.length === 0)) {
       trackListEl.appendChild(emptyState);
@@ -5454,30 +5460,38 @@
   }
   async function loadRoutesFromStorage() {
     try {
+      routesListEl.classList.add('isLoading');
       const response = await apiFetch('getRouteList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.routes;
+      await delay(4000);
       routes.length = 0;
       (data || []).forEach(r => {  r.isShared = false; routes.push(r); });
+      routesListEl.classList.remove('isLoading');
     }
     catch (error) {
+      routesListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der Routen: ' + error, 7000);
       console.warn('Fehler beim laden der Routen: ', error);
     }
   }
   async function loadSharedRoutesFromStorage() {
     try {
+      routesListEl.classList.add('isLoading');
       const response = await apiFetch('getSharedRouteList', {
         method: 'GET'
       });
       const resp = await response.json()
       const data = resp.routes;
       sharedRoutes.length = 0;
+      await delay(4000);
       (data || []).forEach(r => { r.isShared = true; sharedRoutes.push(r); });
+      routesListEl.classList.remove('isLoading');
     }
     catch (error) {
+      routesListEl.classList.remove('isLoading');
       showToast('Fehler beim laden der Shared-Routen: ' + error, 7000);
       console.warn('Fehler beim laden der Shared-Routen: ', error);
     }
@@ -5959,7 +5973,10 @@
 
   function renderRoutesList(){
     const scrollPos = routesListEl.scrollTop;
+    
     routesListEl.innerHTML = '';
+    routesListEl.appendChild(loadingOverlay);
+    
     if ((routes.length === 0) && (sharedRoutes.length === 0)) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
@@ -5967,6 +5984,7 @@
       routesListEl.appendChild(empty);
       return;
     }
+
     const root = buildRouteGroupTree(routes);
     renderRouteGroupNode(root, routesListEl);
     const sharedRoot = buildRouteGroupTree(sharedRoutes);

@@ -864,9 +864,10 @@ body {
   .map-context-menu-item:disabled:hover { background: none; }
 
   #poi-list {
-    flex: 1;
+    /* flex: 1;
     overflow-y: auto;
-    padding: 8px 0 20px;
+    padding: 8px 0 20px; */
+    position: relative;
   }
 
   .poi-marker {
@@ -994,28 +995,25 @@ body {
   }
   .modal-actions .btn { flex: none; padding: 8px 16px; }
 
-  #track-list {
-     position: relative;
-  }
+
+
+
+
+
 
   .loading-overlay {
       position: absolute;
       inset: 0;
-
       display: none;
       align-items: center;
       justify-content: center;
-
       background: rgba(0, 0, 0, 0.35);
       backdrop-filter: blur(2px);
-
       z-index: 1000;
   }
-
-  #track-list.isLoading .loading-overlay {
+  .loading-overlay.isLoading {
       display: flex;
   }
-
   .loading-overlay svg {
       width: 64px;
       height: 64px;
@@ -1023,6 +1021,20 @@ body {
 
       animation: spin 1s linear infinite;
   }
+
+
+
+  #track-list {
+     position: relative;
+  }
+  #track-list.isLoading .loading-overlay {
+      display: flex;
+  }
+
+  #poi-list.isLoading .loading-overlay {
+      display: flex;
+  }
+
 
   .user-settings {
     display: flex;
