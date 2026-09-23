@@ -4088,7 +4088,7 @@
   async function delTrackHelper(track) {
     const ok = await confirmDialog(`Möchten Sie den Track "${track.name}" wirklich löschen?`);
     if (!ok) return;
-    deleteTrack(track.id);
+    deleteTrack(track);
   }
   async function delTrackGroupHelper(group, groupPath) {
     const ok = await confirmDialog(`"${groupPath}" mit ${group.length} Track(s) (inkl. Unterordner) wirklich löschen?`);
@@ -4370,7 +4370,6 @@
   async function loadGPXFile(file, groupName, options){
     const settings = options || {};
     const color = settings.color || nextColor();
-    const g = groupFor(groupName);
    
     const entry = { id: -1, 
                     name: file.name, 
@@ -4382,7 +4381,7 @@
                     originalSegments: [], 
                     customLayers: [], 
                     loadIcon: false,
-                    groupName: groupName,
+                    track_group: groupName,
                     gpxText: settings.sourceText || null };
 
     if (settings.persist !== false){
@@ -4393,9 +4392,7 @@
       entry.trackDate = info.trackDate;
       entry.name = info.name || file.name || '';
       entry.id = await saveTrackToStorage(entry);
-      // updateSummary();
-
-      g.files.set(entry.id, entry);
+      tracks.push(entry);
       updateSummary();
       renderTrackList();
 
@@ -4811,11 +4808,12 @@
     eicon.innerHTML = saveSVG;
     exportBtn.appendChild(eicon);
 
-    exportBtn.addEventListener('click', (ev) => {
-      openGpxExportMenu(ev, () => {
-        const g = buildEntryGpxXml(track);
-        return g ? { xml: g.xml, filename: g.filename } : null;
-      });
+    exportBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      await loadGPXData(track);
+      const filename = track.name;
+      const xml = track.gpxText;
+      downloadGpxString(xml, filename);;
     });
     row.appendChild(exportBtn);
 
@@ -4905,6 +4903,7 @@
         event.stopPropagation();
         delTrackGroupHelper(descendants, child.path);
       });
+      header.appendChild(groupDelBtn);
 
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return;
@@ -5178,6 +5177,17 @@
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   }
 
+  function openTrackExportMenu(event, track){
+    if (event) event.stopPropagation();
+
+    var items = new Array;
+    const filename = track.name;
+    const xml = track.gpx;
+    items.push({ label: 'GPX Track speichern', action: () => downloadGpxString(xml, filename) });
+
+    showCustomContextMenu(event.clientX, event.clientY, items);
+  }
+
   function openGpxExportMenu(event, provider, route){
     if (event) event.stopPropagation();
 
@@ -5224,17 +5234,19 @@
     showCustomContextMenu(event.clientX, event.clientY, items);
   }
 
-  async function deleteTrack(id){
-    const idx = tracks.findIndex(r => r.id === Number(id));
-    const sharedIdx = sharedTracks.findIndex(r => r.id === Number(id));
+  async function deleteTrack(track){
+    const idx = tracks.findIndex(r => r.id === Number(track.id));
+    const sharedIdx = sharedTracks.findIndex(r => r.id === Number(track.id));
     if (idx != -1) {
-      delTrackFromStorage(id);
+      delTrackFromStorage(track.id);
+      setFileVisible(track, false);
       tracks.splice(idx, 1);
       renderTrackList();
       return
     }
     if (sharedIdx != -1) {
-      delTrackFromStorage(id);
+      delTrackFromStorage(track.id);
+      setFileVisible(track, false);
       sharedTracks.splice(sharedIdx, 1);
       renderTrackList();
       return
@@ -5606,12 +5618,14 @@
     if (idx != -1) {
       delRouteFromStorage(id);
       routes.splice(idx, 1);
+      routePreviewLayer.clearLayers();
       renderRoutesList();
       return
     }
     if (sharedIdx != -1) {
       delRouteFromStorage(id);
       sharedRoutes.splice(sharedIdx, 1);
+      routePreviewLayer.clearLayers();
       renderRoutesList();
       return
     }
@@ -5801,6 +5815,7 @@
     } else {
       lineCoords = route.waypoints.map(wp => L.latLng(wp.lat, wp.lng));
     }
+    routePreviewLayer.clearLayers();
     const previewLine = L.polyline(lineCoords, { color: '#22a6d8', weight: 5, opacity: 0.75, dashArray: '7 7', lineJoin: 'round' }).addTo(routePreviewLayer);
     route.waypoints.forEach((wp, i) => {
       L.marker([wp.lat, wp.lng], { icon: waypointIcon(i) }).addTo(routePreviewLayer);
@@ -5812,6 +5827,11 @@
     const ok = await confirmDialog(`Möchten Sie die Route "${route.name}" wirklich löschen?`);
     if (!ok) return;
     deleteRoute(route.id);
+  }
+  async function delRouteGroupHelper(group, groupPath) {
+    const ok = await confirmDialog(`"${groupPath}" mit ${group.length} Route(n) (inkl. Unterordner) wirklich löschen?`);
+    if (!ok) return;
+    group.forEach(async entry => { await deleteRoute(entry.id); });
   }
 
   function buildRouteRow(route){
@@ -5975,6 +5995,18 @@
       countEl.textContent = descendants.length;
       header.appendChild(countEl);
 
+      const groupDelBtn = document.createElement('button');
+      groupDelBtn.className = 'row-icon-btn group-del-btn';
+      const icon = document.createElement('span');
+      icon.innerHTML = trashSVG;
+      groupDelBtn.appendChild(icon);
+      groupDelBtn.title = 'Ganze Gruppe inklusive Unterordner löschen';
+      groupDelBtn.addEventListener('click', event => {
+        event.stopPropagation();
+        delRouteGroupHelper(descendants, child.path);
+      });
+      header.appendChild(groupDelBtn);
+
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return;
         if (collapsedRouteGroups.has(child.path)) collapsedRouteGroups.delete(child.path);
@@ -6028,6 +6060,7 @@
       renderRouteGroupNode(child, childWrap);
 
       groupEl.appendChild(childWrap);
+      container.draggable = false;
       container.appendChild(groupEl);
     });
   }
