@@ -468,6 +468,10 @@ body {
     background: var(--bg-row-hover); 
   }
  
+  .group-header:hover .row-icon-btn { 
+    opacity: 1; 
+  }
+
   .group-header .twist {
     font-size: 20px;
     color: var(--text-dim);
@@ -528,9 +532,9 @@ body {
     border: none;
     color: var(--text-faint);
     font-size: 15px;
-    line-height: 1;
-    padding: 3px 5px;
-    border-radius: 4px;
+    line-height: 1;   
+    padding: 3px  2px 3px 2px;  /* top, right, bottom, left */
+    /* border-radius: 4px; */
     cursor: pointer;
     opacity: 0;
     flex-shrink: 0;
@@ -541,6 +545,7 @@ body {
   }
   .row-icon-btn:hover { 
     color: var(--accent); 
+    /* opacity: 1; */
     /* background-color: var(--bg-row-hover);  */
     background: none;
   }
@@ -605,8 +610,38 @@ body {
     background: none;
   }
   
-  .group-del-btn { opacity: .45; }
-  .group-del-btn:hover { opacity: 1; }
+  .group-del-btn { 
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    padding: 3px  2px 3px 2px;  /* top, right, bottom, left */
+    cursor: pointer;
+    opacity: 1;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* .group-del-btn svg {
+    display: block;
+    height: 20px;
+    width: 20px;
+    color: var(--text);
+    opacity: 0.4;
+  }
+  .group-del-btn svg:hover {
+    opacity: 1; 
+    color: #ff0000;
+    background: none;
+  }
+  .group-del-btn .svg-standard:hover {
+    opacity: 1; 
+    color: var(--accent);
+    background: none;
+  }
+
+  .group-del-btn:hover { 
+    opacity: 1; 
+  } */
 
   .swatch-wrap {
     position: relative;

@@ -356,7 +356,6 @@
                         <!-- Mauszeiger (kleiner, weiß) -->
                         <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
                               fill="#ffffff" stroke="#000000" stroke-width="1"/>
-
                         <!-- Papierkorb-Badge unten rechts (größer) -->
                         <g transform="translate(9,9) scale(0.035)">
                           <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
@@ -2120,7 +2119,7 @@
     return btn;
   };
 
-  poiMenuButton.addTo(map);
+  // poiMenuButton.addTo(map);
 
   const panel = document.getElementById('poi-panel-content');
 
@@ -3529,13 +3528,21 @@
       nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const countEl = document.createElement('span');
-      countEl.className = 'group-count';
-      countEl.textContent = descendants.length;
-      header.appendChild(countEl);
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'group-row row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        // shareTrackGroupWithUser(child);
+      });
+      header.appendChild(shareBtn);
 
       const groupDelBtn = document.createElement('button');
-      groupDelBtn.className = 'row-icon-btn group-del-btn';
+      groupDelBtn.className = 'group-row row-icon-btn';
+      // groupDelBtn.className = 'group-del-btn';
       const icon = document.createElement('span');
       icon.innerHTML = trashSVG;
       groupDelBtn.appendChild(icon);
@@ -3545,6 +3552,11 @@
         delPOIGroupHelper(child, descendants);
       });
       header.appendChild(groupDelBtn);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = descendants.length;
+      header.appendChild(countEl);
 
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return; // let dblclick-to-rename own this element
@@ -4823,6 +4835,21 @@
     }
     row.appendChild(track.loadIcon);
 
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'row-icon-btn';
+    exportBtn.title = 'Exportieren / Teilen';
+    const eicon = document.createElement('span');
+    eicon.innerHTML = saveSVG;
+    exportBtn.appendChild(eicon);
+    exportBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      await loadGPXData(track);
+      const filename = track.name;
+      const xml = track.gpxText;
+      downloadGpxString(xml, filename);;
+    });
+    row.appendChild(exportBtn);
+
     if (!track.isShared) {
       const shareBtn = document.createElement('button');
       shareBtn.className = 'row-icon-btn';
@@ -4836,22 +4863,6 @@
       });
       row.appendChild(shareBtn);
     }
-
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'row-icon-btn';
-    exportBtn.title = 'Exportieren / Teilen';
-    const eicon = document.createElement('span');
-    eicon.innerHTML = saveSVG;
-    exportBtn.appendChild(eicon);
-
-    exportBtn.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      await loadGPXData(track);
-      const filename = track.name;
-      const xml = track.gpxText;
-      downloadGpxString(xml, filename);;
-    });
-    row.appendChild(exportBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
@@ -4924,13 +4935,20 @@
         nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const countEl = document.createElement('span');
-      countEl.className = 'group-count';
-      countEl.textContent = descendants.length;
-      header.appendChild(countEl);
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'group-row row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        // shareTrackGroupWithUser(child);
+      });
+      header.appendChild(shareBtn);
 
       const groupDelBtn = document.createElement('button');
-      groupDelBtn.className = 'row-icon-btn group-del-btn';
+      groupDelBtn.className = 'group-row row-icon-btn';
       const icon = document.createElement('span');
       icon.innerHTML = trashSVG;
       groupDelBtn.appendChild(icon);
@@ -4940,6 +4958,11 @@
         delTrackGroupHelper(descendants, child.path);
       });
       header.appendChild(groupDelBtn);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = descendants.length;
+      header.appendChild(countEl);
 
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return;
@@ -5951,6 +5974,15 @@
     info.appendChild(meta);
     row.appendChild(info);
 
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'row-icon-btn';
+    const editicon = document.createElement('span');
+    editicon.innerHTML = editSVG;
+    loadBtn.appendChild(editicon);
+    loadBtn.title = 'Zum Bearbeiten laden';
+    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(route); });
+    row.appendChild(loadBtn);
+
     if (!route.isShared) {
       const shareBtn = document.createElement('button');
       shareBtn.className = 'row-icon-btn';
@@ -5964,15 +5996,6 @@
       });
       row.appendChild(shareBtn);
     }
-
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'row-icon-btn';
-    const editicon = document.createElement('span');
-    editicon.innerHTML = editSVG;
-    loadBtn.appendChild(editicon);
-    loadBtn.title = 'Zum Bearbeiten laden';
-    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(route); });
-    row.appendChild(loadBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'row-icon-btn';
@@ -6026,13 +6049,20 @@
         nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const countEl = document.createElement('span');
-      countEl.className = 'group-count';
-      countEl.textContent = descendants.length;
-      header.appendChild(countEl);
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'group-row row-icon-btn';
+      const shareIcon = document.createElement('span');
+      shareIcon.innerHTML = shareSVG;
+      shareBtn.appendChild(shareIcon);
+      shareBtn.title = 'mit Benutzer teilen';
+      shareBtn.addEventListener('click', (ev) => { 
+        ev.stopPropagation();  
+        // shareTrackGroupWithUser(child);
+      });
+      header.appendChild(shareBtn);
 
       const groupDelBtn = document.createElement('button');
-      groupDelBtn.className = 'row-icon-btn group-del-btn';
+      groupDelBtn.className = 'group-row row-icon-btn';
       const icon = document.createElement('span');
       icon.innerHTML = trashSVG;
       groupDelBtn.appendChild(icon);
@@ -6042,6 +6072,11 @@
         delRouteGroupHelper(descendants, child.path);
       });
       header.appendChild(groupDelBtn);
+
+      const countEl = document.createElement('span');
+      countEl.className = 'group-count';
+      countEl.textContent = descendants.length;
+      header.appendChild(countEl);
 
       header.addEventListener('click', (e) => {
         if (e.target === nameEl) return;
