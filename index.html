@@ -4772,14 +4772,23 @@
     info.appendChild(meta);   
     row.appendChild(info);
 
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'row-icon-btn';
-    const editicon = document.createElement('span');
-    editicon.innerHTML = editSVG;
-    loadBtn.appendChild(editicon);
-    loadBtn.title = 'Zum Bearbeiten laden';
-    loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(track); });
-    row.appendChild(loadBtn);
+    // const loadBtn = document.createElement('button');
+    // loadBtn.className = 'row-icon-btn';
+    // const editicon = document.createElement('span');
+    // editicon.innerHTML = editSVG;
+    // loadBtn.appendChild(editicon);
+    // loadBtn.title = 'Zum Bearbeiten laden';
+    // loadBtn.addEventListener('click', (ev) => { ev.stopPropagation(); loadRouteIntoPlanner(track); });
+    // row.appendChild(loadBtn);
+
+    if (!track.loadIcon) {
+      const lIcon = document.createElement('span');
+      lIcon.className = 'row-icon-btn row-icon-wait';
+      lIcon.innerHTML = circleSVG;
+      lIcon.classList.add('hidden');
+      track.loadIcon = lIcon;
+    }
+    row.appendChild(track.loadIcon);
 
     if (!track.isShared) {
       const shareBtn = document.createElement('button');
