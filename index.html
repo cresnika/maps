@@ -1836,6 +1836,49 @@
     setAppAuthVisibility();
   }
 
+  function addToolbar() {
+      map.getContainer().appendChild(toolbar);
+      L.DomEvent.disableClickPropagation(toolbar);
+      L.DomEvent.disableScrollPropagation(toolbar);
+      L.DomEvent.on(toolbar, 'touchstart', L.DomEvent.stopPropagation);
+      L.DomEvent.on(toolbar, 'touchmove', L.DomEvent.stopPropagation);
+      // toolbar.addEventListener('mousedown', () => {
+      //     map.dragging.disable();
+      // });
+
+      // document.addEventListener('mouseup', () => {
+      //     map.dragging.enable();
+      // });
+
+      let isDown = false;
+      let startX;
+      let scrollLeft;
+
+      toolbar.addEventListener('mousedown', (e) => {
+          isDown = true;
+          startX = e.pageX;
+          scrollLeft = toolbar.scrollLeft;
+
+          map.dragging.disable();
+      });
+
+      document.addEventListener('mouseup', () => {
+          isDown = false;
+          map.dragging.enable();
+      });
+
+      toolbar.addEventListener('mousemove', (e) => {
+          if (!isDown) return;
+
+          const walk = e.pageX - startX;
+          toolbar.scrollLeft = scrollLeft - walk;
+      });
+
+  }
+  function removeToolbar() {
+      toolbar.remove();
+
+  }
   async function unlockApp(email, username, admin, settings) {
     authState.loggedIn = true;
     authState.username = username || '';
@@ -1844,16 +1887,12 @@
     authState.settings = settings || emptySettings;
 
     if (authState.admin) {
-      map.getContainer().appendChild(toolbar);
-      L.DomEvent.disableClickPropagation(toolbar);
-      L.DomEvent.disableScrollPropagation(toolbar);
-      L.DomEvent.on(toolbar, 'touchstart', L.DomEvent.stopPropagation);
-      L.DomEvent.on(toolbar, 'touchmove', L.DomEvent.stopPropagation);
+      addToolbar();
       document.getElementById('btn-user-invite').classList.remove('hidden');
       document.getElementById('btn-user-savePOI').classList.remove('hidden');
     }
     else {
-      toolbar.remove();
+      removeToolbar();
       document.getElementById('btn-user-invite').classList.add('hidden');
       document.getElementById('btn-user-savePOI').classList.add('hidden');
     }
@@ -2728,18 +2767,29 @@
         return container;
     };
     poi.control.addTo(map);     
-  });
 
-  extPOIs.forEach(poi => {
+
+
     const chip = document.createElement('div');
+    poi.chipControl = chip;
     chip.className = 'poi-chip extern-poi-label';
 
-    chip.innerHTML = `${poi.labelicon.options.html}<span>${poi.description}</span>`;
+    const htmlIcon = L.divIcon({
+                          html: circleSVG,
+                        });
+    chip.innerHTML = `${poi.labelicon.options.html}<span>${poi.description}</span>
+                    <span class="extern-poi-label poi-icon-load" 
+                          id="${poi.description}-load-icon" 
+                          style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}
+                    </span>`;
+
     // chip.innerHTML = `<span>${poi.description}</span>`;
     chip.classList.toggle('active', poi.visible);
     chip.addEventListener('click', () => {
       poi.visible = !poi.visible;
       if (poi.visible) {
+        poi.loadingActive = true;
+        chip.classList.toggle('loadingActive', poi.visible);
         poi.layer.addTo(map);
         loadExternPOI(poi);
       } else {
@@ -2748,8 +2798,10 @@
         poi.loadingActive = false;
       }
     });
-    toolbar.appendChild(chip);
+    toolbar.appendChild(poi.chipControl);    
   });
+
+
   //#endregion
 
 
