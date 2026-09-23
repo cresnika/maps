@@ -2318,6 +2318,8 @@
           emaillabel.textContent = 'eMail: ' + email;
         }
         clearPOIs();
+        clearRoutes();
+        clearTracks();
         setAppAuthVisibility();
       }
       else {
@@ -2526,18 +2528,52 @@
       return;
     }
     try {
-      const data = await authRequest('set-initial-password', { token, email, password, username });
-
-      authState.loggedIn = true;
-      authState.email = data.email;
-      authState.username = data.username;
-      authState.settings = data.settings;
-
       view.querySelector('.auth-error').textContent = '';
-      view.querySelector('.auth-password-invited').value = '';
-      view.querySelector('.auth-password-verify').value = '';
+      const data = await authRequest('set-initial-password', { token, email, password, username });
+/*
+      const data = await authRequest('login', { login, password });
+      // const resp = await data.json();
+      const resp = data;
+      if (resp) {
+        if (resp.success) {
+          unlockApp(data.email, data.username, data.admin);
+          view.querySelector('.auth-error').textContent = '';
+          view.querySelector('.auth-password').value = '';
+          setAppAuthVisibility();
+          hideAuthModal();
+        } else {
+          if (resp.error)
+            view.querySelector('.auth-error').textContent = resp.error;
+          else
+            view.querySelector('.auth-error').textContent = 'Fehler';
+        }
+      }
 
-      window.location = location.origin + location.pathname;
+
+    } catch (err) {
+      showViewError(view, 'submitLogin: '+err.message);
+      lockApp();
+    }
+        view.querySelector('.auth-error').textContent = resp.error;
+
+*/
+      if (data.success) {
+        authState.loggedIn = true;
+        authState.email = data.email;
+        authState.username = data.username;
+        authState.settings = data.settings;
+
+        view.querySelector('.auth-error').textContent = '';
+        view.querySelector('.auth-password-invited').value = '';
+        view.querySelector('.auth-password-verify').value = '';
+
+        // redirect to new url without invitation link. should automatically log in
+        window.location = location.origin + location.pathname;
+      } else {
+        view.querySelector('.auth-error').textContent = data.error;
+      }
+
+
     } catch (err) {
       showViewError(view, err.message);
     }
@@ -6060,7 +6096,6 @@
       renderRouteGroupNode(child, childWrap);
 
       groupEl.appendChild(childWrap);
-      container.draggable = false;
       container.appendChild(groupEl);
     });
   }
