@@ -908,6 +908,34 @@
     await shareRouteFetch(route, user);
   }
 
+  async function sharePoiArrayFetch(poiList, user) {
+    try {
+      const response = await apiFetch('sharePOIList', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poi_ids: poiList.map(p => p.id),
+          user_id: user.id
+        }),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen der POIs', 7000);
+      }
+      else {
+        showToast(`Von ${resp.requested} POIs wurden ${resp.shared} geteilt. ${resp.alreadyShared} waren bereits geteilt.`, 5000);
+      }
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen der POIs: ' + error, 7000);
+      // console.warn('Fehler beim teilen des POI: ', error);
+    }
+  }
+
   async function sharePoiFetch(poi, user) {
     try {
       const response = await apiFetch('sharePOI', {
@@ -934,7 +962,6 @@
       showToast('Fehler beim teilen des POI: ' + error, 7000);
       // console.warn('Fehler beim teilen des POI: ', error);
     }
-
   }
   async function showPoiShareDialog(poi) {
       return new Promise(resolve => {
@@ -944,7 +971,11 @@
           const userList = document.getElementById('user-list');
           const btnSave = document.getElementById('share-save');
           const btnCancel = document.getElementById('share-cancel');
-          routeName.textContent = `POI: ${poi.name}`;
+          if (Array.isArray(poi)) {
+            routeName.textContent = `Gruppe von ${poi.length} POIs`;
+          } else {
+            routeName.textContent = `POI: ${poi.name}`;
+          }    
           userInput.value = '';
           userList.innerHTML = '';
           users.forEach(user => {
@@ -979,6 +1010,11 @@
     const user = await showPoiShareDialog(poi);
     if (!user) return;
     await sharePoiFetch(poi, user);
+  }
+  async function sharePoiArrayWithUser(poiList) {
+    const user = await showPoiShareDialog(poiList);
+    if (!user) return;
+    await sharePoiArrayFetch(poiList, user);
   }
   //#endregion
 
@@ -3236,7 +3272,7 @@
       if (p.isShared) {
         const username = usersById.get(p.owner_user_id)?.username;
         if (username)
-          finalGroup = username + '/' + finalGroup;
+          finalGroup = `von "${username}" geteilte POIs` + '/' + finalGroup;
         else  
           finalGroup = 'geteilte POI/';
       }
@@ -3429,7 +3465,10 @@
       shareBtn.title = 'mit Benutzer teilen';
       shareBtn.addEventListener('click', (ev) => { 
         ev.stopPropagation();  
-        sharePoiWithUser(poi);
+        console.log(poi);
+        console.log([poi]);
+        return;
+        sharePoiWithUser([poi]);
       });
       row.appendChild(shareBtn);
     }
@@ -3528,17 +3567,19 @@
       nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const shareBtn = document.createElement('button');
-      shareBtn.className = 'group-row row-icon-btn';
-      const shareIcon = document.createElement('span');
-      shareIcon.innerHTML = shareSVG;
-      shareBtn.appendChild(shareIcon);
-      shareBtn.title = 'mit Benutzer teilen';
-      shareBtn.addEventListener('click', (ev) => { 
-        ev.stopPropagation();  
-        // shareTrackGroupWithUser(child);
-      });
-      header.appendChild(shareBtn);
+      if (!isShared) {
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'group-row row-icon-btn';
+        const shareIcon = document.createElement('span');
+        shareIcon.innerHTML = shareSVG;
+        shareBtn.appendChild(shareIcon);
+        shareBtn.title = 'mit Benutzer teilen';
+        shareBtn.addEventListener('click', (ev) => { 
+          ev.stopPropagation();  
+          sharePoiArrayWithUser(descendants);
+        });
+        header.appendChild(shareBtn);
+      }
 
       const groupDelBtn = document.createElement('button');
       groupDelBtn.className = 'group-row row-icon-btn';
