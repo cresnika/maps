@@ -762,6 +762,32 @@
   // ============================================================
   // ---------- sharing stuff  ----------
   //#region Sharing with users
+  async function shareTrackGroupFetch(routeList, user) {
+    try {
+      const response = await apiFetch('shareTrackList', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          track_ids: routeList.map(p => p.id),
+          user_id: user.id
+        }),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen der Tracks', 7000);
+      }
+      else {
+        showToast(`Von ${resp.requested} Tracks wurden ${resp.shared} geteilt. ${resp.alreadyShared} waren bereits geteilt.`, 5000);
+      }
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen der Tracks: ' + error, 7000);
+    }
+  }  
   async function shareTrackFetch(track, user) {
     try {
       const response = await apiFetch('shareTrack', {
@@ -798,11 +824,17 @@
           const userList = document.getElementById('user-list');
           const btnSave = document.getElementById('share-save');
           const btnCancel = document.getElementById('share-cancel');
-          routeName.textContent = `Track: ${track.name}`;
+          
+          if (Array.isArray(track)) {
+            routeName.textContent = `Gruppe von ${track.length} Tracks`;
+          } else {
+            routeName.textContent = `Track: ${track.name}`;
+          }    
+          
           userInput.value = '';
           userList.innerHTML = '';
           users.forEach(user => {
-              if (user.email != authState.email) {
+              if ((user.email != authState.email) && (user.name !== null)) {
                 const option = document.createElement('option');
                 // option.value = `${user.username} - ${user.email}`;
                 option.value = `${user.username}`;
@@ -834,7 +866,39 @@
     if (!user) return;
     await shareTrackFetch(track, user);
   }
+  async function shareTrackGroupWithUser(trackList) {
+    const user = await showTrackShareDialog(trackList);
+    if (!user) return;
+    await shareTrackGroupFetch(trackList, user);
+  }
 
+  async function shareRouteGroupFetch(routeList, user) {
+    try {
+      const response = await apiFetch('shareRouteList', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          route_ids: routeList.map(p => p.id),
+          user_id: user.id
+        }),
+      });
+      const resp = await response.json()
+      if (!resp.success) {
+        if (resp.error)
+          showToast(resp.error, 7000);
+        else
+          showToast('Fehler beim teilen der Routen', 7000);
+      }
+      else {
+        showToast(`Von ${resp.requested} Routen wurden ${resp.shared} geteilt. ${resp.alreadyShared} waren bereits geteilt.`, 5000);
+      }
+      return
+    }
+    catch (error) {
+      showToast('Fehler beim teilen der Routen: ' + error, 7000);
+      // console.warn('Fehler beim teilen des POI: ', error);
+    }
+  }  
   async function shareRouteFetch(route, user) {
     try {
       const response = await apiFetch('shareRoute', {
@@ -871,11 +935,17 @@
           const userList = document.getElementById('user-list');
           const btnSave = document.getElementById('share-save');
           const btnCancel = document.getElementById('share-cancel');
-          routeName.textContent = `Route: ${route.name}`;
+          
+          if (Array.isArray(route)) {
+            routeName.textContent = `Gruppe von ${route.length} Routen`;
+          } else {
+            routeName.textContent = `Route: ${route.name}`;
+          }    
+          
           userInput.value = '';
           userList.innerHTML = '';
           users.forEach(user => {
-              if (user.email != authState.email) {
+              if ((user.email != authState.email) && (user.name !== null)) {
                 const option = document.createElement('option');
                 // option.value = `${user.username} - ${user.email}`;
                 option.value = `${user.username}`;
@@ -907,8 +977,13 @@
     if (!user) return;
     await shareRouteFetch(route, user);
   }
+  async function shareRouteGroupWithUser(route) {
+    const user = await showRouteShareDialog(route);
+    if (!user) return;
+    await shareRouteGroupFetch(route, user);
+  }
 
-  async function sharePoiArrayFetch(poiList, user) {
+  async function sharePoiGroupFetch(poiList, user) {
     try {
       const response = await apiFetch('sharePOIList', {
         method: 'POST',
@@ -935,7 +1010,6 @@
       // console.warn('Fehler beim teilen des POI: ', error);
     }
   }
-
   async function sharePoiFetch(poi, user) {
     try {
       const response = await apiFetch('sharePOI', {
@@ -979,7 +1053,7 @@
           userInput.value = '';
           userList.innerHTML = '';
           users.forEach(user => {
-              if (user.email != authState.email) {
+              if ((user.email != authState.email) && (user.name !== null)) {
                 const option = document.createElement('option');
                 // option.value = `${user.username} - ${user.email}`;
                 option.value = `${user.username}`;
@@ -1011,10 +1085,10 @@
     if (!user) return;
     await sharePoiFetch(poi, user);
   }
-  async function sharePoiArrayWithUser(poiList) {
+  async function sharePoiGroupWithUser(poiList) {
     const user = await showPoiShareDialog(poiList);
     if (!user) return;
-    await sharePoiArrayFetch(poiList, user);
+    await sharePoiGroupFetch(poiList, user);
   }
   //#endregion
 
@@ -3576,7 +3650,7 @@
         shareBtn.title = 'mit Benutzer teilen';
         shareBtn.addEventListener('click', (ev) => { 
           ev.stopPropagation();  
-          sharePoiArrayWithUser(descendants);
+          sharePoiGroupWithUser(descendants);
         });
         header.appendChild(shareBtn);
       }
@@ -4654,7 +4728,7 @@
       if (t.isShared) {
         const username = usersById.get(t.owner_user_id)?.username;
         if (username)
-          finalGroup = username + '/' + finalGroup;
+          finalGroup = `von "${username}" geteilte Tracks` + '/' + finalGroup;
         else  
           finalGroup = 'geteilte Tracks/';
       }
@@ -4938,14 +5012,14 @@
     node.children.forEach(child => {
       const descendants = collectAllTracksInNode(child);
       const collapsed = collapsedTracksGroups.has(child.path);
-      const isSharedGroup  = hasSharedTracks(child)
+      const isShared  = hasSharedTracks(child)
       
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
 
       const header = document.createElement('div');
       header.className = 'group-header' + (collapsed ? ' collapsed' : '');
-      if (isSharedGroup) header.classList.add('group-header-shared');
+      if (isShared) header.classList.add('group-header-shared');
 
       const twist = document.createElement('span');
       twist.className = 'twist';
@@ -4972,21 +5046,23 @@
       const nameEl = document.createElement('span');
       nameEl.className = 'group-name';
       nameEl.textContent = child.label;
-      if (!isSharedGroup) 
+      if (!isShared) 
         nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const shareBtn = document.createElement('button');
-      shareBtn.className = 'group-row row-icon-btn';
-      const shareIcon = document.createElement('span');
-      shareIcon.innerHTML = shareSVG;
-      shareBtn.appendChild(shareIcon);
-      shareBtn.title = 'mit Benutzer teilen';
-      shareBtn.addEventListener('click', (ev) => { 
-        ev.stopPropagation();  
-        // shareTrackGroupWithUser(child);
-      });
-      header.appendChild(shareBtn);
+      if (!isShared) {
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'group-row row-icon-btn';
+        const shareIcon = document.createElement('span');
+        shareIcon.innerHTML = shareSVG;
+        shareBtn.appendChild(shareIcon);
+        shareBtn.title = 'mit Benutzer teilen';
+        shareBtn.addEventListener('click', (ev) => { 
+          ev.stopPropagation();  
+          shareTrackGroupWithUser(descendants);
+        });
+        header.appendChild(shareBtn);
+      }
 
       const groupDelBtn = document.createElement('button');
       groupDelBtn.className = 'group-row row-icon-btn';
@@ -5012,7 +5088,7 @@
         renderTrackList();
       });
 
-      if (!isSharedGroup)
+      if (!isShared)
         nameEl.addEventListener('dblclick', (e) => {
           e.stopPropagation();
           startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
@@ -5027,7 +5103,7 @@
           }, renderTrackList);
         });
 
-      if (!isSharedGroup)  {
+      if (!isShared)  {
         header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
         header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
         header.addEventListener('drop', (e) => {
@@ -5042,7 +5118,7 @@
       }
       groupEl.appendChild(header);
 
-      if (!isSharedGroup)  {
+      if (!isShared)  {
         groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
         groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
         groupEl.addEventListener('drop', (e) => {
@@ -5882,7 +5958,7 @@
       if (r.isShared) {
         const username = usersById.get(r.owner_user_id)?.username;
         if (username)
-          finalGroup = username + '/' + finalGroup;
+          finalGroup = `von "${username}" geteilte Routen` + '/' + finalGroup;
         else  
           finalGroup = 'geteilte Routen/';
       }
@@ -6065,14 +6141,14 @@
     node.children.forEach(child => {
       const descendants = collectAllRoutesInNode(child);
       const collapsed = collapsedRouteGroups.has(child.path);
-      const isSharedGroup = hasSharedRoutes(child)
+      const isShared = hasSharedRoutes(child)
       
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
 
       const header = document.createElement('div');
       header.className = 'group-header' + (collapsed ? ' collapsed' : '');
-      if (isSharedGroup) header.classList.add('group-header-shared');
+      if (isShared) header.classList.add('group-header-shared');
 
       const twist = document.createElement('span');
       twist.className = 'twist';
@@ -6086,21 +6162,23 @@
       const nameEl = document.createElement('span');
       nameEl.className = 'group-name';
       nameEl.textContent = child.label;
-      if (!isSharedGroup) 
+      if (!isShared) 
         nameEl.title = 'Doppelklick: Gruppe umbenennen';
       header.appendChild(nameEl);
 
-      const shareBtn = document.createElement('button');
-      shareBtn.className = 'group-row row-icon-btn';
-      const shareIcon = document.createElement('span');
-      shareIcon.innerHTML = shareSVG;
-      shareBtn.appendChild(shareIcon);
-      shareBtn.title = 'mit Benutzer teilen';
-      shareBtn.addEventListener('click', (ev) => { 
-        ev.stopPropagation();  
-        // shareTrackGroupWithUser(child);
-      });
-      header.appendChild(shareBtn);
+      if (!isShared) {
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'group-row row-icon-btn';
+        const shareIcon = document.createElement('span');
+        shareIcon.innerHTML = shareSVG;
+        shareBtn.appendChild(shareIcon);
+        shareBtn.title = 'mit Benutzer teilen';
+        shareBtn.addEventListener('click', (ev) => { 
+          ev.stopPropagation();  
+          shareRouteGroupWithUser(descendants);
+        });
+        header.appendChild(shareBtn);
+      }
 
       const groupDelBtn = document.createElement('button');
       groupDelBtn.className = 'group-row row-icon-btn';
@@ -6126,7 +6204,7 @@
         renderRoutesList();
       });
 
-      if (!isSharedGroup)
+      if (!isShared)
         nameEl.addEventListener('dblclick', (e) => {
           e.stopPropagation();
           startInlineRenameGeneric(nameEl, child.label, (newLabel) => {
@@ -6141,7 +6219,7 @@
           }, renderRoutesList);
         });
 
-      if (!isSharedGroup)  {
+      if (!isShared)  {
         header.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); header.classList.add('drop-target'); });
         header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
         header.addEventListener('drop', (e) => {
@@ -6154,7 +6232,7 @@
       }
       groupEl.appendChild(header);
 
-      if (!isSharedGroup)  {
+      if (!isShared)  {
         groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
         groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
         groupEl.addEventListener('drop', (e) => {
