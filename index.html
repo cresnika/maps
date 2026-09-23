@@ -2269,17 +2269,21 @@
   // -------- Authentication (Login / Logout / Set-Change Password)
   //#region User login handling
   async function apiFetch(path, options = {}) {
-    const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
-      ...options,
-      credentials: 'include'
-    });
+    try {
+      const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
+        ...options,
+        credentials: 'include'
+      });
 
-    if (res.status === 401) {
-      lockApp();
-      throw new Error('Nicht authentifiziert');
+      if (res.status === 401) {
+        lockApp();
+        throw new Error('Nicht authentifiziert');
+      }
+
+      return res;
+    } catch(error) {
+      console.log('apiFetch error: ' + error);
     }
-
-    return res;
   }
 
   const emptySettings =  {
