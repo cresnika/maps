@@ -4387,8 +4387,8 @@
       });
     }
     catch (error) {
-      showToast('Fehler beim laden der Tracks: ' + error, 7000);
-      console.warn('Fehler beim laden der Tracks ', error);
+      showToast('Fehler beim laden der geteilten Tracks: ' + error, 7000);
+      console.warn('Fehler beim laden der geteilten Tracks ', error);
     }
   }
   
@@ -4450,8 +4450,8 @@
     }
     catch (error) {
       if (entry.loadIcon !== null) { entry.loadIcon.classList.add('hidden'); }
-      showToast('Fehler beim laden der Tracks: ' + error, 7000);
-      console.warn('Fehler beim laden der Tracks ', error);
+      showToast('Fehler beim laden der GPX Daten von Tracks: ' + error, 7000);
+      console.warn('Fehler beim laden der GPX Daten von Tracks ', error);
     }
   }
 
