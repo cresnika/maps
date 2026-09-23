@@ -2395,7 +2395,7 @@
 
       await loadTracksFromStorage().then(renderTrackList)
     } catch (error) {
-      
+
     }
   }  
 
@@ -5573,7 +5573,10 @@
   }
 
   function extractWaypointsFromGpxForRoute(xml){
-    let els = xml.querySelectorAll('rte > rtept');
+    // nicht die hunderte wegpunkte importieren, nur die gesetzten ! zumindest bei calimoto wurde das so exportiert
+    // let els = xml.querySelectorAll('rte > rtept');
+
+    let els = [];
     if (!els.length) els = xml.querySelectorAll('wpt');
     if (els.length){
       return Array.from(els).map(el => ({
@@ -5647,6 +5650,7 @@
     map.fitBounds(fg.getBounds(), { padding: [40, 40] });
     routeResultEl.textContent = 'Importiert – zum Neuberechnen "Route berechnen" klicken.';
     switchToPlanningTab();
+    calculateRoute();
   });
 
   // ============================================================
