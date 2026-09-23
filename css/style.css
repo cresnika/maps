@@ -72,40 +72,69 @@ body {
     line-height: 1;
   }
 
-  /* .poi-panel {
+
+  /* ---------- ext. POI ---------- */
+  .poi-toolbar {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 260px;
-    max-height: 60vh;
-    background: var(--bg-sidebar);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.2);
-    overflow-y: auto;
+    left: 0;
+    right: 0;
+    bottom: 10px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 10px;
     z-index: 2000;
-    display: none;
+    scrollbar-width: none;
+    padding-bottom: 15px;
+
+
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x;
   }
 
-  .poi-panel.open {
-      display: block;
+  .poi-toolbar::-webkit-scrollbar {
+      display: none;
   }
 
-  .poi-panel-header {
-      padding: 12px;
-      font-weight: 600;
-      border-bottom: 1px solid #ddd;
-  }
 
-  .poi-item {
+  .poi-chip {
+      /* flex: 0 0 auto; */
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--bg-poi-switch);
+      border: 1px solid var(--text-dim);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+      cursor: pointer;
+      user-select: none;
   }
 
-  .poi-item label {
-      flex: 1;
-  } */
+  .poi-chip.active {
+      background: var(--poi-color, #4caf50);
+      color: var(--text);
+      border-color: var(--poi-color, #4caf50);
+  }
+
+  .poi-chip svg {
+      width: 16px;
+      height: 16px;
+  }
+
+  .poi-chip-loading {
+      display: none;
+      width: 12px;
+      height: 12px;
+  }
+
+  .poi-chip.loading .poi-chip-loading {
+      display: inline-block;
+      animation: spin 1s linear infinite;
+  }
 
   /* ---------- POI Cluster ---------- */
   .poi-cluster {

@@ -1740,8 +1740,543 @@
 
 
   // ============================================================
+  // -------- Authentication (Login / Logout / Set-Change Password)
+  //#region User login handling
+  async function apiFetch(path, options = {}) {
+    try {
+      const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
+        ...options,
+        credentials: 'include'
+      });
+
+      if (res.status === 401) {
+        lockApp();
+        throw new Error('Nicht authentifiziert, error-code: ' + res.status);
+      }
+
+      return res;
+    } catch(error) {
+      console.log('apiFetch error: ' + error);
+    }
+  }
+
+  const emptySettings =  {
+      version: 1,
+      mapview: {},
+      externPoiSwitches: {},
+      ownPOIs: {}, 
+      waypoints: {},
+      globalOptions: {},
+    };
+  const authState = {loggedIn: false, email: null, username: null, admin: false, settings: emptySettings};
+  const minPasswordLength = 6;
+  let users = [];
+  let usersById = new Map();
+
+  function clearUsers() {
+    users.length = 0;
+    usersById = new Map();
+  }
+
+  async function authRequest(endpoint, body) {
+    try {
+      const response = await apiFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      });
+
+      let data = null;
+      try {
+        if (response.status === 200) {
+          data = await response.json();
+        } else {
+          if (response.status === 403) {
+            data = await response.json();
+          }
+          else {
+            if (!response.ok) {
+              throw new Error((data && data.error) || `HTTP ${response.status}`);
+            }
+          }
+        }
+      } catch {
+        // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
+        data = { success: false, error: "Fehler beim decodieren der Serverantwort"};
+      }
+
+      return data;
+    } catch (err) {
+    }
+  }
+
+  function lockApp() {
+    authState.loggedIn = false;
+    authState.username = '';
+    authState.email = '';
+    authState.admin = false;
+    authState.settings = emptySettings;
+
+    document.getElementById('btn-user-invite').classList.add('hidden');
+    document.getElementById('btn-user-savePOI').classList.add('hidden');
+    clearPOIs();
+    clearWaypoints();
+    clearRoutes();
+    clearTracks();
+    clearUsers();
+
+    const authOverlay = document.getElementById('auth-gate');
+    authOverlay.classList.remove('hidden');
+
+    const view = 'login';
+    authOverlay.querySelectorAll('.auth-view').forEach(el => {
+      el.style.display = el.dataset.view === view ? 'block' : 'none';
+    });
+    
+    setAppAuthVisibility();
+  }
+
+  async function unlockApp(email, username, admin, settings) {
+    authState.loggedIn = true;
+    authState.username = username || '';
+    authState.email = email || '';
+    authState.admin = admin || false;
+    authState.settings = settings || emptySettings;
+
+    if (authState.admin) {
+      map.getContainer().appendChild(toolbar);
+      L.DomEvent.disableClickPropagation(toolbar);
+      L.DomEvent.disableScrollPropagation(toolbar);
+      L.DomEvent.on(toolbar, 'touchstart', L.DomEvent.stopPropagation);
+      L.DomEvent.on(toolbar, 'touchmove', L.DomEvent.stopPropagation);
+      document.getElementById('btn-user-invite').classList.remove('hidden');
+      document.getElementById('btn-user-savePOI').classList.remove('hidden');
+    }
+    else {
+      toolbar.remove();
+      document.getElementById('btn-user-invite').classList.add('hidden');
+      document.getElementById('btn-user-savePOI').classList.add('hidden');
+    }
+
+    document.getElementById('auth-gate').classList.add('hidden');
+    setAppAuthVisibility();
+    clearPOIs();
+    clearWaypoints();
+    clearTracks();
+    clearRoutes();
+    restoreAppState();
+    try {
+      await getUserList();
+      await loadRoutesFromStorage().then(renderRoutesList);
+      await loadPoisFromStorage().then(e => { 
+        if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
+      });
+
+      await loadTracksFromStorage().then(renderTrackList)
+    } catch (error) {
+
+    }
+  }  
+
+  async function getUserList() {
+    try {
+      const response = await apiFetch('getUserList', {
+        method: 'GET'
+      });
+      const data = await response.json()
+      clearUsers();
+      (data || []).forEach(u => { users.push(u); usersById.set(u.id, u) });
+    }
+    catch (error) {
+      showToast('Fehler beim laden der User: ' + error, 7000);
+      console.warn('Fehler beim laden der User: ', error);
+    }
+  }
+
+  async function checkExistingSession() {
+    try {
+      const authOverlay = document.getElementById('auth-gate');
+      authOverlay.classList.remove('hidden');
+  
+      // zuerst prüfen ob über einladungslink gekommen...
+      const token = new URLSearchParams(window.location.search).get('token');
+      const email = new URLSearchParams(window.location.search).get('email'); 
+      if (token && email) {
+        authState.loggedIn = false;
+        authState.username = null;
+        authState.email = null;
+        authState.admin = false;
+        authOverlay.querySelectorAll('.auth-view').forEach(el => {
+          el.style.display = el.dataset.view === 'invited' ? 'block' : 'none';
+        });
+        // authOverlay.getElementById('label-auth-email').textContent = 'email: ' +  email;
+        const emaillabel = document.getElementById('label-auth-email');
+        if (emaillabel) {
+          emaillabel.textContent = 'eMail: ' + email;
+        }
+        clearPOIs();
+        clearRoutes();
+        clearTracks();
+        setAppAuthVisibility();
+      }
+      else {
+        const data = await authRequest('me');
+        if (data && data.loggedIn) {
+          unlockApp(data.email, data.username, data.admin, data.settings);
+        }
+        else {
+          lockApp();
+        }
+      }
+    } catch (err) {
+      lockApp();
+      console.warn('Session-Check fehlgeschlagen:', err);
+    } finally {
+      setAppAuthVisibility();
+    }
+  }
+
+  function setAppAuthVisibility() {
+    if (authState.username) 
+      document.getElementById('title-label').textContent  = 'Hallo ' + authState.username;
+    else
+      document.getElementById('title-label').textContent  = 'Routenplaner';
+
+    const userlabel = document.getElementById('label-settings-user');
+    if (userlabel) {
+      userlabel.textContent = 'Name: ' + authState.username;
+      userlabel.classList.toggle('hidden', !authState.loggedIn);
+    }
+    
+    const emaillabel = document.getElementById('label-settings-email');
+    if (emaillabel) {
+      emaillabel.textContent = 'eMail: ' + authState.email;
+      emaillabel.classList.toggle('hidden', !authState.loggedIn);
+    }
+  }
+
+  function createAuthModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal-overlay';
+    overlay.style.display = 'none';
+
+    overlay.innerHTML = `
+      <div class="auth-modal">
+        <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
+
+        <div class="auth-view" data-view="invite" style="display:none">
+          <h2>Einladung</h2>
+          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
+          <p class="auth-error"></p>
+          <p class="auth-success"></p>
+          <button type="button" class="auth-submit-invite">Einladen</button>
+        </div>
+
+        <div class="auth-view" data-view="change-password" style="display:none">
+          <h2>Passwort ändern</h2>
+          <label class="btn-user-view auth-change-password-info"></label>
+          <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
+          <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
+          <label>Passwort Wiederholen<input type="password" class="auth-password-verify" autocomplete="new-password"></label>
+          <p class="auth-error"></p>
+          <p class="auth-success"></p>
+          <button type="button" class="auth-submit-change">Passwort ändern</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.auth-current-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-new-password').focus(); });
+    overlay.querySelector('.auth-new-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-password-verify').focus(); });
+    overlay.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitChangePassword(overlay) });
+    overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
+    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
+
+    // overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
+    overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
+        if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
+          hideAuthModal();
+        }
+        else {
+          submitInvite(overlay);
+        }
+    });
+
+    return overlay;
+  }
+
+  let authModalEl = null;
+
+  function showAuthModal(view = 'login') {
+    settingsModalBackdrop.classList.remove('active');
+    if (!authModalEl) authModalEl = createAuthModal();
+
+    authModalEl.querySelectorAll('.auth-view').forEach(el => {
+      el.style.display = el.dataset.view === view ? 'block' : 'none';
+    });
+    authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
+    authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
+    authModalEl.style.display = 'flex';
+
+    const infolabel = authModalEl.querySelector('.auth-change-password-info');
+    if (infolabel) {
+      infolabel.textContent = authState.username + ' (' + authState.email + ')';
+    }
+  }
+
+  function hideAuthModal() {
+    if (authModalEl) {
+      authModalEl.style.display = 'none';
+      const btn = authModalEl.querySelector('.auth-submit-invite');
+      if (btn) {
+        btn.classList.remove('is-close-mode');
+        btn.textContent = 'Einladen';
+      }
+    }
+    setAppAuthVisibility();
+  }
+
+  function showViewError(view, message) {
+    view.querySelector('.auth-error').textContent = message;
+  }
+
+  // ------------------------------------------------------------
+  // Submit-Handler
+  // ------------------------------------------------------------
+
+  function checkPassword(password, verification) {
+    if (password === '') return 'Passwort darf nicht leer sein';
+    if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
+    if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
+    if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
+  }
+
+  async function submitLogin() {
+    const view = document.querySelector('[data-view="login"]');
+    const login = view.querySelector('.auth-email').value.trim();
+    const password = view.querySelector('.auth-password').value;
+
+    try {
+      const data = await authRequest('login', { login, password });
+      // const resp = await data.json();
+      const resp = data;
+      if (resp) {
+        if (resp.success) {
+          unlockApp(data.email, data.username, data.admin);
+          view.querySelector('.auth-error').textContent = '';
+          view.querySelector('.auth-password').value = '';
+          setAppAuthVisibility();
+          hideAuthModal();
+        } else {
+          if (resp.error)
+            view.querySelector('.auth-error').textContent = resp.error;
+          else
+            view.querySelector('.auth-error').textContent = 'Fehler';
+        }
+      }
+
+
+    } catch (err) {
+      showViewError(view, 'submitLogin: '+err.message);
+      lockApp();
+    }
+  }
+
+  async function submitInvite(overlay) {
+    const view = overlay.querySelector('[data-view="invite"]');
+    const email = view.querySelector('.auth-email').value.trim();
+    try {
+      view.querySelector('.auth-success').textContent = '';
+      const data = await authRequest('invite', { email });
+      if (!data || !data.success || !data.inviteUrl) {
+        throw new Error('Kein gültiger Einladungs-Link vom Server erhalten');
+      }
+      if (data.success) {
+        const inviteUrl = data.inviteUrl;
+        view.querySelector('.auth-success').textContent = inviteUrl;
+
+        const btn = view.querySelector('.auth-submit-invite');
+        btn.classList.add('is-close-mode');
+        btn.textContent = 'Schliessen';
+
+        await navigator.clipboard.writeText(inviteUrl);
+        alert('Invite-Link wurde in die Zwischenablage kopiert.');
+      }
+      setAppAuthVisibility();
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+  async function submitSetInitialPassword() {
+    const view = document.querySelector('[data-view="invited"]');
+    const username = view.querySelector('.auth-name').value.trim();
+    const password = view.querySelector('.auth-password-invited').value;
+    const passwordVerify = view.querySelector('.auth-password-verify').value;
+    const token = new URLSearchParams(window.location.search).get('token');
+    const email = new URLSearchParams(window.location.search).get('email'); 
+    const error = checkPassword(password, passwordVerify);
+    
+    if (error) {
+      showViewError(view, error);
+      return;
+    }
+    try {
+      view.querySelector('.auth-error').textContent = '';
+      const data = await authRequest('set-initial-password', { token, email, password, username });
+/*
+      const data = await authRequest('login', { login, password });
+      // const resp = await data.json();
+      const resp = data;
+      if (resp) {
+        if (resp.success) {
+          unlockApp(data.email, data.username, data.admin);
+          view.querySelector('.auth-error').textContent = '';
+          view.querySelector('.auth-password').value = '';
+          setAppAuthVisibility();
+          hideAuthModal();
+        } else {
+          if (resp.error)
+            view.querySelector('.auth-error').textContent = resp.error;
+          else
+            view.querySelector('.auth-error').textContent = 'Fehler';
+        }
+      }
+
+
+    } catch (err) {
+      showViewError(view, 'submitLogin: '+err.message);
+      lockApp();
+    }
+        view.querySelector('.auth-error').textContent = resp.error;
+
+*/
+      if (data.success) {
+        authState.loggedIn = true;
+        authState.email = data.email;
+        authState.username = data.username;
+        authState.settings = data.settings;
+
+        view.querySelector('.auth-error').textContent = '';
+        view.querySelector('.auth-password-invited').value = '';
+        view.querySelector('.auth-password-verify').value = '';
+
+        // redirect to new url without invitation link. should automatically log in
+        window.location = location.origin + location.pathname;
+      } else {
+        view.querySelector('.auth-error').textContent = data.error;
+      }
+
+
+    } catch (err) {
+      showViewError(view, err.message);
+    }
+  }
+
+  async function submitChangePassword(overlay) {
+    const view = overlay.querySelector('[data-view="change-password"]');
+    const currentPassword = view.querySelector('.auth-current-password').value;
+    const newPassword = view.querySelector('.auth-new-password').value;
+    const newPasswordVerify = view.querySelector('.auth-password-verify').value;
+
+    const error = checkPassword(newPassword, newPasswordVerify);
+    if (error) {
+      view.querySelector('.auth-error').textContent = error;
+      return;
+    }
+
+    try {
+      await authRequest('changepassword', { currentPassword, newPassword });
+      view.querySelector('.auth-error').textContent = '';
+      view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
+      view.querySelector('.auth-current-password').value = '';
+      view.querySelector('.auth-new-password').value = '';
+      view.querySelector('.auth-password-verify').value = '';
+      setAppAuthVisibility();
+      hideAuthModal();
+      showToast('Passwort erfolgreich geändert',3000);
+    } catch (err) {
+      view.querySelector('.auth-success').textContent = '';
+      showViewError(view, err.message);
+    }
+  }
+
+  async function logout() {
+    try {
+      await authRequest('logout');
+      settingsModalBackdrop.classList.remove('active');
+    } catch (err) {
+      console.warn('Logout fehlgeschlagen:', err);
+    }
+    lockApp();
+    setAppAuthVisibility();
+  }
+
+  // ------------------------------------------------------------
+  // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
+  // ------------------------------------------------------------
+
+  // let authControlInstance = null;
+
+  function createAuthControl() {
+    const control = L.control({ position: 'topright' });
+
+    control.onAdd = function() {
+      const container = L.DomUtil.create('div', 'leaflet-bar auth-control');
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      renderAuthControl(container);
+      return container;
+    };
+
+    control.addTo(map);
+    return control;
+  }
+
+  function renderAuthControl(container) {
+    if (authState.loggedIn) {
+      container.innerHTML = `
+        <div class="auth-control-logged-in">
+          <span class="auth-control-email">${escapeHtml(authState.email)}</span>
+          <button type="button" class="auth-control-change">Passwort ändern</button>
+          <button type="button" class="auth-control-logout">Abmelden</button>
+        </div>
+      `;
+      container.querySelector('.auth-control-change').addEventListener('click', () => showAuthModal('change-password'));
+      container.querySelector('.auth-control-logout').addEventListener('click', () => logout());
+    } else {
+      container.innerHTML = `<button type="button" class="auth-control-login">Anmelden</button>`;
+      container.querySelector('.auth-control-login').addEventListener('click', () => showAuthModal('login'));
+    }
+  }
+
+  // set Button events
+  document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
+  document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
+  document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
+
+  document.querySelector('.auth-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password').focus(); });
+  document.querySelector('.auth-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
+  document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
+  
+  document.querySelector('.auth-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-invited').focus(); });
+  document.querySelector('.auth-password-invited').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-verify').focus(); });
+  document.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetInitialPassword() });
+  document.getElementById('btn-setup-submit').addEventListener('click', async () =>  submitSetInitialPassword());
+    
+  checkExistingSession();
+  //#endregion
+
+
+  // ============================================================
   // ---------- external POI ----------
   //#region external POI
+  const toolbar = document.createElement('div');
+  toolbar.className = 'poi-toolbar';
+
   const POI_DEFAULTS = {
             layer: null,
             visible: false,
@@ -2188,607 +2723,33 @@
             map.removeLayer(poi.layer);
             poi.loadingActive = false;
           }
-          saveAppStateDebounced();
+          // saveAppStateDebounced();
         });
         return container;
     };
     poi.control.addTo(map);     
   });
 
-  const poiMenuButton = L.control({ position: 'topright' });
-
-  const poiPanel = document.createElement('div');
-  poiPanel.className = "poi-panel";
-  poiPanel.id = "poi-panel";
-  poiPanel.innerHTML = `<div class="poi-panel-header">
-                          Externe POIs
-                        </div>
-                        <div id="poi-panel-content"></div>`
-  document.getElementById('map').appendChild(poiPanel);
-  
-  poiMenuButton.onAdd = function() {
-    const btn = L.DomUtil.create(
-        'div',
-        'leaflet-bar leaflet-control'
-    );
-
-    btn.innerHTML = '📍';
-
-    btn.style.width = '36px';
-    btn.style.height = '36px';
-    btn.style.lineHeight = '36px';
-    btn.style.textAlign = 'center';
-    btn.style.cursor = 'pointer';
-    btn.style.background = '#fff';
-
-    L.DomEvent.disableClickPropagation(btn);
-
-    btn.addEventListener('click', () => {
-        document.getElementById('poi-panel').classList.toggle('open');
-    });
-
-    return btn;
-  };
-
-  // poiMenuButton.addTo(map);
-
-  const panel = document.getElementById('poi-panel-content');
-
   extPOIs.forEach(poi => {
-    const row = document.createElement('div');
-    row.className = 'poi-item';
-    row.innerHTML = `
-        <input type="checkbox">
-        <label>${poi.description}</label>
-        <span id="${poi.description}-load-icon"
-              style="display:none">
-          ⟳
-        </span>
-    `;
-    const checkbox = row.querySelector('input');
-    checkbox.checked = poi.visible;
-    checkbox.addEventListener('change', () => {
-        poi.visible = checkbox.checked;
-        if (poi.visible) {
-            poi.layer.addTo(map);
-            loadExternPOI(poi);
-        } else {
-            poi.layer.clearLayers();
-            map.removeLayer(poi.layer);
-            poi.loadingActive = false;
-        }
-        saveAppStateDebounced();
-    });
-    panel.appendChild(row);
-  });
+    const chip = document.createElement('div');
+    chip.className = 'poi-chip extern-poi-label';
 
-
-  //#endregion
-
-
-  // ============================================================
-  // -------- Authentication (Login / Logout / Set-Change Password)
-  //#region User login handling
-  async function apiFetch(path, options = {}) {
-    try {
-      const res = await fetch(`${CLOUDFLARE_API_BASE}api/${path}`, {
-        ...options,
-        credentials: 'include'
-      });
-
-      if (res.status === 401) {
-        lockApp();
-        throw new Error('Nicht authentifiziert, error-code: ' + res.status);
-      }
-
-      return res;
-    } catch(error) {
-      console.log('apiFetch error: ' + error);
-    }
-  }
-
-  const emptySettings =  {
-      version: 1,
-      mapview: {},
-      externPoiSwitches: {},
-      ownPOIs: {}, 
-      waypoints: {},
-      globalOptions: {},
-    };
-  const authState = {loggedIn: false, email: null, username: null, admin: false, settings: emptySettings};
-  const minPasswordLength = 6;
-  let users = [];
-  let usersById = new Map();
-
-  function clearUsers() {
-    users.length = 0;
-    usersById = new Map();
-  }
-
-  async function authRequest(endpoint, body) {
-    try {
-      const response = await apiFetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
-      });
-
-      let data = null;
-      try {
-        if (response.status === 200) {
-          data = await response.json();
-        } else {
-          if (response.status === 403) {
-            data = await response.json();
-          }
-          else {
-            if (!response.ok) {
-              throw new Error((data && data.error) || `HTTP ${response.status}`);
-            }
-          }
-        }
-      } catch {
-        // kein Body (kommt bei manchen Antworten nicht vor, aber sicherheitshalber)
-        data = { success: false, error: "Fehler beim decodieren der Serverantwort"};
-      }
-
-      return data;
-    } catch (err) {
-    }
-  }
-
-  function lockApp() {
-    authState.loggedIn = false;
-    authState.username = '';
-    authState.email = '';
-    authState.admin = false;
-    authState.settings = emptySettings;
-
-    document.getElementById('btn-user-invite').classList.add('hidden');
-    document.getElementById('btn-user-savePOI').classList.add('hidden');
-    clearPOIs();
-    clearWaypoints();
-    clearRoutes();
-    clearTracks();
-    clearUsers();
-
-    const authOverlay = document.getElementById('auth-gate');
-    authOverlay.classList.remove('hidden');
-
-    const view = 'login';
-    authOverlay.querySelectorAll('.auth-view').forEach(el => {
-      el.style.display = el.dataset.view === view ? 'block' : 'none';
-    });
-    
-    setAppAuthVisibility();
-  }
-
-  async function unlockApp(email, username, admin, settings) {
-    authState.loggedIn = true;
-    authState.username = username || '';
-    authState.email = email || '';
-    authState.admin = admin || false;
-    authState.settings = settings || emptySettings;
-
-    if (authState.admin) {
-      document.getElementById('btn-user-invite').classList.remove('hidden');
-      document.getElementById('btn-user-savePOI').classList.remove('hidden');
-    }
-    else {
-      document.getElementById('btn-user-invite').classList.add('hidden');
-      document.getElementById('btn-user-savePOI').classList.add('hidden');
-    }
-
-    document.getElementById('auth-gate').classList.add('hidden');
-    setAppAuthVisibility();
-    clearPOIs();
-    clearWaypoints();
-    clearTracks();
-    clearRoutes();
-    restoreAppState();
-    try {
-      await getUserList();
-      await loadRoutesFromStorage().then(renderRoutesList);
-      await loadPoisFromStorage().then(e => { 
-        if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
-      });
-
-      await loadTracksFromStorage().then(renderTrackList)
-    } catch (error) {
-
-    }
-  }  
-
-  async function getUserList() {
-    try {
-      const response = await apiFetch('getUserList', {
-        method: 'GET'
-      });
-      const data = await response.json()
-      clearUsers();
-      (data || []).forEach(u => { users.push(u); usersById.set(u.id, u) });
-    }
-    catch (error) {
-      showToast('Fehler beim laden der User: ' + error, 7000);
-      console.warn('Fehler beim laden der User: ', error);
-    }
-  }
-
-  async function checkExistingSession() {
-    try {
-      const authOverlay = document.getElementById('auth-gate');
-      authOverlay.classList.remove('hidden');
-  
-      // zuerst prüfen ob über einladungslink gekommen...
-      const token = new URLSearchParams(window.location.search).get('token');
-      const email = new URLSearchParams(window.location.search).get('email'); 
-      if (token && email) {
-        authState.loggedIn = false;
-        authState.username = null;
-        authState.email = null;
-        authState.admin = false;
-        authOverlay.querySelectorAll('.auth-view').forEach(el => {
-          el.style.display = el.dataset.view === 'invited' ? 'block' : 'none';
-        });
-        // authOverlay.getElementById('label-auth-email').textContent = 'email: ' +  email;
-        const emaillabel = document.getElementById('label-auth-email');
-        if (emaillabel) {
-          emaillabel.textContent = 'eMail: ' + email;
-        }
-        clearPOIs();
-        clearRoutes();
-        clearTracks();
-        setAppAuthVisibility();
-      }
-      else {
-        const data = await authRequest('me');
-        if (data && data.loggedIn) {
-          unlockApp(data.email, data.username, data.admin, data.settings);
-        }
-        else {
-          lockApp();
-        }
-      }
-    } catch (err) {
-      lockApp();
-      console.warn('Session-Check fehlgeschlagen:', err);
-    } finally {
-      setAppAuthVisibility();
-    }
-  }
-
-  function setAppAuthVisibility() {
-    if (authState.username) 
-      document.getElementById('title-label').textContent  = 'Hallo ' + authState.username;
-    else
-      document.getElementById('title-label').textContent  = 'Routenplaner';
-
-    const userlabel = document.getElementById('label-settings-user');
-    if (userlabel) {
-      userlabel.textContent = 'Name: ' + authState.username;
-      userlabel.classList.toggle('hidden', !authState.loggedIn);
-    }
-    
-    const emaillabel = document.getElementById('label-settings-email');
-    if (emaillabel) {
-      emaillabel.textContent = 'eMail: ' + authState.email;
-      emaillabel.classList.toggle('hidden', !authState.loggedIn);
-    }
-  }
-
-  function createAuthModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'auth-modal-overlay';
-    overlay.style.display = 'none';
-
-    overlay.innerHTML = `
-      <div class="auth-modal">
-        <button type="button" class="auth-modal-close" aria-label="Schließen">✕</button>
-
-        <div class="auth-view" data-view="invite" style="display:none">
-          <h2>Einladung</h2>
-          <label>E-Mail<input type="email" class="auth-email" autocomplete="username"></label>
-          <p class="auth-error"></p>
-          <p class="auth-success"></p>
-          <button type="button" class="auth-submit-invite">Einladen</button>
-        </div>
-
-        <div class="auth-view" data-view="change-password" style="display:none">
-          <h2>Passwort ändern</h2>
-          <label class="btn-user-view auth-change-password-info"></label>
-          <label>Aktuelles Passwort<input type="password" class="auth-current-password" autocomplete="current-password"></label>
-          <label>Neues Passwort<input type="password" class="auth-new-password" autocomplete="new-password"></label>
-          <label>Passwort Wiederholen<input type="password" class="auth-password-verify" autocomplete="new-password"></label>
-          <p class="auth-error"></p>
-          <p class="auth-success"></p>
-          <button type="button" class="auth-submit-change">Passwort ändern</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    overlay.querySelector('.auth-current-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-new-password').focus(); });
-    overlay.querySelector('.auth-new-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') overlay.querySelector('.auth-password-verify').focus(); });
-    overlay.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitChangePassword(overlay) });
-    overlay.querySelector('.auth-modal-close').addEventListener('click', hideAuthModal);
-    overlay.querySelector('.auth-submit-change').addEventListener('click', () => submitChangePassword(overlay));
-
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) hideAuthModal(); });
-
-    // overlay.querySelector('.auth-submit-set-initial').addEventListener('click', () => submitSetInitialPassword(overlay));
-    overlay.querySelector('.auth-submit-invite').addEventListener('click', () => {
-        if (overlay.querySelector('.auth-submit-invite').classList.contains('is-close-mode')) {
-          hideAuthModal();
-        }
-        else {
-          submitInvite(overlay);
-        }
-    });
-
-    return overlay;
-  }
-
-  let authModalEl = null;
-
-  function showAuthModal(view = 'login') {
-    settingsModalBackdrop.classList.remove('active');
-    if (!authModalEl) authModalEl = createAuthModal();
-
-    authModalEl.querySelectorAll('.auth-view').forEach(el => {
-      el.style.display = el.dataset.view === view ? 'block' : 'none';
-    });
-    authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
-    authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
-    authModalEl.style.display = 'flex';
-
-    const infolabel = authModalEl.querySelector('.auth-change-password-info');
-    if (infolabel) {
-      infolabel.textContent = authState.username + ' (' + authState.email + ')';
-    }
-  }
-
-  function hideAuthModal() {
-    if (authModalEl) {
-      authModalEl.style.display = 'none';
-      const btn = authModalEl.querySelector('.auth-submit-invite');
-      if (btn) {
-        btn.classList.remove('is-close-mode');
-        btn.textContent = 'Einladen';
-      }
-    }
-    setAppAuthVisibility();
-  }
-
-  function showViewError(view, message) {
-    view.querySelector('.auth-error').textContent = message;
-  }
-
-  // ------------------------------------------------------------
-  // Submit-Handler
-  // ------------------------------------------------------------
-
-  function checkPassword(password, verification) {
-    if (password === '') return 'Passwort darf nicht leer sein';
-    if (password.length < minPasswordLength) return 'Passwort muss mindestens '+minPasswordLength+' Zeichen lang sein';
-    if (verification === '') return 'Passwortwiederholung darf nicht leer sein';
-    if (password != verification) return 'Passwortwiederholung ist unterschiedlich';
-  }
-
-  async function submitLogin() {
-    const view = document.querySelector('[data-view="login"]');
-    const login = view.querySelector('.auth-email').value.trim();
-    const password = view.querySelector('.auth-password').value;
-
-    try {
-      const data = await authRequest('login', { login, password });
-      // const resp = await data.json();
-      const resp = data;
-      if (resp) {
-        if (resp.success) {
-          unlockApp(data.email, data.username, data.admin);
-          view.querySelector('.auth-error').textContent = '';
-          view.querySelector('.auth-password').value = '';
-          setAppAuthVisibility();
-          hideAuthModal();
-        } else {
-          if (resp.error)
-            view.querySelector('.auth-error').textContent = resp.error;
-          else
-            view.querySelector('.auth-error').textContent = 'Fehler';
-        }
-      }
-
-
-    } catch (err) {
-      showViewError(view, 'submitLogin: '+err.message);
-      lockApp();
-    }
-  }
-
-  async function submitInvite(overlay) {
-    const view = overlay.querySelector('[data-view="invite"]');
-    const email = view.querySelector('.auth-email').value.trim();
-    try {
-      view.querySelector('.auth-success').textContent = '';
-      const data = await authRequest('invite', { email });
-      if (!data || !data.success || !data.inviteUrl) {
-        throw new Error('Kein gültiger Einladungs-Link vom Server erhalten');
-      }
-      if (data.success) {
-        const inviteUrl = data.inviteUrl;
-        view.querySelector('.auth-success').textContent = inviteUrl;
-
-        const btn = view.querySelector('.auth-submit-invite');
-        btn.classList.add('is-close-mode');
-        btn.textContent = 'Schliessen';
-
-        await navigator.clipboard.writeText(inviteUrl);
-        alert('Invite-Link wurde in die Zwischenablage kopiert.');
-      }
-      setAppAuthVisibility();
-    } catch (err) {
-      showViewError(view, err.message);
-    }
-  }
-
-  async function submitSetInitialPassword() {
-    const view = document.querySelector('[data-view="invited"]');
-    const username = view.querySelector('.auth-name').value.trim();
-    const password = view.querySelector('.auth-password-invited').value;
-    const passwordVerify = view.querySelector('.auth-password-verify').value;
-    const token = new URLSearchParams(window.location.search).get('token');
-    const email = new URLSearchParams(window.location.search).get('email'); 
-    const error = checkPassword(password, passwordVerify);
-    
-    if (error) {
-      showViewError(view, error);
-      return;
-    }
-    try {
-      view.querySelector('.auth-error').textContent = '';
-      const data = await authRequest('set-initial-password', { token, email, password, username });
-/*
-      const data = await authRequest('login', { login, password });
-      // const resp = await data.json();
-      const resp = data;
-      if (resp) {
-        if (resp.success) {
-          unlockApp(data.email, data.username, data.admin);
-          view.querySelector('.auth-error').textContent = '';
-          view.querySelector('.auth-password').value = '';
-          setAppAuthVisibility();
-          hideAuthModal();
-        } else {
-          if (resp.error)
-            view.querySelector('.auth-error').textContent = resp.error;
-          else
-            view.querySelector('.auth-error').textContent = 'Fehler';
-        }
-      }
-
-
-    } catch (err) {
-      showViewError(view, 'submitLogin: '+err.message);
-      lockApp();
-    }
-        view.querySelector('.auth-error').textContent = resp.error;
-
-*/
-      if (data.success) {
-        authState.loggedIn = true;
-        authState.email = data.email;
-        authState.username = data.username;
-        authState.settings = data.settings;
-
-        view.querySelector('.auth-error').textContent = '';
-        view.querySelector('.auth-password-invited').value = '';
-        view.querySelector('.auth-password-verify').value = '';
-
-        // redirect to new url without invitation link. should automatically log in
-        window.location = location.origin + location.pathname;
+    chip.innerHTML = `${poi.labelicon.options.html}<span>${poi.description}</span>`;
+    // chip.innerHTML = `<span>${poi.description}</span>`;
+    chip.classList.toggle('active', poi.visible);
+    chip.addEventListener('click', () => {
+      poi.visible = !poi.visible;
+      if (poi.visible) {
+        poi.layer.addTo(map);
+        loadExternPOI(poi);
       } else {
-        view.querySelector('.auth-error').textContent = data.error;
+        poi.layer.clearLayers();
+        map.removeLayer(poi.layer);
+        poi.loadingActive = false;
       }
-
-
-    } catch (err) {
-      showViewError(view, err.message);
-    }
-  }
-
-  async function submitChangePassword(overlay) {
-    const view = overlay.querySelector('[data-view="change-password"]');
-    const currentPassword = view.querySelector('.auth-current-password').value;
-    const newPassword = view.querySelector('.auth-new-password').value;
-    const newPasswordVerify = view.querySelector('.auth-password-verify').value;
-
-    const error = checkPassword(newPassword, newPasswordVerify);
-    if (error) {
-      view.querySelector('.auth-error').textContent = error;
-      return;
-    }
-
-    try {
-      await authRequest('changepassword', { currentPassword, newPassword });
-      view.querySelector('.auth-error').textContent = '';
-      view.querySelector('.auth-success').textContent = 'Passwort erfolgreich geändert.';
-      view.querySelector('.auth-current-password').value = '';
-      view.querySelector('.auth-new-password').value = '';
-      view.querySelector('.auth-password-verify').value = '';
-      setAppAuthVisibility();
-      hideAuthModal();
-      showToast('Passwort erfolgreich geändert',3000);
-    } catch (err) {
-      view.querySelector('.auth-success').textContent = '';
-      showViewError(view, err.message);
-    }
-  }
-
-  async function logout() {
-    try {
-      await authRequest('logout');
-      settingsModalBackdrop.classList.remove('active');
-    } catch (err) {
-      console.warn('Logout fehlgeschlagen:', err);
-    }
-    lockApp();
-    setAppAuthVisibility();
-  }
-
-  // ------------------------------------------------------------
-  // UI-Status (an deine bestehende Header/Sidebar-Struktur anpassen)
-  // ------------------------------------------------------------
-
-  // let authControlInstance = null;
-
-  function createAuthControl() {
-    const control = L.control({ position: 'topright' });
-
-    control.onAdd = function() {
-      const container = L.DomUtil.create('div', 'leaflet-bar auth-control');
-      L.DomEvent.disableClickPropagation(container);
-      L.DomEvent.disableScrollPropagation(container);
-      renderAuthControl(container);
-      return container;
-    };
-
-    control.addTo(map);
-    return control;
-  }
-
-  function renderAuthControl(container) {
-    if (authState.loggedIn) {
-      container.innerHTML = `
-        <div class="auth-control-logged-in">
-          <span class="auth-control-email">${escapeHtml(authState.email)}</span>
-          <button type="button" class="auth-control-change">Passwort ändern</button>
-          <button type="button" class="auth-control-logout">Abmelden</button>
-        </div>
-      `;
-      container.querySelector('.auth-control-change').addEventListener('click', () => showAuthModal('change-password'));
-      container.querySelector('.auth-control-logout').addEventListener('click', () => logout());
-    } else {
-      container.innerHTML = `<button type="button" class="auth-control-login">Anmelden</button>`;
-      container.querySelector('.auth-control-login').addEventListener('click', () => showAuthModal('login'));
-    }
-  }
-
-  // set Button events
-  document.getElementById('btn-user-logout').addEventListener('click', (e) => { logout(); });
-  document.getElementById('btn-user-change-password').addEventListener('click', (e) => { showAuthModal('change-password'); });
-  document.getElementById('btn-user-invite').addEventListener('click', (e) => { showAuthModal('invite'); });
-
-  document.querySelector('.auth-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password').focus(); });
-  document.querySelector('.auth-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin();});
-  document.querySelector('.auth-submit-login').addEventListener('click', () => submitLogin());
-  
-  document.querySelector('.auth-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-invited').focus(); });
-  document.querySelector('.auth-password-invited').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.auth-password-verify').focus(); });
-  document.querySelector('.auth-password-verify').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetInitialPassword() });
-  document.getElementById('btn-setup-submit').addEventListener('click', async () =>  submitSetInitialPassword());
-    
-  checkExistingSession();
+    });
+    toolbar.appendChild(chip);
+  });
   //#endregion
 
 
