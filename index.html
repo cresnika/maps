@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Alex's Routenplaner</title>
+  <link rel="icon" href="icons/favicon.ico">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
@@ -2277,7 +2278,7 @@
 
       if (res.status === 401) {
         lockApp();
-        throw new Error('Nicht authentifiziert');
+        throw new Error('Nicht authentifiziert, error-code: ' + res.status);
       }
 
       return res;
@@ -2385,13 +2386,17 @@
     clearTracks();
     clearRoutes();
     restoreAppState();
-    await getUserList();
-    await loadRoutesFromStorage().then(renderRoutesList);
-    await loadPoisFromStorage().then(e => { 
-      if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
-    });
+    try {
+      await getUserList();
+      await loadRoutesFromStorage().then(renderRoutesList);
+      await loadPoisFromStorage().then(e => { 
+        if ((authState !== null) && (authState.settings !== null) && (authState.settings.ownPOIs !== null)) restoreOwnPoiVisibility(authState.settings.ownPOIs); 
+      });
 
-    await loadTracksFromStorage().then(renderTrackList)
+      await loadTracksFromStorage().then(renderTrackList)
+    } catch (error) {
+      
+    }
   }  
 
   async function getUserList() {
