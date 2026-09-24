@@ -828,7 +828,7 @@
       "type": "symbol",
       "source": "openmaptiles",
       "source-layer": "mountain_peak",
-      "minzoom": 7,
+      "minzoom": 10,
       "filter": ["all", ["==", "$type", "Point"], ["==", "rank", 1]],
       "layout": {
         "icon-size": 1,
@@ -877,7 +877,7 @@
       "type": "symbol",
       "source": "openmaptiles",
       "source-layer": "place",
-      "minzoom": 8,
+      "minzoom": 9,
       "filter": [
         "all",
         ["==", "$type", "Point"],
@@ -895,7 +895,7 @@
         "text-color": "hsl(0, 10%, 25%)",
         "text-halo-blur": 0,
         "text-halo-color": "hsl(0, 0%, 100%)",
-        "text-halo-width": 2
+        "text-halo-width": 1
       }
     },
     {
