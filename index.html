@@ -684,8 +684,9 @@
 
   L.control.layers(baseLayers, null, {
       collapsed: true,
-      position: 'topright'
+      position: 'topright',
   }).addTo(map);
+  
 
   TerrainStyle.addTo(map);
 
@@ -808,7 +809,6 @@
   });
 
   //#endregion
-
 
 
   // ============================================================
@@ -1143,7 +1143,6 @@
     await sharePoiGroupFetch(poiList, user);
   }
   //#endregion
-
 
 
   // ============================================================

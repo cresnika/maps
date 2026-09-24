@@ -262,6 +262,17 @@ body {
     .leaflet-top.leaflet-left { margin-top: 64px; }
   }
 
+.leaflet-top.leaflet-right .leaflet-control-layers {
+    position: relative;
+    /* margin-top: 50px; */
+}
+
+.leaflet-control-layers-expanded {
+    position: absolute;
+    top: 40px;
+    margin-top: 50px;
+}
+
   #hamburger-btn.hidden { display: none !important; }
 
   #sidebar-header .eyebrow {
