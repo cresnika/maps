@@ -278,6 +278,7 @@
   </div>
   <div class="auth-view" data-view="invited" style="display: none">
     <h2>Passwort einrichten</h2>
+    <label id="label-auth-info" class="btn-user-view"></label>
     <label id="label-auth-email" class="btn-user-view"></label>
     <label>Benutzername<input type="name" class="auth-name" autocomplete="username"></label>
     <label>Passwort<input type="password" class="auth-password-invited" autocomplete="new-password"></label>
@@ -383,6 +384,53 @@
   const shareSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
                       <path fill="currentColor" d="M512 160C512 124.7 483.3 96 448 96C412.7 96 384 124.7 384 160C384 165.6 384.7 171 386 176.1C388.6 186.3 393.7 195.5 400.6 203C400.9 203.4 401.2 203.7 401.6 204C413.3 216.3 429.7 223.9 448 223.9C483.3 223.9 512 195.2 512 159.9zM357.5 192C354 182 352 171.2 352 160C352 107 395 64 448 64C501 64 544 107 544 160C544 213 501 256 448 256C417.7 256 390.6 241.9 373 220L250.5 288C254 298 256 308.8 256 320C256 331.2 254.1 342 250.5 352L373 420C390.6 398 417.6 384 448 384C501 384 544 427 544 480C544 533 501 576 448 576C395 576 352 533 352 480C352 468.8 353.9 458 357.5 448L235 380C217.4 402 190.4 416 160 416C107 416 64 373 64 320C64 267 107 224 160 224C190.3 224 217.4 238.1 235 260L357.5 192zM206.4 275.9C194.7 263.6 178.3 256 160 256C124.7 256 96 284.7 96 320C96 355.3 124.7 384 160 384C178.3 384 194.7 376.3 206.4 364.1C213.1 357.1 218.2 348.5 221.1 339.1C221.4 338.1 221.7 337.2 221.9 336.2C223.2 331.1 223.9 325.6 223.9 320.1C223.9 314.6 223.2 309.1 221.9 304C219.3 293.8 214.2 284.6 207.3 277.1C207 276.7 206.7 276.4 206.3 276.1zM448 544C483.3 544 512 515.3 512 480C512 444.7 483.3 416 448 416C429.7 416 413.3 423.6 401.6 435.9C401.3 436.2 400.9 436.6 400.6 436.9C393.7 444.4 388.7 453.6 386 463.8C384.7 468.9 384 474.3 384 479.9C384 515.2 412.7 543.9 448 543.9z"/>
                     </svg>`;
+  function flagSvg(usedForMap) {
+    if (!usedForMap) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
+              </svg>`;
+    }
+    else {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
+                      <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
+                      <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                    	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
+              </svg>`;  
+    }
+  }
+  function locationSvg(usedForMap) {
+    if (!usedForMap) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
+              </svg>`;  
+    }
+    else {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
+                    <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
+                    <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
+                  	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
+              </svg>`;  
+    }
+  }
+  function waypointSvg(index) {
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
+        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
+        <path fill="#000" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
+        <text 
+          x="320"
+          y="300"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          font-size="250"
+          font-weight="700"
+          fill="#1b2420">
+          ${index}
+        </text>
+      </svg>
+    `;
+  }
+ 
   //#endregion
   
   
@@ -1199,53 +1247,6 @@
 
   function maybeAutoRecalculateRoute(){ if (calculatedRouteLayer && waypoints.length >= 2) calculateRoute({ fitView: false }); }
 
-  function flagSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
-              </svg>`;
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                      <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                      <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                    	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
-              </svg>`;  
-    }
-  }
-  function locationSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
-              </svg>`;  
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                    <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                    <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                  	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
-              </svg>`;  
-    }
-  }
-  function waypointSvg(index) {
-    return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
-        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
-        <path fill="#000" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
-        <text 
-          x="320"
-          y="300"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-size="250"
-          font-weight="700"
-          fill="#1b2420">
-          ${index}
-        </text>
-      </svg>
-    `;
-  }
- 
   function flagIcon(usedForMap) {
     return L.divIcon({
       className: 'waypoint-marker-icon waypoint-marker',
@@ -1810,6 +1811,63 @@
     }
   }
 
+  function addPoiToolbar() {
+      if (!toolbar.parentNode) {
+          map.getContainer().appendChild(toolbar);
+      }
+      L.DomEvent.disableClickPropagation(toolbar);
+      L.DomEvent.disableScrollPropagation(toolbar);
+      L.DomEvent.on(toolbar, 'touchstart', L.DomEvent.stopPropagation);
+      L.DomEvent.on(toolbar, 'touchmove', L.DomEvent.stopPropagation);
+      // toolbar.addEventListener('mousedown', () => {
+      //     map.dragging.disable();
+      // });
+
+      // document.addEventListener('mouseup', () => {
+      //     map.dragging.enable();
+      // });
+
+      let dragStarted = false;
+      let dragMoved = false;
+      let startX;
+      let scrollLeft;
+
+      toolbar.addEventListener('mousedown', (e) => {
+          dragStarted = true;
+          dragMoved = false;
+          startX = e.pageX;
+          scrollLeft = toolbar.scrollLeft;
+      });
+
+      document.addEventListener('mousemove', () => {
+          if (dragStarted) {
+              dragMoved = true;
+          }
+      });
+
+      document.addEventListener('mouseup', () => {
+          dragStarted = false;
+      });
+
+      toolbar.addEventListener('click', (e) => {
+          if (dragMoved) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+          }
+      });
+      
+      toolbar.addEventListener('mousemove', (e) => {
+          if (!dragStarted) return;
+
+          const walk = e.pageX - startX;
+          toolbar.scrollLeft = scrollLeft - walk;
+      });
+  }
+
+  function removePoiToolbar() {
+      toolbar.remove();
+  }
   function lockApp() {
     authState.loggedIn = false;
     authState.username = '';
@@ -1835,50 +1893,6 @@
     
     setAppAuthVisibility();
   }
-
-  function addToolbar() {
-      map.getContainer().appendChild(toolbar);
-      L.DomEvent.disableClickPropagation(toolbar);
-      L.DomEvent.disableScrollPropagation(toolbar);
-      L.DomEvent.on(toolbar, 'touchstart', L.DomEvent.stopPropagation);
-      L.DomEvent.on(toolbar, 'touchmove', L.DomEvent.stopPropagation);
-      // toolbar.addEventListener('mousedown', () => {
-      //     map.dragging.disable();
-      // });
-
-      // document.addEventListener('mouseup', () => {
-      //     map.dragging.enable();
-      // });
-
-      let isDown = false;
-      let startX;
-      let scrollLeft;
-
-      toolbar.addEventListener('mousedown', (e) => {
-          isDown = true;
-          startX = e.pageX;
-          scrollLeft = toolbar.scrollLeft;
-
-          map.dragging.disable();
-      });
-
-      document.addEventListener('mouseup', () => {
-          isDown = false;
-          map.dragging.enable();
-      });
-
-      toolbar.addEventListener('mousemove', (e) => {
-          if (!isDown) return;
-
-          const walk = e.pageX - startX;
-          toolbar.scrollLeft = scrollLeft - walk;
-      });
-
-  }
-  function removeToolbar() {
-      toolbar.remove();
-
-  }
   async function unlockApp(email, username, admin, settings) {
     authState.loggedIn = true;
     authState.username = username || '';
@@ -1886,13 +1900,14 @@
     authState.admin = admin || false;
     authState.settings = settings || emptySettings;
 
+    addPoiToolbar();    // ext POI Switches oben zum durchscrollen
+//    addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
+
     if (authState.admin) {
-      addToolbar();
       document.getElementById('btn-user-invite').classList.remove('hidden');
       document.getElementById('btn-user-savePOI').classList.remove('hidden');
     }
     else {
-      removeToolbar();
       document.getElementById('btn-user-invite').classList.add('hidden');
       document.getElementById('btn-user-savePOI').classList.add('hidden');
     }
@@ -1949,9 +1964,13 @@
           el.style.display = el.dataset.view === 'invited' ? 'block' : 'none';
         });
         // authOverlay.getElementById('label-auth-email').textContent = 'email: ' +  email;
+        const infoLabel = document.getElementById('label-auth-info');
+        if (infoLabel) {
+          infoLabel.innerHTML = 'Sie wurden zur Benutzung dieses Routenplaners eingeladen.<br>Bitte vergeben Sie Ihr gewünschtes Passwort!';
+        }
         const emaillabel = document.getElementById('label-auth-email');
         if (emaillabel) {
-          emaillabel.textContent = 'eMail: ' + email;
+          emaillabel.textContent = 'Ihre eMail: ' + email;
         }
         clearPOIs();
         clearRoutes();
@@ -2360,8 +2379,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
     {
@@ -2390,8 +2411,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
     {
@@ -2419,8 +2442,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
     {
@@ -2448,8 +2473,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
     {
@@ -2473,12 +2500,14 @@
       zoomLimit: 9,
       dataFilename: 'data/food.json',
       overpassQuery: 'nwr["tourism"="camp_site"]',
-      ...POI_DEFAULTS,
-      get loadingActive() { return this._loadingActive; },
-      set loadingActive(value) {
+        ...POI_DEFAULTS,
+        get loadingActive() { return this._loadingActive; },
+        set loadingActive(value) {
         this._loadingActive = value;
-        const Licon = document.getElementById(`${this.description}-load-icon`);
-        if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
       },
     },
     {
@@ -2537,8 +2566,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
     {
@@ -2567,8 +2598,10 @@
         get loadingActive() { return this._loadingActive; },
         set loadingActive(value) {
           this._loadingActive = value;
-          const Licon = document.getElementById(`${this.description}-load-icon`);
-          if (Licon) { Licon.style.display = value ? 'inline' : 'none'; }
+          const sIcon = document.getElementById(`${this.description}-load-icon-switch`);
+          if (sIcon) { sIcon.style.display = value ? 'inline' : 'none'; }
+          const cIcon = document.getElementById(`${this.description}-load-icon-chip`);
+          if (cIcon) { cIcon.style.display = value ? 'inline' : 'none'; }
         },
     },
   ];  
@@ -2595,7 +2628,7 @@
           })
           .then(data => {
             if (!data || !Array.isArray(data.places)) {
-              showToast('not DATA or NOT Array: Fehler bim laden von ' + poi.description);
+              showToast('not DATA or NOT Array: Fehler beim laden von ' + poi.description);
               throw new Error('Ungültiges POI-Format: not DATA or NOT Array');
             }
 
@@ -2710,6 +2743,45 @@
     poi.layer.addLayers(markers);   // NEU: alle auf einmal hinzufuegen
   }
 
+  function createPOISwitchInnerHtml(poi) {
+    const htmlIcon = L.divIcon({
+                          html: circleSVG,
+                        });
+    return `<label class="extern-poi-switch">
+              <span class="extern-poi-label">${poi.labelicon.options.html}</span>
+              <span class="extern-poi-label">${poi.description}</span>
+              <span class="extern-poi-label poi-icon-load" id="${poi.description}-load-icon-switch" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
+              <input type="checkbox" id="extern-poi-toggle-switch">
+              <span class="extern-poi-slider ${poi.mapicon.options.className}"></span>
+            </label>`;
+  }
+
+  function createPOIChipInnerHtml(poi) {
+    const htmlIcon = L.divIcon({
+                          html: circleSVG,
+                        });
+    return `<label class="extern-poi-switch">
+              <span class="extern-poi-label">${poi.labelicon.options.html}</span>
+              <span class="extern-poi-label">${poi.description}</span>
+              <span class="extern-poi-label poi-icon-load" id="${poi.description}-load-icon-chip" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
+              <input type="checkbox" id="extern-poi-toggle-chip">
+              <span class="extern-poi-slider ${poi.mapicon.options.className}"></span>
+            </label>`;
+  }
+
+  function addPoiSwitches() {
+    extPOIs.forEach(poi => {
+      if (poi.control) {
+        if (!poi.control.parentNode)
+          poi.control.addTo(map);    
+      }
+    });  
+  }
+  function removerPoiSwitches() {
+    extPOIs.forEach(poi => {
+      if (poi.control) poi.control.remove();
+    });  
+  }
   extPOIs.forEach(poi => {
     if (!poi.layer) {
       poi.layer = createClusterLayer(poi, { disableClusteringAtZoom: 16, maxClusterRadius: 80 })      ;
@@ -2724,20 +2796,10 @@
           'div',
           'leaflet-bar extern-poi-control'
         );
-        const htmlIcon = L.divIcon({
-                              html: circleSVG,
-                            });
-        container.innerHTML = `
-          <label class="extern-poi-switch">
-            <span class="extern-poi-label">${poi.labelicon.options.html}</span>
-            <span class="extern-poi-label">${poi.description}</span>
-            <span class="extern-poi-label poi-icon-load" id="${poi.description}-load-icon" style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}</span>
-            <input type="checkbox" id="extern-poi-toggle">
-            <span class="extern-poi-slider ${poi.mapicon.options.className}"></span>
-          </label>`;
-          if (poi.color) {
-            container.style.setProperty('--poi-color', poi.color);
-          }
+        container.innerHTML = createPOISwitchInnerHtml(poi);
+        if (poi.color) {
+          container.style.setProperty('--poi-color', poi.color);
+        }
 
         /*
         * Verhindert, dass Klicks auf den Switch gleichzeitig
@@ -2746,10 +2808,11 @@
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
 
-        const checkbox = container.querySelector('#extern-poi-toggle');
+        const checkbox = container.querySelector('#extern-poi-toggle-switch');
         checkbox.addEventListener('change', () => {
           poi.visible = checkbox.checked;
-
+          const otherCB = poi.chipControl.querySelector('#extern-poi-toggle-chip');
+          if (otherCB) otherCB.checked = poi.visible;
           if (poi.visible && (map.getZoom() < poi.zoomLimit)) {
             showToast('Zoomen um ' + poi.description + ' anzuzeigen');
           }
@@ -2764,32 +2827,34 @@
           }
           // saveAppStateDebounced();
         });
+        poi.switchContainer = container;
         return container;
     };
-    poi.control.addTo(map);     
+    // poi.control.addTo(map);     
 
 
 
     const chip = document.createElement('div');
     poi.chipControl = chip;
-    chip.className = 'poi-chip extern-poi-label';
+    chip.className = 'extern-poi-control';
+    chip.innerHTML = createPOIChipInnerHtml(poi);
 
-    const htmlIcon = L.divIcon({
-                          html: circleSVG,
-                        });
-    chip.innerHTML = `${poi.labelicon.options.html}<span>${poi.description}</span>
-                    <span class="extern-poi-label poi-icon-load" 
-                          id="${poi.description}-load-icon" 
-                          style="display: ${poi.loadingActive ? 'inline' : 'none'}">${htmlIcon.options.html}
-                    </span>`;
+    if (poi.color) {
+      chip.style.setProperty('--poi-color', poi.color);
+    }
 
-    // chip.innerHTML = `<span>${poi.description}</span>`;
-    chip.classList.toggle('active', poi.visible);
-    chip.addEventListener('click', () => {
-      poi.visible = !poi.visible;
+    const checkbox = chip.querySelector('#extern-poi-toggle-chip');
+    checkbox.addEventListener('change', () => {
+      poi.visible = checkbox.checked;
+
+      const otherCB = poi.switchContainer.querySelector('#extern-poi-toggle-switch');
+      if (otherCB) otherCB.checked = poi.visible;
+
+      if (poi.visible && (map.getZoom() < poi.zoomLimit)) {
+        showToast('Zoomen um ' + poi.description + ' anzuzeigen');
+      }
+
       if (poi.visible) {
-        poi.loadingActive = true;
-        chip.classList.toggle('loadingActive', poi.visible);
         poi.layer.addTo(map);
         loadExternPOI(poi);
       } else {
@@ -2797,11 +2862,11 @@
         map.removeLayer(poi.layer);
         poi.loadingActive = false;
       }
+      // saveAppStateDebounced();
     });
     toolbar.appendChild(poi.chipControl);    
   });
-
-
+  
   //#endregion
 
 

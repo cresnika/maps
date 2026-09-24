@@ -73,68 +73,7 @@ body {
   }
 
 
-  /* ---------- ext. POI ---------- */
-  .poi-toolbar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 10px;
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0 10px;
-    z-index: 2000;
-    scrollbar-width: none;
-    padding-bottom: 15px;
 
-
-    overflow-x: auto;
-    overflow-y: hidden;
-    touch-action: pan-x;
-  }
-
-  .poi-toolbar::-webkit-scrollbar {
-      display: none;
-  }
-
-
-  .poi-chip {
-      /* flex: 0 0 auto; */
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: var(--bg-poi-switch);
-      border: 1px solid var(--text-dim);
-      color: var(--text);
-      box-shadow: 0 2px 8px rgba(0,0,0,.15);
-      cursor: pointer;
-      user-select: none;
-  }
-
-  .poi-chip.active {
-      background: var(--poi-color, #4caf50);
-      color: var(--text);
-      border-color: var(--poi-color, #4caf50);
-  }
-
-  .poi-chip svg {
-      width: 16px;
-      height: 16px;
-  }
-
-  .poi-chip-loading {
-      display: none;
-      width: 12px;
-      height: 12px;
-  }
-
-  .poi-chip.loading .poi-chip-loading {
-      display: inline-block;
-      animation: spin 1s linear infinite;
-  }
 
   /* ---------- POI Cluster ---------- */
   .poi-cluster {
@@ -316,6 +255,9 @@ body {
 
     #map { width: 100%; }
 
+    .poi-toolbar {
+      left:150px;  
+    }
     /* Move Leaflet's own zoom control out from under the hamburger button */
     .leaflet-top.leaflet-left { margin-top: 64px; }
   }
@@ -1329,9 +1271,22 @@ body {
   }
 
   .extern-poi-control {
-    background: transparent;
+    background: transparent; 
     border: none;
     box-shadow: none;
+
+
+    /* display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--bg-poi-switch);
+    border: 1px solid var(--text-dim);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    cursor: pointer;
+    user-select: none; */
   }
 
   .extern-poi-label {
@@ -1347,10 +1302,6 @@ body {
     --icon-outline: var(--text);
     margin-left: 3px;
     margin-bottom: 3px;
-  }
-  
-  #extern-poi-loading-icon.hidden {
-    display: none;
   }
   
   .extern-poi-popup-label svg {
@@ -1400,6 +1351,7 @@ body {
     padding: 7px 9px;
     background: var(--bg-poi-switch);
     border-radius: 60px;
+    border: 1px solid var(--text-dim);
     cursor: pointer;
     font-size: 12px;
     font-weight: 600;
@@ -1437,7 +1389,7 @@ body {
   }
 
   .extern-poi-switch input:checked + .extern-poi-slider::after {
-    transform: translateX(16px);
+    transform: translateX(14px);
   }
 
   .extern-poi-marker {
@@ -1458,6 +1410,40 @@ body {
     color:#252525;
   }
 
+  /* ---------- ext. POI ---------- */
+  .poi-toolbar {
+    position: absolute;
+    left: 50px;
+    right: 65px;
+    /* bottom: 10px; */
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    /* padding: 0 10px; */
+    z-index: 2000;
+    scrollbar-width: none;
+    padding-bottom: 15px;
+
+
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x;
+  }
+
+  @media (max-width: 820px) {
+    .poi-toolbar {
+      left:65px;  
+    }
+  }
+
+
+
+  .poi-toolbar::-webkit-scrollbar {
+      display: none;
+  }  
+  
   /* ---------- Map ---------- */
   #map {
     flex: 1;
