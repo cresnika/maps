@@ -682,11 +682,26 @@
   };
   let actualStyle = null;
 
-  L.control.layers(baseLayers, null, {
+  const layerControl = L.control.layers(baseLayers, null, {
       collapsed: true,
-      position: 'topright',
+      position: 'bottomleft'
   }).addTo(map);
-  
+
+  layerControl.getContainer().style.zIndex = '2001';  
+
+  // const styleSelectContainer = layerControl.getContainer();
+  // styleSelectContainer.style.zIndex = '100000';
+  // L.DomEvent.disableClickPropagation(styleSelectContainer);
+
+  // styleSelectContainer.addEventListener('click', (e) => {
+  //     e.stopPropagation();
+
+  //     if (styleSelectContainer.classList.contains('leaflet-control-layers-expanded')) {
+  //         styleSelectContainer.classList.remove('leaflet-control-layers-expanded');
+  //     } else {
+  //         styleSelectContainer.classList.add('leaflet-control-layers-expanded');
+  //     }
+  // });
 
   TerrainStyle.addTo(map);
 
@@ -2792,7 +2807,7 @@
   }
   extPOIs.forEach(poi => {
     if (!poi.layer) {
-      poi.layer = createClusterLayer(poi, { disableClusteringAtZoom: 16, maxClusterRadius: 80 })      ;
+      poi.layer = createClusterLayer(poi, { disableClusteringAtZoom: 16, maxClusterRadius: 80 });
     }
     
     if (!poi.control) {

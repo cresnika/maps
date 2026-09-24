@@ -262,17 +262,6 @@ body {
     .leaflet-top.leaflet-left { margin-top: 64px; }
   }
 
-.leaflet-top.leaflet-right .leaflet-control-layers {
-    position: relative;
-    /* margin-top: 50px; */
-}
-
-.leaflet-control-layers-expanded {
-    position: absolute;
-    top: 40px;
-    margin-top: 50px;
-}
-
   #hamburger-btn.hidden { display: none !important; }
 
   #sidebar-header .eyebrow {
@@ -1425,7 +1414,7 @@ body {
   .poi-toolbar {
     position: absolute;
     left: 50px;
-    right: 65px;
+    right: 10px;
     /* bottom: 10px; */
     margin-top: 10px;
     display: flex;
@@ -1436,7 +1425,6 @@ body {
     z-index: 2000;
     scrollbar-width: none;
     padding-bottom: 15px;
-
 
     overflow-x: auto;
     overflow-y: hidden;
