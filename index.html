@@ -3118,15 +3118,54 @@
         const item = document.createElement('div');
         item.className = 'search-result-item';
         item.textContent = `${poi.name} (${poi.poi_group})`;
-        item.addEventListener('click', async () => {
-          const raw = L.latLng(poi.lat, poi.lng);
-          addWaypoint(
-            await snapToRoadIfZoomedOut(raw),
-            poi.name
-          );
+
+        item.addEventListener('click', () => {
+          const pos = L.latLng(poi.lat, poi.lng);
+          const marker = L.marker(pos).addTo(map);
+
+          marker.bindPopup(`
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <strong>${poi.name}</strong>
+              <button id="search-poi-start">Als Startpunkt</button>
+              <button id="search-poi-via">Als Via-Punkt</button>
+              <button id="search-poi-end">Als Zielpunkt</button>
+            </div>
+          `);
+
+          marker.openPopup();
+          marker.on('popupopen', () => {
+            document.getElementById('search-poi-start')?.addEventListener('click', () => {
+              // insertWaypointAtRole(pos, 'start', poi.name);
+              map.removeLayer(marker);
+            });
+            document.getElementById('search-poi-via')?.addEventListener('click', () => {
+              // insertWaypointAtRole(pos, 'via', poi.name);
+              map.removeLayer(marker);
+            });
+            document.getElementById('search-poi-end')?.addEventListener('click', () => {
+              // insertWaypointAtRole(pos, 'end', poi.name);
+              map.removeLayer(marker);
+            });
+          });
+
+          map.flyTo(pos, Math.max(map.getZoom(), 14));
           searchResultsEl.innerHTML = '';
           waypointSearchInput.value = '';
         });
+
+
+        // item.addEventListener('click', async () => {
+        //   const raw = L.latLng(poi.lat, poi.lng);
+        //   addWaypoint(
+        //     await snapToRoadIfZoomedOut(raw),
+        //     poi.name
+        //   );
+        //   searchResultsEl.innerHTML = '';
+        //   waypointSearchInput.value = '';
+        // });
+
+
+
         searchResultsEl.appendChild(item);
       });
       // return;
