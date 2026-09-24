@@ -1539,13 +1539,11 @@
         row.classList.add('dblclick');
         map.setView([wp.lat, wp.lng], map.getZoom());
       });
-
       row.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', wp.id);
         row.classList.add('dragging');
       });
-
       row.addEventListener('dragover', (e) => {
         e.preventDefault();
         const rect = row.getBoundingClientRect();
@@ -1558,18 +1556,15 @@
         else
           row.classList.add('drag-over-bottom');
       });
-
       row.addEventListener('dragend', (e) => {
         row.classList.remove('dragging');
       })
-
       row.addEventListener('dragleave', () => {
         row.classList.remove(
           'drag-over-top',
           'drag-over-bottom'
         );
       });
-
 	    row.addEventListener('drop', (e) => {
         e.preventDefault();
         const rect = row.getBoundingClientRect();
@@ -1626,6 +1621,13 @@
       row.appendChild(idx);
 
       const info = document.createElement('div');
+
+      const label = document.createElement('div');
+      label.className = 'waypoint-label';
+      label.textContent = wp.label;
+      label.title = wp.label;
+      info.appendChild(label);
+
       info.className = 'waypoint-info';
       const tagText = wp.tagText || waypointTag(wp, i);
       const tag = document.createElement('div');
@@ -1633,11 +1635,6 @@
       tag.textContent = tagText;
       info.appendChild(tag);
 
-      const label = document.createElement('div');
-      label.className = 'waypoint-label';
-      label.textContent = wp.label;
-      label.title = wp.label;
-      info.appendChild(label);
       row.appendChild(info);
 
       const actions = document.createElement('div');
@@ -1901,7 +1898,7 @@
     authState.settings = settings || emptySettings;
 
     addPoiToolbar();    // ext POI Switches oben zum durchscrollen
-//    addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
+    // addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
 
     if (authState.admin) {
       document.getElementById('btn-user-invite').classList.remove('hidden');
@@ -2011,6 +2008,11 @@
       emaillabel.textContent = 'eMail: ' + authState.email;
       emaillabel.classList.toggle('hidden', !authState.loggedIn);
     }
+
+    const input = document.querySelector('.auth-email');
+    if (input) 
+      input.focus();
+
   }
 
   function createAuthModal() {
@@ -2078,6 +2080,9 @@
     authModalEl.querySelectorAll('.auth-error').forEach(el => el.textContent = '');
     authModalEl.querySelectorAll('.auth-success').forEach(el => el.textContent = '');
     authModalEl.style.display = 'flex';
+    const input = authModalEl.querySelector('auth-email');
+    if (input) 
+      input.focus();
 
     const infolabel = authModalEl.querySelector('.auth-change-password-info');
     if (infolabel) {
@@ -2811,8 +2816,10 @@
         const checkbox = container.querySelector('#extern-poi-toggle-switch');
         checkbox.addEventListener('change', () => {
           poi.visible = checkbox.checked;
-          const otherCB = poi.chipControl.querySelector('#extern-poi-toggle-chip');
-          if (otherCB) otherCB.checked = poi.visible;
+          if (poi.chipControl) {
+            const otherCB = poi.chipControl.querySelector('#extern-poi-toggle-chip');
+            if (otherCB) otherCB.checked = poi.visible;
+          }
           if (poi.visible && (map.getZoom() < poi.zoomLimit)) {
             showToast('Zoomen um ' + poi.description + ' anzuzeigen');
           }
@@ -2847,9 +2854,10 @@
     checkbox.addEventListener('change', () => {
       poi.visible = checkbox.checked;
 
-      const otherCB = poi.switchContainer.querySelector('#extern-poi-toggle-switch');
-      if (otherCB) otherCB.checked = poi.visible;
-
+      if (poi.switchContainer) {
+        const otherCB = poi.switchContainer.querySelector('#extern-poi-toggle-switch');
+        if (otherCB) otherCB.checked = poi.visible;
+      }
       if (poi.visible && (map.getZoom() < poi.zoomLimit)) {
         showToast('Zoomen um ' + poi.description + ' anzuzeigen');
       }
@@ -3087,7 +3095,74 @@
 
   let searchRequestId = 0;
 
-  async function runSearch(){
+  async function runSearch() {
+    const q = waypointSearchInput.value.trim();
+    if (!q) return;
+    const requestId = ++searchRequestId;
+    searchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
+    const qLower = q.toLowerCase();
+    const poiResults = [
+      ...pois,
+      ...sharedPois
+    ].filter(poi =>
+      poi.name.toLowerCase().includes(qLower) ||
+      poi.poi_group.toLowerCase().includes(qLower)
+    );
+
+    if (requestId !== searchRequestId) return;
+    searchResultsEl.innerHTML = '';
+
+    // Zuerst eigene POIs anzeigen
+    if (poiResults.length) {
+      poiResults.forEach(poi => {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        item.textContent = `${poi.name} (${poi.poi_group})`;
+        item.addEventListener('click', async () => {
+          const raw = L.latLng(poi.lat, poi.lng);
+          addWaypoint(
+            await snapToRoadIfZoomedOut(raw),
+            poi.name
+          );
+          searchResultsEl.innerHTML = '';
+          waypointSearchInput.value = '';
+        });
+        searchResultsEl.appendChild(item);
+      });
+      // return;
+    }
+
+    // Danach Online-Suche
+    const results = await searchPlace(q);
+    if (requestId !== searchRequestId) return;
+    // searchResultsEl.innerHTML = '';
+    if ((!results.length) && (!poiResults)) {
+      searchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
+      return;
+    }
+
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+      item.textContent = r.display_name;
+
+      item.addEventListener('click', async () => {
+        const raw = L.latLng(
+          parseFloat(r.lat),
+          parseFloat(r.lon)
+        );
+        addWaypoint(
+          await snapToRoadIfZoomedOut(raw),
+          shortLabel(r.display_name)
+        );
+        searchResultsEl.innerHTML = '';
+        waypointSearchInput.value = '';
+      });
+      searchResultsEl.appendChild(item);
+    });
+  }
+
+  async function runSearch_old(){
     const q = waypointSearchInput.value.trim();
     if (!q) return;
     const requestId = ++searchRequestId;
