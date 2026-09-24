@@ -1156,6 +1156,7 @@
   const btnSearchWaypoint = document.getElementById('btn-search-waypoint');
   const searchResultsEl = document.getElementById('search-results');
   const btnClearWaypoints = document.getElementById('btn-clear-waypoints');
+  const btnReversWaypoints = document.getElementById('btn-reverse-waypoints');
   
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
@@ -4066,8 +4067,20 @@
     routeResultEl.className = '';
     renderWaypointList();
   }
-  btnClearWaypoints.addEventListener('click', () => { clearWaypoints(); saveAppState() });
-  
+  function reverseWaypoints() {
+    waypoints.reverse();
+
+    refreshWaypointIcons();
+    renderWaypointList();
+    calculateRoute();
+  }
+  btnClearWaypoints.addEventListener('click', async () => { 
+    const ok = await confirmDialog('Möchtest du die aktuelle Planung wirklich löschen?');
+    if (!ok) return;
+    clearWaypoints(); 
+    saveAppState() 
+  });
+  btnReversWaypoints.addEventListener('click', () => { reverseWaypoints(); saveAppState() });
   function formatRouteDuration(seconds){
     const totalMin = Math.round(seconds / 60);
     const h = Math.floor(totalMin / 60);
