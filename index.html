@@ -499,6 +499,7 @@
 
   // ============================================================
   // ---------- Tab switching ----------
+  //#region Tab stuff
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -512,6 +513,7 @@
       setTimeout(() => map.invalidateSize(), 50);
     });
   });
+  //#endregion
 
 
   // ============================================================
@@ -3156,31 +3158,40 @@
         item.addEventListener('click', () => {
           const pos = L.latLng(poi.lat, poi.lng);
           const marker = L.marker(pos).addTo(map);
+          marker.isSearchMarker = true;
 
-          marker.bindPopup(`
-            <div style="display:flex; flex-direction:column; gap:6px;">
-              <strong>${poi.name}</strong>
-              <button id="search-poi-start">Als Startpunkt</button>
-              <button id="search-poi-via">Als Via-Punkt</button>
-              <button id="search-poi-end">Als Zielpunkt</button>
-            </div>
-          `);
+          // marker.bindPopup(`
+          //   <div style="display:flex; flex-direction:column; gap:6px;">
+          //     <strong>${poi.name}</strong>
+          //     <button id="search-poi-start">Als Startpunkt</button>
+          //     <button id="search-poi-via">Als Via-Punkt</button>
+          //     <button id="search-poi-end">Als Zielpunkt</button>
+          //   </div>
+          // `);
 
-          marker.openPopup();
-          marker.on('popupopen', () => {
-            document.getElementById('search-poi-start')?.addEventListener('click', () => {
-              // insertWaypointAtRole(pos, 'start', poi.name);
-              map.removeLayer(marker);
-            });
-            document.getElementById('search-poi-via')?.addEventListener('click', () => {
-              // insertWaypointAtRole(pos, 'via', poi.name);
-              map.removeLayer(marker);
-            });
-            document.getElementById('search-poi-end')?.addEventListener('click', () => {
-              // insertWaypointAtRole(pos, 'end', poi.name);
-              map.removeLayer(marker);
-            });
-          });
+        // const items = [
+        //   { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'start', name) },
+        //   { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'via', name) },
+        //   { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'end', name) },
+        //   { label: 'Als POI speichern', action: () => openPoiModal(marker.getLatLng()) }
+        // ];
+        // showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
+
+          // marker.openPopup();
+          // marker.on('popupopen', () => {
+          //   document.getElementById('search-poi-start')?.addEventListener('click', async () => {
+          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'start', name);
+          //     map.removeLayer(marker);
+          //   });
+          //   document.getElementById('search-poi-via')?.addEventListener('click', async () => {
+          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'via', name)
+          //     map.removeLayer(marker);
+          //   });
+          //   document.getElementById('search-poi-end')?.addEventListener('click',async  () => {
+          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'end', name)
+          //     map.removeLayer(marker);
+          //   });
+          // });
 
           map.flyTo(pos, Math.max(map.getZoom(), 14));
           searchResultsEl.innerHTML = '';
@@ -4202,6 +4213,41 @@
     });
   }
 
+  // let hoverTimer;
+  // const latlngs = calculatedRouteLayer.getLatLngs();
+  // function distanceAlongRoute(target) {
+  //     let total = 0;
+  //     let bestDistance = Infinity;
+  //     let distanceToBestPoint = 0;
+  //     for (let i = 1; i < latlngs.length; i++) {
+  //         const a = latlngs[i - 1];
+  //         const b = latlngs[i];
+  //         const segLen = a.distanceTo(b);
+  //         const dist = L.GeometryUtil.distanceSegment(map, target, a, b );
+  //         if (dist < bestDistance) {
+  //             bestDistance = dist;
+  //             distanceToBestPoint = total;
+  //         }
+  //         total += segLen;
+  //     }
+  //     return distanceToBestPoint / 1000;
+  // }
+
+  // let kmTooltip;
+
+  // function showRouteDistance(latlng) {
+  //     const km = distanceAlongRoute(latlng);
+  //     if (!kmTooltip) {
+  //         kmTooltip = L.tooltip({
+  //             permanent: false,
+  //             direction: 'top'
+  //         });
+  //     }
+  //     kmTooltip.setLatLng(latlng).setContent(`${km.toFixed(1)} km`);
+  //     kmTooltip.addTo(map);
+  // }
+
+
   async function calculateRoute(options){
     const fitView = !options || options.fitView !== false;
 
@@ -4230,13 +4276,7 @@
       bike: 'cycling-regular',
       driving: 'driving-car'
     };
-
     const profile = profileMap[document.getElementById('planning-route-profile').value] || 'driving-car';
-
-    /*
-    * Globale Vermeidungen.
-    * Diese gelten für die komplette Berechnung.
-    */
     const avoidFeatures = [];
     if (document.getElementById('avoid-tollways').checked) {
       avoidFeatures.push('tollways');
@@ -4247,7 +4287,6 @@
 
     /*
     * Wegpunkte anhand ihrer Routing-Optionen gruppieren.
-    *
     * Gleiche Optionen:
     *   A -> B -> C
     *
@@ -4279,7 +4318,6 @@
 
       /*
       * Alle Wegpunkte der Gruppe werden in EINER ORS-Anfrage übergeben.
-      *
       * Beispiel:
       * A -> B -> C
       * wird:
@@ -4291,7 +4329,6 @@
       */
       const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
       const body = { coordinates: coordinates, preference: group.preference };
-
       /* Globale Vermeidungen übernehmen. */
       const groupAvoidFeatures = [...avoidFeatures];
 
@@ -4304,19 +4341,15 @@
       /* Doppelte Werte verhindern. */
       const uniqueAvoidFeatures = [...new Set(groupAvoidFeatures)];
       if (uniqueAvoidFeatures.length) {
-        body.options = {
-          avoid_features: uniqueAvoidFeatures
-        };
+        body.options = { avoid_features: uniqueAvoidFeatures };
       }
 
       try {
-        // const url = CLOUDFLARE_API_BASE + `route?profile=${encodeURIComponent(profile)}`;
         const resp = await apiFetch(`route?profile=${encodeURIComponent(profile)}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-
             /*
             * Wichtig:
             * Dieser Fetch gehört zu genau dieser Berechnung.
@@ -4332,25 +4365,16 @@
         * gestartet worden sein.
         */
         if (signal.aborted) { return; }
-
         const data = await resp.json();
         /*
         * Auch nach dem JSON-Parsing noch einmal prüfen.
         */
         if (signal.aborted) { return; }
-
         if (!resp.ok || !data.features || !data.features[0] ){
           const msg =
             (
-              data.error &&
-              (
-                data.error.message ||
-                (
-                  typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
-                )
-              )
-            ) ||
-            ('HTTP ' + resp.status);
+              data.error && ( data.error.message || ( typeof data.error === 'string' ? data.error : JSON.stringify(data.error) ) )
+            ) || ('HTTP ' + resp.status);
 
           /*
           * Falls zwischenzeitlich eine neue Berechnung
@@ -4392,6 +4416,8 @@
 
         /* Geometrie anhängen. */
         allCoords = allCoords.concat(groupCoords);
+
+        const routeDistances = [0];
 
         /*
         * Entfernung und Dauer der kompletten Gruppe
@@ -4438,6 +4464,9 @@
     */
     if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
 
+    const routeDistances = [0];
+    for (let i = 1; i < allCoords.length; i++) { routeDistances[i] = routeDistances[i - 1] + allCoords[i - 1].distanceTo(allCoords[i]); }    
+
     calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
                                                     weight: 5,
                                                     opacity: 0.85,
@@ -4448,6 +4477,47 @@
     if (fitView && allCoords.length) {
       map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
     }
+
+    function showRouteInfo(latlng) {
+        let bestIndex = -1;
+        let bestDistance = Infinity;
+        for (let i = 0; i < allCoords.length; i++) {
+            const d = latlng.distanceTo(allCoords[i]);
+            if (d < bestDistance) { bestDistance = d; bestIndex = i; }
+        }
+        const km = routeDistances[bestIndex] / 1000;
+        if (!hoverTooltip) {
+            hoverTooltip = L.tooltip({
+                permanent: false,
+                direction: 'top'
+            });
+        }
+        hoverTooltip
+            .setLatLng(allCoords[bestIndex])
+            // .setContent(`${km.toFixed(1)} km`)
+            .setContent(`${km.toFixed(0)} km gefahren<br>${(totalDistance/1000 - km).toFixed(0)} km verbleibend`)
+            .addTo(map);
+    }
+
+    let hoverTimer;
+    let hoverTooltip;
+
+    calculatedRouteLayer.on('mousemove', (e) => {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => { showRouteInfo(e.latlng); }, 300);
+    });
+
+
+
+    // calculatedRouteLayer.on('mouseover', () => {
+    //   map.dragging.disable();
+    // });
+
+    calculatedRouteLayer.on('mouseout', () => {
+        clearTimeout(hoverTimer);
+        if (hoverTooltip) { map.removeLayer(hoverTooltip); hoverTooltip = null; }
+    });
+
 
     /*
     * ------------------------------------------------------------
