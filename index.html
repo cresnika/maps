@@ -1431,8 +1431,7 @@
       saveAppStateDebounced();
     });
     marker.on('click', (e) => {
-      if (e.originalEvent && e.originalEvent.shiftKey
-      ){
+      if (e.originalEvent && e.originalEvent.shiftKey){
         e.originalEvent.stopPropagation();
         removeWaypoint(wp.id);
       }
@@ -3158,6 +3157,8 @@
         item.addEventListener('click', () => {
           const pos = L.latLng(poi.lat, poi.lng);
           const marker = L.marker(pos).addTo(map);
+          marker.bindPopup(() => buildPoiPopupContent(poi, marker));
+
           //marker.isSearchMarker = true;
 
           // marker.bindPopup(`
@@ -3235,10 +3236,18 @@
           parseFloat(r.lat),
           parseFloat(r.lon)
         );
-        addWaypoint(
-          await snapToRoadIfZoomedOut(raw),
-          shortLabel(r.display_name)
-        );
+
+        // const pos = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+        const pos = L.latLng(raw);
+        const marker = L.marker(pos).addTo(map);
+        marker.searchRes = r;
+        marker.bindPopup(() => buildPoiPopupContent(null, marker));
+        map.flyTo(pos, Math.max(map.getZoom(), 14));
+
+        // addWaypoint(
+        //   await snapToRoadIfZoomedOut(raw),
+        //   shortLabel(r.display_name)
+        // );
         searchResultsEl.innerHTML = '';
         waypointSearchInput.value = '';
       });
@@ -3293,7 +3302,7 @@
 
 
   // ============================================================
-  // POIs (Tab "POI") -- persisted via IndexedDB (see dbGet/dbSet above)
+  // POIs (Tab "POI")
   // ============================================================
   //#region POI
   const poiLayer = L.layerGroup().addTo(map);
@@ -3352,19 +3361,25 @@
     return dist <= (threshold || 30);
   }
 
-  function buildPoiPopupContent(poi){
+  function buildPoiPopupContent(poi, marker) {
     const container = document.createElement('div');
     container.className = 'poi-popup';
 
     const title = document.createElement('strong');
-    title.textContent = poi.name;
+    if (poi)
+      title.textContent = poi.name;
+    else
+    if (marker.searchRes.display_name)
+      title.textContent = marker.searchRes.display_name;
     container.appendChild(title);
 
-    const groupEl = document.createElement('div');
-    groupEl.className = 'poi-popup-group';
-    groupEl.textContent = poi.poi_group;
-    container.appendChild(groupEl);
-
+    if (poi) {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'poi-popup-group';
+      groupEl.textContent = poi.poi_group;
+      container.appendChild(groupEl);
+    }
+    
     const btnRow = document.createElement('div');
     btnRow.className = 'poi-popup-actions';
     [['Start', 'start'], ['Via', 'via'], ['Ziel', 'end']].forEach(([lbl, role]) => {
@@ -3372,8 +3387,27 @@
       b.className = 'poi-popup-btn';
       b.textContent = lbl;
       b.addEventListener('click', () => {
-        insertWaypointAtRole(L.latLng(poi.lat, poi.lng), role, poi.name);
-        poi.marker.closePopup();
+        if (poi) {
+          insertWaypointAtRole(L.latLng(poi.lat, poi.lng), role, poi.name);
+          poi.marker.closePopup();
+          if (marker) {
+            marker.closePopup();
+            marker.remove();
+          }
+        }
+        else{
+          if (marker) {
+            insertWaypointAtRole(
+                L.latLng(
+                    parseFloat(marker.searchRes.lat), 
+                    parseFloat(marker.searchRes.lon)), 
+                    role, 
+                    marker.searchRes.display_name);
+            marker.closePopup();
+            marker.remove();
+          }
+        }
+        // wenn nur poi marker aus suchfunktion, dann poi auf karte löschen
       });
       btnRow.appendChild(b);
     });
@@ -3385,7 +3419,11 @@
     searchBtn.className = 'poi-popup-btn poi-popup-btn-wide';
     searchBtn.innerHTML = '🔍 In Google suchen';
     searchBtn.addEventListener('click', () => {
-      window.open('https://www.google.com/search?q=' + encodeURIComponent(poi.name), '_blank', 'noopener');
+      if (poi) 
+        window.open('https://www.google.com/search?q=' + encodeURIComponent(poi.name), '_blank', 'noopener');
+      else
+      if (marker.searchRes)
+        window.open('https://www.google.com/search?q=' + encodeURIComponent(marker.searchRes.display_name), '_blank', 'noopener');
     });
     searchRow.appendChild(searchBtn);
     container.appendChild(searchRow);
