@@ -713,7 +713,7 @@ body {
   .shortcut-hint {
     margin: 0;
     padding: 0 20px 0px;
-    font-size: 16px;
+    font-size: 14px;
     color: var(--text-faint);
     line-height: 1.4;
   }
@@ -736,6 +736,28 @@ body {
     border-radius: 5px;
   }
   .search-row input:focus { outline: none; border-color: var(--accent); }
+
+  .planning-info-row {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    padding: 0px 5px 3px;
+    border-radius: 6px;
+    /* cursor: pointer; */
+    justify-content: center;
+    background: var(--bg-row-header);
+
+  }
+  .planning-info-row.hidden{
+    display: none;
+    border-bottom: none;
+    border: none;
+  }
+
+  .planner-header.hidden {
+    display: none;
+  }
 
   #search-results {
     max-height: 180px;

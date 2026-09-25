@@ -97,15 +97,20 @@
     </div>
 
     <div id="panel-planning" class="tab-panel active">
-      <div class="btn-row">
-        <button class="btn primary" id="btn-toggle-pick">📍 Punkt auf Karte setzen</button>
+      <div id="planner-header" class="planner-header">
+        <div class="btn-row">
+          <button class="btn primary" id="btn-toggle-pick">📍 Punkt auf Karte setzen</button>
+        </div>
+        <p class="shortcut-hint">Strg+Klick   -> setzt einen Wegpunkt<br>Shift+Klick   -> löscht den Wegpunkt</p>
       </div>
-      <p class="shortcut-hint">Strg+Klick   -> setzt einen Wegpunkt<br>Shift+Klick   -> löscht den Wegpunkt</p>
       <div class="search-row">
         <input type="text" id="waypoint-search" placeholder="Ort suchen…">
         <button class="btn small" id="btn-search-waypoint">Suchen</button>
       </div>
       <div id="search-results"></div>
+      <div id="planning-info-row" class="planning-info-row">
+        <label></label>
+      </div>
       <div id="waypoint-list">
         <div class="empty-state">
           <div>Noch keine Wegpunkte.<br>Auf die Karte klicken (Button oben)<br>oder einen Ort suchen.</div>
@@ -1166,20 +1171,24 @@
   const mapEl = document.getElementById('map');
   const btnTogglePick = document.getElementById('btn-toggle-pick');
   const waypointListEl = document.getElementById('waypoint-list');
+  const planningInfoEl = document.getElementById('planning-info-row');
   const waypointSearchInput = document.getElementById('waypoint-search');
   const btnSearchWaypoint = document.getElementById('btn-search-waypoint');
   const searchResultsEl = document.getElementById('search-results');
   const btnClearWaypoints = document.getElementById('btn-clear-waypoints');
   const btnReversWaypoints = document.getElementById('btn-reverse-waypoints');
-  
+  const plannerHeader = document.getElementById('planner-header');
+
   const planningLayer = L.layerGroup().addTo(map);
   const routePreviewLayer = L.layerGroup().addTo(map);
   const waypoints = []; // { id, lat, lng, label, marker }
+  let planningRouteInfo = {};
   let routeID = -1;
   let pickingMode = false;
   let calculatedRouteLayer = null;
   let routeCalculationController = null;
 
+  plannerHeader.classList.add('hidden');
   document.getElementById('avoid-tollways').addEventListener('change', () => {
           maybeAutoRecalculateRoute();
           saveAppStateDebounced();
@@ -1527,6 +1536,23 @@
     }, 3000);
   }
 
+  function refreshPlanningInfo() {
+    if (planningRouteInfo && planningRouteInfo.id && (planningRouteInfo.id != -1)) {
+      planningInfoEl.classList.remove('hidden');
+
+      const pInfo = planningInfoEl.querySelector('label');
+      if (pInfo) {
+        const route = (planningRouteInfo.route_group === DEFAULT_ROUTE_GROUP) ? '' : `${planningRouteInfo.route_group}/`;
+        if (authState.admin)
+          pInfo.textContent = `${route}${planningRouteInfo.name} - (id: ${planningRouteInfo.id})`;
+        else
+          pInfo.textContent = `${route}${planningRouteInfo.name}`;
+      }
+    } else {
+      planningInfoEl.classList.add('hidden');
+    }
+  }
+
   function renderWaypointList(){
     if (waypoints.length > 1) {
       document.getElementById('btn-calc-route').disabled = false;
@@ -1547,6 +1573,9 @@
       waypointListEl.appendChild(empty);
       return;
     }
+
+    refreshPlanningInfo();
+
     waypoints.forEach((wp, i) => {
       const row = document.createElement('div');
       row.className = 'waypoint-row';
@@ -2208,33 +2237,7 @@
     try {
       view.querySelector('.auth-error').textContent = '';
       const data = await authRequest('set-initial-password', { token, email, password, username });
-/*
-      const data = await authRequest('login', { login, password });
-      // const resp = await data.json();
-      const resp = data;
-      if (resp) {
-        if (resp.success) {
-          unlockApp(data.email, data.username, data.admin);
-          view.querySelector('.auth-error').textContent = '';
-          view.querySelector('.auth-password').value = '';
-          setAppAuthVisibility();
-          hideAuthModal();
-        } else {
-          if (resp.error)
-            view.querySelector('.auth-error').textContent = resp.error;
-          else
-            view.querySelector('.auth-error').textContent = 'Fehler';
-        }
-      }
 
-
-    } catch (err) {
-      showViewError(view, 'submitLogin: '+err.message);
-      lockApp();
-    }
-        view.querySelector('.auth-error').textContent = resp.error;
-
-*/
       if (data.success) {
         authState.loggedIn = true;
         authState.email = data.email;
@@ -2913,9 +2916,16 @@
       avoidHighways: wp.avoidHighways,           
     }));
   }
+  function serializePlannerInfo() {
+    return { 
+              name: planningRouteInfo.name || '',
+              route_group: planningRouteInfo.route_group || '',
+              id: planningRouteInfo.id || -1
+            }
+  }
   function restoreWaypoints(data) {
-    if (Array.isArray(data)) {
-      data.forEach(wp => {
+    if (Array.isArray(data.waypoints)) {
+      data.waypoints.forEach(wp => {
         const restored = createWaypoint(L.latLng(wp.lat, wp.lng), wp.label);
         if (wp.id !== undefined) restored.id = wp.id;
         restored.segmentPreference = wp.segmentPreference; 
@@ -2923,6 +2933,11 @@
         waypoints.push(restored);
       });
 
+      if (data.plannerInfo) {
+        planningRouteInfo.id = data.plannerInfo.id || -1;
+        planningRouteInfo.name = data.plannerInfo.name || '';
+        planningRouteInfo.route_group = data.plannerInfo.route_group || '';
+      }
       refreshWaypointIcons();
       renderWaypointList();
       maybeAutoRecalculateRoute();
@@ -3063,6 +3078,7 @@
       externPoiSwitches: serializeExternPoiSwitch(),
       ownPOIs: serializeOwnPoiVisibility(), 
       waypoints: serializeWaypoints(),
+      plannerInfo: serializePlannerInfo(),
       globalOptions: serializeGlobalSettings(),
     };
 
@@ -3085,7 +3101,7 @@
     if (authState.settings) {
       if (authState.settings.mapview) restoreMapView(authState.settings.mapview);
       if (authState.settings.globalOptions) restoreGlobalSettings(authState.settings.globalOptions);
-      if (authState.settings.waypoints) restoreWaypoints(authState.settings.waypoints);
+      if (authState.settings.waypoints) restoreWaypoints(authState.settings);
       if (authState.settings.externPoiSwitches) restoreExternalPoiSwitches(authState.settings.externPoiSwitches);
     }
   }  
@@ -4072,6 +4088,7 @@
   const VIEWER_STORE_NAME = 'tracks';
   const SETTINGS_STORE_NAME = 'settings';
   const POI_STORE_NAME  = 'pois';
+  const DEFAULT_ROUTE_GROUP = 'ohne Gruppe';
 
   function clearWaypoints() {
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
@@ -4079,6 +4096,8 @@
     if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
     routeResultEl.textContent = '';
     routeResultEl.className = '';
+    planningRouteInfo = {};
+    planningInfoEl.classList.add('hidden');
     renderWaypointList();
   }
   function reverseWaypoints() {
@@ -4964,8 +4983,8 @@
           finalGroup = 'geteilte Tracks/';
       }
 
-      const parts = (finalGroup || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 0) parts.push('Ohne Gruppe');
+      const parts = (finalGroup || DEFAULT_ROUTE_GROUP).split('/').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) parts.push(DEFAULT_ROUTE_GROUP);
       let node = root;
       let pathSoFar = '';
       parts.forEach(part => {
@@ -5838,6 +5857,7 @@
   function clearPlannerState(){
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
     waypoints.length = 0;
+    planningRouteInfo = {};
     routeID = -1;
     if (calculatedRouteLayer){ planningLayer.removeLayer(calculatedRouteLayer); calculatedRouteLayer = null; }
     routeResultEl.textContent = '';
@@ -5981,10 +6001,10 @@
     }
   }
 
-  async function saveCurrentAsRoute(name, route_group, routeID){
+  async function saveCurrentAsRoute(name, route_group, routeIDtoSave){
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
-    let id = routeID || -1;
+    let id = routeIDtoSave || -1;
     const dbRoute = {
       id, name, route_group,
       waypoints: wpSnapshot,
@@ -5995,13 +6015,16 @@
       summaryText: routeResultEl.className === 'success' ? routeResultEl.textContent : ''
     };
     id = await saveRouteToStorage(dbRoute);
-
+    planningRouteInfo.name = name;
+    planningRouteInfo.route_group = route_group;
+    planningRouteInfo.id = id;
+    refreshPlanningInfo();
     dbRoute.id = id;
-    if (id != routeID) {
+    if (id != routeIDtoSave) {
       routes.push(dbRoute);
     } else 
     {
-      const index = routes.findIndex(r => r.id === routeID);
+      const index = routes.findIndex(r => r.id === routeIDtoSave);
       if (index >= 0) {
           routes[index] = dbRoute;
       } else {
@@ -6069,8 +6092,8 @@
 
   function loadRouteIntoPlanner(route){
     routePreviewLayer.clearLayers();
-    routeID = route.id;
     clearPlannerState();
+    planningRouteInfo = {id: route.id, name: route.name, route_group: route.route_group};
     route.waypoints.forEach(wpData => {
       const wp = createWaypoint(L.latLng(wpData.lat, wpData.lng), wpData.label);
       wp.segmentPreference = wpData.segmentPreference || 'recommended';
@@ -6198,8 +6221,8 @@
           finalGroup = 'geteilte Routen/';
       }
 
-      const parts = (finalGroup || 'Ohne Gruppe').split('/').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 0) parts.push('Ohne Gruppe');
+      const parts = (finalGroup || DEFAULT_ROUTE_GROUP).split('/').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) parts.push(DEFAULT_ROUTE_GROUP);
       let node = root;
       let pathSoFar = '';
       parts.forEach(part => {
@@ -6564,8 +6587,14 @@
   // -- Save-route modal wiring --
   document.getElementById('btn-save-route').addEventListener('click', () => {
     if (waypoints.length < 2){ alert('Bitte zuerst mindestens Start und Ziel setzen.'); return; }
-    document.getElementById('route-name-input').value = '';
-    document.getElementById('route-group-input').value = '';
+    if (planningRouteInfo.name && planningRouteInfo.name !== '')
+      document.getElementById('route-name-input').value = planningRouteInfo.name;
+    else
+      document.getElementById('route-name-input').value = '';
+    if (planningRouteInfo.route_group && planningRouteInfo.route_group !== '')
+      document.getElementById('route-group-input').value = `${planningRouteInfo.route_group}`;
+    else
+      document.getElementById('route-group-input').value = '';
     const dl = document.getElementById('route-group-options');
     dl.innerHTML = '';
     [...new Set(routes.map(r => r.route_group))].forEach(g => {
@@ -6584,7 +6613,7 @@
   });
   document.getElementById('route-modal-save').addEventListener('click', async () => {
       const name = document.getElementById('route-name-input').value.trim() || 'Unbenannte Route';
-      const group = document.getElementById('route-group-input').value.trim() || 'Ohne Gruppe';
+      const group = document.getElementById('route-group-input').value.trim() || DEFAULT_ROUTE_GROUP;
       const id = await routeNameExists(name, group);
       if (id != -1) {
           const overwrite = await confirmDialog(`Die Route "${name}" existiert in der Gruppe "${group}" bereits.\n\nSoll sie überschrieben werden?`);
