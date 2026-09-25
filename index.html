@@ -6684,7 +6684,7 @@
     const id = -1;
     const wpSnapshot = waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng, label: wp.label, segmentPreference: wp.segmentPreference || 'recommended', avoidHighways: !!wp.avoidHighways }));
     const coordsSnapshot = calculatedRouteLayer ? calculatedRouteLayer.getLatLngs().map(ll => [ll.lat, ll.lng]) : null;
-    const name = 'ExportedRoute';
+    const name = planningRouteInfo.name || 'ExportedRoute';
 //    const group = 'ExportGroup';
     const route = {
       id, name,
