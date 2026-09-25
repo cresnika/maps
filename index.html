@@ -4165,7 +4165,15 @@
   function updateWaypointTooltips(segments) {
     let cumulativeDistance = 0;
     let cumulativeDuration = 0;
+    let totalDistance = 0;
 
+    waypoints.forEach((wp, index) => {
+        if (index > 0) {
+          const segment = segments[index - 1];
+          if (!segment) return;
+          totalDistance += segment.distance || 0;
+        }
+    });
     waypoints.forEach((wp, index) => {
       wp.marker.unbindPopup();
 
@@ -4187,6 +4195,7 @@
         if (index === (waypoints.length-1)) {
           labelprefix = 'Ziel - ';
         }
+        // let rest = (totalDistance-cumulativeDistance)/1000.toFixed(0);
         content =  `<div class="waypoint-tooltip">
                       <strong>${index}: <span>${labelprefix}</span><span class="wp-label">${wp.label}</span></strong>
                       <hr>
@@ -4195,6 +4204,8 @@
                       <hr>
                       ${formatDistance(segment.distance || 0)} · ${formatRouteDuration(segment.duration || 0)}
                       <small>   seit letztem Punkt</small>
+                      <hr>
+                      ${((totalDistance-cumulativeDistance)/1000).toFixed(0)} km - verbleibend
                     </div>`;
       }
       wp.marker.bindPopup(content, { direction: 'top', sticky: true });
