@@ -3874,14 +3874,16 @@
       const isShared = hasSharedPois(child);
         
       if (!poiGroupsInitialized) {
-        if (child.items.length > 0) 
-        {
-          collapsedPoiGroups.add(child.path);
-        } 
-        else 
-        {
-          collapsedPoiGroups.delete(child.path);
-        }
+        collapsedPoiGroups.add(child.path);
+        
+        // if (child.items.length > 0) 
+        // {
+        //   collapsedPoiGroups.add(child.path);
+        // } 
+        // else 
+        // {
+        //   collapsedPoiGroups.delete(child.path);
+        // }
       }
       const collapsed = collapsedPoiGroups.has(child.path);
 
@@ -5377,11 +5379,16 @@
     return all;
   }
 
+  let TrackGroupsInitialized = false;
+
   function renderTrackGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllTracksInNode(child);
-      const collapsed = collapsedTracksGroups.has(child.path);
       const isShared  = hasSharedTracks(child)
+      if (!TrackGroupsInitialized) {
+        collapsedTracksGroups.add(child.path);
+      }
+      const collapsed = collapsedTracksGroups.has(child.path);
       
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
@@ -5409,7 +5416,7 @@
       header.appendChild(groupCb);
 
       const spacer = document.createElement('span');
-      spacer.style.width = '15px';
+      spacer.style.width = '0px';
       header.appendChild(spacer);
 
       const nameEl = document.createElement('span');
@@ -5530,6 +5537,7 @@
     const sharedRoot = buildTrackGroupTree(sharedTracks);
     renderTrackGroupNode(sharedRoot, trackListEl);
     trackListEl.scrollTop = scrollPos;
+    TrackGroupsInitialized = true;
   }
 
   let gapThreshold = 1000; // meters -- points further apart than this are drawn dashed
@@ -6060,6 +6068,7 @@
   const sharedRoutes = [];
   const collapsedRouteGroups = new Set();
   const routesListEl = document.getElementById('routes-list');
+  let RouteGroupsInitialized = false;
 
   function clearRoutes() {
     routes.length = 0;
@@ -6395,10 +6404,11 @@
 
     if (!route.isShared) {
       row.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/x-route-id', route.id);
-      row.classList.add('dragging');
-    });
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-route-id', route.id);
+        row.classList.add('dragging');
+      });
+
       row.addEventListener('dragend', () => row.classList.remove('dragging'));
 
       const handle = document.createElement('span');
@@ -6517,8 +6527,12 @@
   function renderRouteGroupNode(node, container){
     node.children.forEach(child => {
       const descendants = collectAllRoutesInNode(child);
-      const collapsed = collapsedRouteGroups.has(child.path);
       const isShared = hasSharedRoutes(child)
+
+      if (!RouteGroupsInitialized) {
+        collapsedRouteGroups.add(child.path);
+      }
+      const collapsed = collapsedRouteGroups.has(child.path);
       
       const groupEl = document.createElement('div');
       groupEl.className = 'group';
@@ -6533,7 +6547,7 @@
       header.appendChild(twist);
 
       const spacer = document.createElement('span');
-      spacer.style.width = '15px';
+      spacer.style.width = '0px';
       header.appendChild(spacer);
 
       const nameEl = document.createElement('span');
@@ -6650,6 +6664,7 @@
     const sharedRoot = buildRouteGroupTree(sharedRoutes);
     renderRouteGroupNode(sharedRoot, routesListEl);
     routesListEl.scrollTop = scrollPos;
+    RouteGroupsInitialized = true;
   }
 
   // Generic inline-rename helper (same behaviour as startInlineRename,

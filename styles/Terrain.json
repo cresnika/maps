@@ -562,7 +562,7 @@
         "visibility": "visible"
       },
       "paint": {
-        "line-color": "rgba(228, 173, 8, 1)",
+        "line-color": "rgba(245, 216, 100, 1)",
         "line-offset": 0,
         "line-width": {"base": 3, "stops": [[8, 2], [16, 20]]}
       }
