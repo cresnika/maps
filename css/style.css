@@ -1281,6 +1281,7 @@ body {
     font-size: 11px;
     color: var(--text-faint);
     font-family: var(--font-mono);
+    display: none;
   }
 
     /* ---------- MAP extern POI ---------- */
