@@ -1405,26 +1405,13 @@
   }
 
   async function askWaypointPosition(currentIndex, maxIndex) {
-      const value = prompt(
-          `Neue Position eingeben (0=Start bis ${maxIndex}=Ziel):`,
-          currentIndex
-      );
-
-      if (value === null) {
-          return null;
-      }
-
+      const value = prompt(`Neue Position eingeben (0=Start bis ${maxIndex}=Ziel):`, currentIndex);
+      if (value === null) { return null; }
       const newIndex = parseInt(value, 10);
-
-      if (
-          Number.isNaN(newIndex) ||
-          newIndex < 0 ||
-          newIndex > maxIndex
-      ) {
-          showToast('Ungültige Position');
-          return null;
+      if (Number.isNaN(newIndex) || newIndex < 0 || newIndex > maxIndex ) {
+        showToast('Ungültige Position');
+        return null;
       }
-
       return newIndex;
   }  
   
@@ -1517,12 +1504,14 @@
     });
     /*
     * Nur für frei gesetzte Punkte Reverse Geocoding starten.
-    *
     * Bekannte POIs behalten ihren vorhandenen Namen.
     */
     if (!wp.labelIsKnown) {
       reverseGeocodeWaypoint(wp);
     }
+
+    wp.marker.unbindPopup();
+    wp.marker.bindPopup('Route berechnen lassen um mehr Infos zu erhalten', { offset: [0, -20], direction: 'top', sticky: true });
     return wp;
   }
 
@@ -4243,7 +4232,6 @@
   }
   function reverseWaypoints() {
     waypoints.reverse();
-
     refreshWaypointIcons();
     renderWaypointList();
     calculateRoute();
@@ -4296,7 +4284,7 @@
     let cumulativeDistance = 0;
     let cumulativeDuration = 0;
     let totalDistance = 0;
-
+console.log('Refresh waypoint info');
     waypoints.forEach((wp, index) => {
         if (index > 0) {
           const segment = segments[index - 1];
@@ -4338,7 +4326,7 @@
                       ${((totalDistance-cumulativeDistance)/1000).toFixed(0)} km - verbleibend
                     </div>`;
       }
-      wp.marker.bindPopup(content, { direction: 'top', sticky: true });
+      wp.marker.bindPopup(content, { offset: [0, -20], direction: 'top', sticky: true });
 
       if ((index > 0) && (index < waypoints.length-1)) {
         waypoints.forEach((wpitem, i) => {
