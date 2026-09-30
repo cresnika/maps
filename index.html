@@ -5786,21 +5786,6 @@ console.log('Refresh waypoint info');
   function openGpxExportMenu(event, provider, route){
     if (event) event.stopPropagation();
 
-    // const result = provider();
-    // if (!result || !result.xml) 
-    // { 
-    //   alert('Keine Daten in der Route zum Exportieren vorhanden.'); 
-    //   return; 
-    // }
-    // const {xml, filename} = result;
-    // const items = [
-    //   { label: '💾 Als GPX-Datei speichern', action: () => downloadGpxString(xml, filename) },
-    //   { label: '📤 BMW CRN speichern', action: () => downloadGpxString(crnresult.xml, crnresult.filename) },
-    //   { label: '📤 Teilen…', action: () => shareGpxString(xml, filename) },
-    //   { label: '✉️ Per E-Mail', action: () => emailGpxString(xml, filename) }
-    // ];
-    // showCustomContextMenu(event.clientX, event.clientY, items);
-
     var items = new Array;
 
     const CRNresult = buildRouteCRNGpxXml(route);
@@ -5811,6 +5796,14 @@ console.log('Refresh waypoint info');
       items.push({ label: 'BMW Connected Ride Navigator', action: () => downloadGpxString(CRNresult.xml, CRNresult.filename) });
     }
 
+    const tomtomResult = buildRouteTomTomGpxXml(route);
+    if (tomtomResult && tomtomResult.xml)
+    {
+      const tomtomXml = tomtomResult.xml;
+      const tomtomFilename = tomtomResult.filename;
+      items.push({ label: 'TomTom Rider Navi', action: () => downloadGpxString(tomtomXml, tomtomFilename) });
+    }
+
     const Rresult = buildRouteGpxXml(route);
     if (Rresult && Rresult.xml)
     {
@@ -5818,7 +5811,7 @@ console.log('Refresh waypoint info');
       const Rfilename = Rresult.filename;
       items.push({ label: 'Als GPX-Datei speichern', action: () => downloadGpxString(Rxml, Rfilename) });
       // items.push({ label: 'Teilen…', action: () => shareGpxString(Rxml, Rfilename) });
-      items.push({ label: 'Per E-Mail', action: () => emailGpxString(Rxml, Rfilename)});
+      // items.push({ label: 'Per E-Mail', action: () => emailGpxString(Rxml, Rfilename)});
     }
 
     if (items.length === 0)
@@ -6324,6 +6317,41 @@ console.log('Refresh waypoint info');
     return { xml, filename };
   }
 
+  function buildRouteTomTomGpxXml(route){
+    const nameEsc = escapeXml(route.name);
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<gpx version="1.1" creator="Alex\'s Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n';
+
+    // route.waypoints.forEach((wp, i) => {
+    //   const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+    //   xml += `  <wpt lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><name>${label}</name></wpt>\n`;
+    // });
+
+    xml += '  <rte>\n';
+    xml += `    <name>${nameEsc}</name>\n`;
+    route.waypoints.forEach((wp, i) => {
+      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+      xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><name>${label}</name></rtept>\n`;
+    });
+    xml += '  </rte>\n';
+
+    // if (route.routeCoords && route.routeCoords.length > 1){
+    //   xml += '  <trk>\n';
+    //   xml += `    <name>${nameEsc}</name>\n`;
+    //   xml += '    <trkseg>\n';
+    //   route.routeCoords.forEach(c => {
+    //     xml += `      <trkpt lat="${c[0].toFixed(6)}" lon="${c[1].toFixed(6)}"></trkpt>\n`;
+    //   });
+    //   xml += '    </trkseg>\n';
+    //   xml += '  </trk>\n';
+    // }
+
+    xml += '</gpx>\n';
+
+    const filename = (route.name.replace(/[^\w\-äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_') || 'route') + '.gpx';
+    return { xml, filename };
+  }
+
   function buildRouteCRNGpxXml(route){
     const nameEsc = escapeXml(route.name);
     let xml = "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>\n";
@@ -6344,6 +6372,17 @@ console.log('Refresh waypoint info');
     const distEsc = escapeXml(route.totalDistance.toFixed(0));
     const timeEsc = escapeXml(route.totalDuration.toFixed(0));
     const optim = profile === 'recommended' ? "fastest" : '';
+
+
+    /* Add extension infos */
+    // Wegpunkte als wpt hinzufügen, ansonsten bietet die App beim Import an ob man die Punkte als Wegpunkte oder Stutzpunkte laden möchte. 
+    // Immer als Wegpunkte gewünscht, da ansonsten komplett anders berechnet werden kann !!!
+    route.waypoints.forEach((wp, i) => {
+      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+      xml += `  <wpt lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><name>${label}</name></wpt>\n`;
+    });
+
+
     xml += '  <rte>\n';
     xml += `    <name>${nameEsc}</name>\n`;
     /* Add extension infos */
@@ -6355,10 +6394,10 @@ console.log('Refresh waypoint info');
     xml += '        </cnrd:PlannedRouteExtension>\n';
     xml += '      </extensions>\n';
     /* Add waypoints */
-    route.waypoints.forEach((wp, i) => {
-      const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
-      xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><desc>${label}</desc></rtept>\n`;
-    });
+    // route.waypoints.forEach((wp, i) => {
+    //   const label = escapeXml(wp.label || ('Punkt ' + (i + 1)));
+    //   xml += `    <rtept lat="${wp.lat.toFixed(6)}" lon="${wp.lng.toFixed(6)}"><desc>${label}</desc></rtept>\n`;
+    // });
     xml += '  </rte>\n';
 
     // Track weglassen, wird sowieso neu vom CRN berechnet !
