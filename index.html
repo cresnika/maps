@@ -3025,6 +3025,20 @@
 
   }
 
+  function serializeCoords() {
+    return JSON.stringify(allCoords);
+  }
+  function restoreCoords(coords) {
+    allCoords = JSON.parse(coords);
+    if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
+    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
+                                                    weight: 5,
+                                                    opacity: 0.85,
+                                                    lineJoin: 'round'
+                                                  }
+                          ).addTo(planningLayer);
+    maybeAutoRecalculateRoute();
+  }
   function serializeGlobalSettings() {
     let activeTab = null;
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -3160,8 +3174,8 @@
       waypoints: serializeWaypoints(),
       plannerInfo: serializePlannerInfo(),
       globalOptions: serializeGlobalSettings(),
+      routeCoords: serializeCoords(),
     };
-
     localStorage.setItem('maps_appState', JSON.stringify(state));
 
     // try {
@@ -3181,8 +3195,9 @@
     if (authState.settings) {
       if (authState.settings.mapview) restoreMapView(authState.settings.mapview);
       if (authState.settings.globalOptions) restoreGlobalSettings(authState.settings.globalOptions);
-      if (authState.settings.waypoints) restoreWaypoints(authState.settings);
       if (authState.settings.externPoiSwitches) restoreExternalPoiSwitches(authState.settings.externPoiSwitches);
+      if (authState.settings.waypoints) restoreWaypoints(authState.settings);
+      if (authState.settings.routeCoords) restoreCoords(authState.settings.routeCoords);
     }
   }  
 
@@ -4213,12 +4228,21 @@
   //#region Route calculation
   const routeResultEl = document.getElementById('route-result');
   let appDbPromise = null;
+  let allCoords = [];
   const APP_DB_NAME = 'maps-planer-viewer';
   const APP_DB_VERSION = 2;
   const VIEWER_STORE_NAME = 'tracks';
   const SETTINGS_STORE_NAME = 'settings';
   const POI_STORE_NAME  = 'pois';
   const DEFAULT_ROUTE_GROUP = 'ohne Gruppe';
+
+  btnClearWaypoints.addEventListener('click', async () => { 
+    const ok = await confirmDialog('Möchtest du die aktuelle Planung wirklich löschen?');
+    if (!ok) return;
+    clearWaypoints(); 
+    saveAppState() 
+  });
+  btnReversWaypoints.addEventListener('click', () => { reverseWaypoints(); saveAppState() });
 
   function clearWaypoints() {
     waypoints.forEach(wp => planningLayer.removeLayer(wp.marker));
@@ -4236,13 +4260,6 @@
     renderWaypointList();
     calculateRoute();
   }
-  btnClearWaypoints.addEventListener('click', async () => { 
-    const ok = await confirmDialog('Möchtest du die aktuelle Planung wirklich löschen?');
-    if (!ok) return;
-    clearWaypoints(); 
-    saveAppState() 
-  });
-  btnReversWaypoints.addEventListener('click', () => { reverseWaypoints(); saveAppState() });
   function formatRouteDuration(seconds){
     const totalMin = Math.round(seconds / 60);
     const h = Math.floor(totalMin / 60);
@@ -4284,7 +4301,6 @@
     let cumulativeDistance = 0;
     let cumulativeDuration = 0;
     let totalDistance = 0;
-console.log('Refresh waypoint info');
     waypoints.forEach((wp, index) => {
         if (index > 0) {
           const segment = segments[index - 1];
@@ -4394,7 +4410,7 @@ console.log('Refresh waypoint info');
     */
     const groups = buildRouteGroups(waypoints);
 
-    let allCoords = [];
+    allCoords = [];
     let totalDistance = 0;
     let totalDuration = 0;
     let collectedSegments = [];   
@@ -4510,7 +4526,6 @@ console.log('Refresh waypoint info');
 
         /* Geometrie anhängen. */
         allCoords = allCoords.concat(groupCoords);
-
         const routeDistances = [0];
 
         /*
@@ -4599,24 +4614,11 @@ console.log('Refresh waypoint info');
         clearTimeout(hoverTimer);
         hoverTimer = setTimeout(() => { showRouteInfo(e.latlng); }, 300);
     });
-
-
-
-    // calculatedRouteLayer.on('mouseover', () => {
-    //   map.dragging.disable();
-    // });
-
     calculatedRouteLayer.on('mouseout', () => {
         clearTimeout(hoverTimer);
         if (hoverTooltip) { map.removeLayer(hoverTooltip); hoverTooltip = null; }
     });
 
-
-    /*
-    * ------------------------------------------------------------
-    * Ergebnis anzeigen
-    * ------------------------------------------------------------
-    */
     const distKm = (totalDistance / 1000).toFixed(1);
     routeResultEl.innerHTML = `<strong>${distKm} km</strong> · ${formatRouteDuration(totalDuration)}`;
     routeResultEl.totalDistance = totalDistance;
@@ -5015,9 +5017,6 @@ console.log('Refresh waypoint info');
       if (!entry.visible) map.removeLayer(gpxLayer);
     }
   }
-
-
-
 
   function recomputeDistance(entry){
     let totalMeters = 0;
