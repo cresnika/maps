@@ -2021,7 +2021,7 @@
     authState.settings = settings || emptySettings;
 
     addPoiToolbar();    // ext POI Switches oben zum durchscrollen
-    addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
+    // addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
 
     if (authState.admin) {
       document.getElementById('btn-user-invite').classList.remove('hidden');
@@ -3092,7 +3092,6 @@
     if (states && extPOIs) {
       extPOIs.forEach(poi => {
         const wasVisible = states[poi.description];
-console.log(poi.description + ' = ' + wasVisible);
         if (wasVisible === undefined) return;
 
         poi.visible = wasVisible;

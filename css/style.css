@@ -255,9 +255,6 @@ body {
 
     #map { width: 100%; }
 
-    .poi-toolbar {
-      left:150px;  
-    }
     /* Move Leaflet's own zoom control out from under the hamburger button */
     .leaflet-top.leaflet-left { margin-top: 64px; }
   }
@@ -1327,12 +1324,16 @@ body {
     margin-bottom: 3px;
   }
   
+  .extern-poi-popup-label {
+    color: var(--text);
+  }
+
   .extern-poi-popup-label svg {
     width: 20px;
     height: 20px;
     vertical-align: middle;
     color: var(--text);
-    --icon-outline: black;
+    --icon-outline: var(--text-faint);
   }
 
   .extern-poi-marker-fuels {
@@ -1430,7 +1431,7 @@ body {
     min-width: 140px;
     font-size: 14px;
     line-height: 1.5;
-    color:#252525;
+    color: var(--text-dim);
   }
 
   /* ---------- ext. POI ---------- */
@@ -1445,7 +1446,7 @@ body {
     overflow-x: auto;
     overflow-y: hidden;
     /* padding: 0 10px; */
-    z-index: 2000;
+    z-index: 1050;
     scrollbar-width: none;
     padding-bottom: 15px;
 
@@ -1739,16 +1740,14 @@ body {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 820) {
     .poi-panel {
         top: auto;
         right: 0;
         left: 0;
         bottom: 0;
-
         width: auto;
         max-height: 50vh;
-
         border-radius: 16px 16px 0 0;
     }
 
