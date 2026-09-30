@@ -615,7 +615,7 @@
       maxZoom: 20,
       preferCanvas: true
   }).setView([47.2, 9.6], 9);
-
+  const calculatedRouteStyle = { color: '#22a6ff', weight: 5, opacity: 0.8, lineJoin: 'round' };
   L.control.scale({
       position: 'bottomright',   // 'topleft', 'topright', 'bottomleft', 'bottomright'
       metric: true,               // km/m anzeigen
@@ -1962,17 +1962,14 @@
           startX = e.pageX;
           scrollLeft = toolbar.scrollLeft;
       });
-
       document.addEventListener('mousemove', () => {
           if (dragStarted) {
               dragMoved = true;
           }
       });
-
       document.addEventListener('mouseup', () => {
           dragStarted = false;
       });
-
       toolbar.addEventListener('click', (e) => {
           if (dragMoved) {
               e.preventDefault();
@@ -1980,7 +1977,6 @@
               return;
           }
       });
-      
       toolbar.addEventListener('mousemove', (e) => {
           if (!dragStarted) return;
 
@@ -2025,7 +2021,7 @@
     authState.settings = settings || emptySettings;
 
     addPoiToolbar();    // ext POI Switches oben zum durchscrollen
-    // addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
+    addPoiSwitches();   // ext POI Switches auf der Seite dargestellt
 
     if (authState.admin) {
       document.getElementById('btn-user-invite').classList.remove('hidden');
@@ -2938,9 +2934,6 @@
         poi.switchContainer = container;
         return container;
     };
-    // poi.control.addTo(map);     
-
-
 
     const chip = document.createElement('div');
     poi.chipControl = chip;
@@ -3031,14 +3024,10 @@
   function restoreCoords(coords) {
     allCoords = JSON.parse(coords);
     if (calculatedRouteLayer) { planningLayer.removeLayer(calculatedRouteLayer); }
-    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
-                                                    weight: 5,
-                                                    opacity: 0.85,
-                                                    lineJoin: 'round'
-                                                  }
-                          ).addTo(planningLayer);
+    calculatedRouteLayer = L.polyline(allCoords, calculatedRouteStyle).addTo(planningLayer);
     maybeAutoRecalculateRoute();
   }
+
   function serializeGlobalSettings() {
     let activeTab = null;
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -3103,13 +3092,23 @@
     if (states && extPOIs) {
       extPOIs.forEach(poi => {
         const wasVisible = states[poi.description];
+console.log(poi.description + ' = ' + wasVisible);
         if (wasVisible === undefined) return;
 
         poi.visible = wasVisible;
 
         const container = poi.control?.getContainer?.();
-        const checkbox = container?.querySelector('#extern-poi-toggle');
+        const checkbox = container?.querySelector('#extern-poi-toggle-switch');
         if (checkbox) checkbox.checked = wasVisible;
+
+          // if (poi.chipControl) {
+          //   const otherCB = poi.chipControl.querySelector('#extern-poi-toggle-chip');
+          //   if (otherCB) otherCB.checked = poi.visible;
+          // }
+
+        const chipCheckbox = poi.chipControl?.querySelector('#extern-poi-toggle-chip');
+        if (chipCheckbox) chipCheckbox.checked = wasVisible;
+
 
         if (poi.visible) {
           poi.layer.addTo(map);
@@ -4576,11 +4575,7 @@
     const routeDistances = [0];
     for (let i = 1; i < allCoords.length; i++) { routeDistances[i] = routeDistances[i - 1] + allCoords[i - 1].distanceTo(allCoords[i]); }    
 
-    calculatedRouteLayer = L.polyline(allCoords, {  color: '#22a6d8',
-                                                    weight: 5,
-                                                    opacity: 0.85,
-                                                    lineJoin: 'round'
-                                                  }
+    calculatedRouteLayer = L.polyline(allCoords, calculatedRouteStyle
                           ).addTo(planningLayer);
 
     if (fitView && allCoords.length) {
@@ -6270,7 +6265,7 @@
     document.getElementById('avoid-ferries').checked = !!route.avoidFerries;
 
     if (route.routeCoords && route.routeCoords.length > 1){
-      calculatedRouteLayer = L.polyline(route.routeCoords.map(c => L.latLng(c[0], c[1])), { color: '#22a6d8', weight: 5, opacity: 0.85, lineJoin: 'round' }).addTo(planningLayer);
+      calculatedRouteLayer = L.polyline(route.routeCoords.map(c => L.latLng(c[0], c[1])), calculatedRouteStyle).addTo(planningLayer);
       map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
     } else if (waypoints.length){
       const fg = L.featureGroup(waypoints.map(wp => wp.marker));
