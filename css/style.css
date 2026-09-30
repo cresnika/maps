@@ -1449,7 +1449,6 @@ body {
     z-index: 1050;
     scrollbar-width: none;
     padding-bottom: 15px;
-
     overflow-x: auto;
     overflow-y: hidden;
     touch-action: pan-x;
@@ -1460,8 +1459,6 @@ body {
       left:65px;  
     }
   }
-
-
 
   .poi-toolbar::-webkit-scrollbar {
       display: none;
