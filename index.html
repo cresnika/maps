@@ -309,16 +309,22 @@
     </div>
 </div>
 
+<div id="confirm-order-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+        <h4>Wegpunkt verschieben</h4>
+        <p id="confirm-order-text">An welcher Position soll dieser Wegpunkt liegen?</p>
+        <input id="waypoint-position" data-bwignore="true" placeholder="neue Position eingeben">
+        <div class="modal-buttons">
+            <button id="confirm-order-no" class="btn">Abbruch</button>
+            <button id="confirm-order-yes" class="btn primary">Verschieben</button>
+        </div>
+    </div>
+</div>
+
 <div id="share-route-backdrop" class="modal-backdrop">
   <div class="modal-box">
     <h3>Inhalt mit Benutzer teilen</h3>
     <div class="share-route-name"></div>
-    <!-- <label>Benutzer suchen</label>
-    <input
-      type="text"
-      id="share-user-filter"
-      placeholder="Benutzername eingeben">
-    <div id="share-user-list"></div> -->
     <label id="share-user-select">
         Benutzer auswählen
     </label>
@@ -458,8 +464,8 @@
   
 
   // ============================================================
-  // ---------- Toast und Confirm dialog ----------
-  //#region Toast/confirm 
+  // ---------- Toast und Dialoge ----------
+  //#region Dialoge und Toast 
   const toast = document.createElement('div');
   toast.className = 'toast';
   document.body.appendChild(toast);
@@ -476,6 +482,54 @@
       toast.classList.remove('show');
     }, duration);
   }
+
+  function ConfirmOrderDialog(wp, maxIndex) {
+      return new Promise(resolve => {
+          const backdrop = document.getElementById('confirm-order-backdrop');
+          const textElem = document.getElementById('confirm-order-text');
+          const userInput = document.getElementById('waypoint-position');
+          const btnYes = document.getElementById('confirm-order-yes');
+          const btnNo = document.getElementById('confirm-order-no');
+
+          textElem.innerHTML = `An welche Position soll #${wp.routeIndex} (${wp.label}) verschoben werden?<br><br>0 = Start und ${maxIndex} = Ziel`;
+          userInput.value = '';
+          backdrop.classList.add('active');
+          userInput.focus();
+          userInput.addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter') {
+              btnYes.click();
+            }
+            if (e.key === 'Escape') {
+              btnNo.click();
+            }
+          });
+          function close(result) {
+              backdrop.classList.remove('active');
+              btnYes.onclick = null;
+              btnNo.onclick = null;
+              resolve(result);
+          }
+          
+          btnNo.onclick = () => close(-1);
+          btnYes.onclick = () => {
+              const newIndex = userInput.value.trim();
+              if (!newIndex || (newIndex > maxIndex)) {
+                  showToast('Bitte eine gültige Position eingeben', 1000);
+                  return;
+              }
+              else {
+                close(newIndex);
+              }
+          };
+      });
+  }
+  async function moveWaypointOrder(wp, maxIndex) {
+    const newIndex = await ConfirmOrderDialog(wp, maxIndex);
+    if ((newIndex !== null) && (newIndex !== -1)) {
+      moveWaypointToIndex(wp, newIndex) ;
+    }
+  }
+  
 
   function confirmDialog(text) {
       return new Promise(resolve => {
@@ -1605,10 +1659,7 @@
         const items = [
           { 
             label: `Position des Wegpunktes ${wp.routeIndex} ändern`, action: async () => {
-              const newIndex = await askWaypointPosition(wp.routeIndex, waypoints.length - 1 );
-              if (newIndex !== null) {
-                moveWaypointToIndex(wp, newIndex) ;
-              }
+              await moveWaypointOrder(wp, waypoints.length - 1);
             } 
           },
         ];
@@ -1939,6 +1990,11 @@
       btnGroup.appendChild(b);
     });
 
+    const seperator = document.createElement('span');
+    seperator.className = 'segment-separator';
+    btnGroup.appendChild(seperator);
+
+    // alte Checkbox mit Label wurde durch Icon ersetzt
     // const avoidLabel = document.createElement('label');
     // avoidLabel.className = 'segment-avoid-highways';
     // avoidLabel.title = 'Autobahn auf diesem Abschnitt meiden';
@@ -1954,10 +2010,6 @@
     // avoidLabel.appendChild(avoidInput);
     // avoidLabel.appendChild(document.createTextNode('Autobahn meiden'));
     // btnGroup.appendChild(avoidLabel);
-
-    const seperator = document.createElement('span');
-    seperator.className = 'segment-separator';
-    btnGroup.appendChild(seperator);
 
     const b = document.createElement('button');
     b.className = 'segment-avoid-highways-btn';
