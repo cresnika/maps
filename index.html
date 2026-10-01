@@ -53,7 +53,6 @@
       </svg>
     </div>
 
-
     <div id="panel-viewer" class="tab-panel">
       <div class="btn-row">
         <button class="btn primary" id="btn-open-files">+ Dateien</button>
@@ -590,104 +589,103 @@
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
   const handle = document.getElementById('sidebar-sheet-handle');
+  // const COLLAPSED = () => sidebarEl.offsetHeight - 30
+  // const EXPANDED = 0;
   const tabBar = document.getElementById('tab-bar');
   const sideBarheader = document.getElementById('sidebar-header');
-
-  const COLLAPSED = () => sidebarEl.offsetHeight - 30
-  const EXPANDED = 0;
-
+  const planningInfo = document.getElementById('planning-info-row');
+  const routeOpt = document.getElementById('route-options');
+  
+  
   let dragging = false;
   let startY = 0;
   let startTranslate = 0;
-  
-  function getSnapPoints() {
-    const h = sidebarEl.offsetHeight;
-    return {EXPANDED: 0, MID: h * 0.4, COLLAPSED: h - 30 };
-  }
+  let startHeight = 0;
 
-  function setSheetPosition(pos) {
-      sidebarEl.style.transition = 'transform .2s ease';
-      sidebarEl.style.transform = `translateY(${pos}px)`;
-      const { EXPANDED } = getSnapPoints();
-      if (Math.abs(pos - EXPANDED) < 5) {
-          tabBar.style.display = '';
-          sideBarheader.style.display = '';
-     }
-      else {
-          tabBar.style.display = 'none';
-          sideBarheader.style.display = 'none';
-      }
-  }
-
-  requestAnimationFrame(() => {
-    if (window.innerWidth <= 820) {
-      const { COLLAPSED } = getSnapPoints();
-      setSheetPosition(COLLAPSED);
-    }
-  });
-
-
-  function getCurrentTranslateY() {
-    const style = window.getComputedStyle(sidebar);
-    const matrix = new DOMMatrix(style.transform);
-
-    return matrix.m42 || 0;
+    function setSheetState(state) {
+      sidebarEl.classList.remove('sheet-collapsed', 'sheet-mid', 'sheet-expanded');
+      sidebarEl.classList.add(`sheet-${state}`);
+      if (tabBar) { tabBar.style.display = state === 'expanded' ? '' : 'none'; }
+      if (sideBarheader) { sideBarheader.style.display = state === 'expanded' ? '' : 'none'; }
+      if (planningInfo) { planningInfo.style.display = state === 'expanded' ? '' : 'none'; }
+      if (routeOpt) { routeOpt.style.display = state === 'expanded' ? '' : 'none'; }
   }
 
   handle.addEventListener('pointerdown', (e) => {
-    dragging = true;
-    startY = e.clientY;
-    sidebarEl.style.transition = 'none';
-    const matrix = new DOMMatrix(getComputedStyle(sidebar).transform);
-    startTranslate = matrix.m42;
-    handle.setPointerCapture(e.pointerId);
+      dragging = true;
+      startY = e.clientY;
+      startHeight = sidebarEl.offsetHeight;
+      sidebarEl.style.transition = 'none';
+      handle.setPointerCapture(e.pointerId);
   });
 
   handle.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const { EXPANDED, COLLAPSED } = getSnapPoints();
-    const delta = e.clientY - startY;
-    let y = startTranslate + delta;
-    y = Math.max(EXPANDED, y);
-    y = Math.min(COLLAPSED, y);
-    sidebarEl.style.transform = `translateY(${y}px)`;
-  });  
+      if (!dragging) return;
+      const delta = startY - e.clientY;
+      const expandedHeight = window.innerHeight * 0.85;
+      const collapsedHeight = 26;
+      let newHeight = startHeight + delta;
+      newHeight = Math.max(collapsedHeight, newHeight);
+      newHeight = Math.min(expandedHeight, newHeight);
+      sidebarEl.style.height = `${newHeight}px`;
+  });
 
   handle.addEventListener('pointerup', () => {
-    if (!dragging) return;
-    dragging = false;
-    const { EXPANDED, MID, COLLAPSED } = getSnapPoints();
-    const current = new DOMMatrix(getComputedStyle(sidebarEl).transform).m42;
-    const targets = [EXPANDED, MID, COLLAPSED];
-    let nearest = targets[0];
-    for (const target of targets) {
-      if (
-        Math.abs(current - target) <
-        Math.abs(current - nearest)
-      ) {
-        nearest = target;
+      if (!dragging) return;
+      dragging = false;
+      sidebarEl.style.transition = 'height .2s ease';
+      const expandedHeight = window.innerHeight * 0.85;
+      const midHeight = window.innerHeight * 0.50;
+      const collapsedHeight = 26;
+      const currentHeight = sidebarEl.offsetHeight;
+      const snapPoints = [collapsedHeight, midHeight, expandedHeight ];
+
+      let nearest = snapPoints[0];
+      for (const snap of snapPoints) {
+          if (Math.abs(currentHeight - snap) < Math.abs(currentHeight - nearest)) {
+              nearest = snap;
+          }
       }
-    }
-    setSheetPosition(nearest);
-  });  
+
+      sidebarEl.style.height = `${nearest}px`;
+      sidebarEl.classList.remove('sheet-collapsed', 'sheet-mid', 'sheet-expanded' );
+      if (nearest === collapsedHeight) { 
+        setSheetState('collapsed'); 
+        // sidebarEl.classList.add('sheet-collapsed'); 
+      }
+      else if (nearest === midHeight) { 
+        setSheetState('mid'); 
+        // sidebarEl.classList.add('sheet-mid'); 
+      }
+      else { 
+        setSheetState('expanded'); 
+        // sidebarEl.classList.add('sheet-expanded'); 
+      }
+
+      const tabBar = document.getElementById('tab-bar');
+      if (tabBar) { tabBar.style.display = nearest === expandedHeight ? '' : 'none'; }
+  });
 
   function updateSidebarLayout() {
-    if (window.innerWidth > 820) {
-      sidebarEl.style.transform = '';
-      sidebarEl.style.transition = '';
-      tabBar.style.display = '';
-      sideBarheader.style.display = '';
-    }
-    else {
-      const matrix = new DOMMatrix(getComputedStyle(sidebarEl).transform);
-      if (matrix.m42 === 0) {
-        const { MID } = getSnapPoints();
-        setSheetPosition(MID);
+      if (window.innerWidth > 820) {
+          sidebarEl.style.height = '';
+          sidebarEl.style.transition = '';
+          sidebarEl.classList.remove('sheet-collapsed', 'sheet-mid', 'sheet-expanded' );
+          tabBar.style.display = '';
+          sideBarheader.style.display = '';
+          planningInfo.style.display = '';
       }
-    }
+      else {
+          if (!sidebarEl.classList.contains('sheet-collapsed') && !sidebarEl.classList.contains('sheet-mid') && !sidebarEl.classList.contains('sheet-expanded')) {
+              setSheetState('collapsed');
+          }
+      }
   }
+
   window.addEventListener('resize', updateSidebarLayout);
-  
+  setSheetState('collapsed');
+
+
   // function openSidebar(){
   //   sidebarEl.classList.add('open');
   //   backdropEl.classList.add('active');
@@ -4756,7 +4754,15 @@
                           ).addTo(planningLayer);
 
     if (fitView && allCoords.length) {
-      map.fitBounds(calculatedRouteLayer.getBounds(), { padding: [30, 30] });
+        const fitOptions = { padding: [30, 30] };
+        if (window.innerWidth <= 820) {
+            const visibleMapHeight = window.innerHeight - sidebarEl.offsetHeight;
+            const bottomPadding = Math.max(10, visibleMapHeight * 0.1);
+            fitOptions.paddingTopLeft = [30, 30];
+            fitOptions.paddingBottomRight = [30, sidebarEl.offsetHeight + bottomPadding];
+            delete fitOptions.padding;
+        }
+        map.fitBounds(calculatedRouteLayer.getBounds(), fitOptions);
     }
 
     function showRouteInfo(latlng) {
