@@ -602,7 +602,7 @@
   
   function getSnapPoints() {
     const h = sidebarEl.offsetHeight;
-    return {EXPANDED: 0, MID: h * 0.5, COLLAPSED: h - 30 };
+    return {EXPANDED: 0, MID: h * 0.4, COLLAPSED: h - 30 };
   }
 
   function setSheetPosition(pos) {
@@ -619,10 +619,6 @@
       }
   }
 
-  // function setSheetPosition(pos) {
-  //   sidebarEl.style.transition = 'transform .2s ease';
-  //   sidebarEl.style.transform = `translateY(${pos}px)`;
-  // }  
   requestAnimationFrame(() => {
     if (window.innerWidth <= 820) {
       const { COLLAPSED } = getSnapPoints();
@@ -755,7 +751,7 @@
 
   window.addEventListener('mousemove', (e) => {
     if (!isResizingSidebar) return;
-    const newWidth = Math.min(640, Math.max(260, e.clientX));
+    const newWidth = Math.min(1024, Math.max(260, e.clientX));
     sidebarEl.style.width = newWidth + 'px';
     if (map) map.invalidateSize();
   });
