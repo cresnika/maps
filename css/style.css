@@ -310,6 +310,10 @@ body {
     #hamburger-btn { display: none !important; }
     #sidebar-close-btn { display: none !important; }
 
+    .poi-toolbar {
+      left:65px;  
+    }
+
     .poi-panel {
         top: auto;
         right: 0;
@@ -1134,12 +1138,6 @@ body {
   }
   .modal-actions .btn { flex: none; padding: 8px 16px; }
 
-
-
-
-
-
-
   .loading-overlay {
       position: absolute;
       inset: 0;
@@ -1252,21 +1250,6 @@ body {
     color: var(--text-dim);
     cursor: pointer;
   }
-  .api-key-row {
-    display: flex;
-    gap: 6px;
-  }
-  .api-key-row input {
-    flex: 1;
-    background: var(--bg-sidebar-raised);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 7px 8px;
-    border-radius: 5px;
-  }
-  #api-key-hint { padding: 0; }
   #route-result {
     font-size: 13px;
     min-height: 1.2em;
@@ -1575,12 +1558,6 @@ body {
     touch-action: pan-x;
   }
 
-  @media (max-width: 820px) {
-    .poi-toolbar {
-      left:65px;  
-    }
-  }
-
   .poi-toolbar::-webkit-scrollbar {
       display: none;
   }  
@@ -1856,90 +1833,4 @@ body {
     75% {
         transform: translateY(0) scale(1);
     }
-}
-
-@media (max-width: 820) {
-  .poi-panel {
-      top: auto;
-      right: 0;
-      left: 0;
-      bottom: 0;
-      width: auto;
-      max-height: 50vh;
-      border-radius: 16px 16px 0 0;
-  }
-
-  #sidebar-sheet-handle {
-      display: block;
-      width: 56px;
-      height: 6px;
-      background: var(--text-dim);
-      border-radius: 999px;
-      margin: 10px auto;
-      opacity: .6;
-      flex-shrink: 0;
-  }
-
-  #sidebar-header {
-      padding-top: 4px;
-  }
-
-  #hamburger-btn {
-    display: none !important;
-  }
-
-  #sidebar-close-btn {
-    display: none !important;
-  }
-
-  #sidebar-backdrop {
-    display: none !important;
-  }
-
-  #sidebar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    width: auto;
-    min-width: 0;
-    max-width: none;
-    height: 75vh;
-    border-right: none;
-    border-top: 1px solid var(--border);
-    border-radius: 18px 18px 0 0;
-    z-index: 1100;
-    box-shadow: 0 -4px 24px rgba(0,0,0,.35);
-    transform: translateY(calc(100% - 42px));
-    transition: transform .25s ease;
-  }
-
-  #sidebar.open {
-    transform: translateY(0);
-  }
-
-  #sidebar-sheet-handle {
-    display: block;
-    width: 56px;
-    height: 6px;
-    background: var(--text-dim);
-    border-radius: 999px;
-    margin: 10px auto 6px auto;
-    opacity: .6;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  #sidebar-resizer {
-    display: none;
-  }
-
-  #map {
-    width: 100%;
-  }
-
-  .leaflet-top.leaflet-left {
-    margin-top: 0;
-  }
 }
