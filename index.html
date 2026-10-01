@@ -103,7 +103,7 @@
         </div>
         <p class="shortcut-hint">Strg+Klick   -> setzt einen Wegpunkt<br>Shift+Klick   -> löscht den Wegpunkt</p>
       </div>
-      <div class="search-row">
+      <div id="search-row" class="search-row">
         <input type="text" id="waypoint-search" placeholder="Ort suchen…">
         <button class="btn small" id="btn-search-waypoint">Suchen</button>
       </div>
@@ -589,26 +589,25 @@
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
   const handle = document.getElementById('sidebar-sheet-handle');
-  // const COLLAPSED = () => sidebarEl.offsetHeight - 30
-  // const EXPANDED = 0;
   const tabBar = document.getElementById('tab-bar');
   const sideBarheader = document.getElementById('sidebar-header');
   const planningInfo = document.getElementById('planning-info-row');
   const routeOpt = document.getElementById('route-options');
-  
+  const searchEl = document.getElementById('search-row');
   
   let dragging = false;
   let startY = 0;
   let startTranslate = 0;
   let startHeight = 0;
 
-    function setSheetState(state) {
+  function setSheetState(state) {
       sidebarEl.classList.remove('sheet-collapsed', 'sheet-mid', 'sheet-expanded');
       sidebarEl.classList.add(`sheet-${state}`);
       if (tabBar) { tabBar.style.display = state === 'expanded' ? '' : 'none'; }
       if (sideBarheader) { sideBarheader.style.display = state === 'expanded' ? '' : 'none'; }
       if (planningInfo) { planningInfo.style.display = state === 'expanded' ? '' : 'none'; }
       if (routeOpt) { routeOpt.style.display = state === 'expanded' ? '' : 'none'; }
+      if (searchEl) { searchEl.style.display = state === 'expanded' ? '' : 'none'; }   
   }
 
   handle.addEventListener('pointerdown', (e) => {
@@ -674,6 +673,8 @@
           tabBar.style.display = '';
           sideBarheader.style.display = '';
           planningInfo.style.display = '';
+          routeOpt.style.display = '';
+          searchEl.style.display = '';
       }
       else {
           if (!sidebarEl.classList.contains('sheet-collapsed') && !sidebarEl.classList.contains('sheet-mid') && !sidebarEl.classList.contains('sheet-expanded')) {
@@ -684,20 +685,6 @@
 
   window.addEventListener('resize', updateSidebarLayout);
   setSheetState('collapsed');
-
-
-  // function openSidebar(){
-  //   sidebarEl.classList.add('open');
-  //   backdropEl.classList.add('active');
-  //   hamburgerBtn.classList.add('hidden');
-  // }
-  // function closeSidebar(){
-  //   sidebarEl.classList.remove('open');
-  //   backdropEl.classList.remove('active');
-  //   hamburgerBtn.classList.remove('hidden');
-  // }
-  // hamburgerBtn.addEventListener('click', openSidebar);
-  // sidebarCloseBtn.addEventListener('click', closeSidebar);
   //#endregion
 
 
@@ -858,20 +845,6 @@
 
   layerControl.getContainer().style.zIndex = '2001';  
 
-  // const styleSelectContainer = layerControl.getContainer();
-  // styleSelectContainer.style.zIndex = '100000';
-  // L.DomEvent.disableClickPropagation(styleSelectContainer);
-
-  // styleSelectContainer.addEventListener('click', (e) => {
-  //     e.stopPropagation();
-
-  //     if (styleSelectContainer.classList.contains('leaflet-control-layers-expanded')) {
-  //         styleSelectContainer.classList.remove('leaflet-control-layers-expanded');
-  //     } else {
-  //         styleSelectContainer.classList.add('leaflet-control-layers-expanded');
-  //     }
-  // });
-
   TerrainStyle.addTo(map);
 
   map.on('baselayerchange', function (e) {
@@ -1007,18 +980,6 @@
       }
     ).addTo(planningLayer);
   });
-
-  // map.on('contextmenu', (e) => {
-  //   L.DomEvent.preventDefault(e.originalEvent);
-  //   const items = [
-  //     { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
-  //     { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
-  //     { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
-  //     { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
-  //   ];
-  //   showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
-  // });
-
   //#endregion
 
 
