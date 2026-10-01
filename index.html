@@ -684,7 +684,11 @@
   }
 
   window.addEventListener('resize', updateSidebarLayout);
-  setSheetState('collapsed');
+  if (window.innerWidth > 820) {
+    setSheetState('expanded');
+  } else {
+    setSheetState('collapsed');
+  }
   //#endregion
 
 
