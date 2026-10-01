@@ -512,8 +512,8 @@
           
           btnNo.onclick = () => close(-1);
           btnYes.onclick = () => {
-              const newIndex = userInput.value.trim();
-              if (!newIndex || (newIndex > maxIndex)) {
+              const newIndex = Number(userInput.value.trim());
+              if (!Number.isFinite(newIndex) || newIndex > maxIndex) {
                   showToast('Bitte eine gültige Position eingeben', 1000);
                   return;
               }
