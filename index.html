@@ -22,6 +22,7 @@
   <div id="sidebar-backdrop"></div>
 
   <aside id="sidebar">
+    <div id="sidebar-sheet-handle"></div>
 	  <div id="sidebar-header">
       <button id="sidebar-close-btn" aria-label="Menü schließen">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
@@ -38,7 +39,7 @@
       </button>
 	  </div>
 
-    <div class="tab-bar">
+    <div class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="planning">Planen</button>
       <button class="tab-btn" data-tab="saved-routes">Routen</button>
       <button class="tab-btn" data-tab="saved-pois">POI</button>
@@ -396,7 +397,17 @@
                     <path fill="currentColor" opacity=".4" d="M208 208C208 269.9 258.1 320 320 320C381.9 320 432 269.9 432 208C432 146.1 381.9 96 320 96C258.1 96 208 146.1 208 208zM240 208C240 163.8 275.8 128 320 128L320 160C293.5 160 272 181.5 272 208L240 208z"/>
                     <path fill="currentColor" d="M320 320C381.9 320 432 269.9 432 208C432 146.1 381.9 96 320 96C258.1 96 208 146.1 208 208C208 269.9 258.1 320 320 320zM464 208C464 282.1 408 343.2 336 351.1L336 576L304 576L304 351.1C232 343.2 176 282.1 176 208C176 128.5 240.5 64 320 64C399.5 64 464 128.5 464 208zM272 208L240 208C240 163.8 275.8 128 320 128L320 160C293.5 160 272 181.5 272 208z"/>
                   </svg>`;
-  function flagSvg(usedForMap) {
+  const highwaySVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+                        <path fill="currentColor" opacity=".25" d="M104.4 512L194.8 128L304 128L304 208L336 208L336 128L445.2 128L535.6 512L336 512L336 432L304 432L304 512L104.4 512zM304 272L304 368L336 368L336 272L304 272z"/>
+                        <path fill="currentColor" d="M104.4 512L304 512L304 432L336 432L336 512L535.6 512L445.2 128L336 128L336 208L304 208L304 128L194.8 128L104.4 512zM169.4 96L470.6 96L568.5 512L576 544L64 544L71.5 512L169.4 96zM336 288L336 368L304 368L304 272L336 272L336 288z"/>
+                      </svg>`;
+  const highwayLockedSVG = `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+                              <path fill="currentColor" opacity="0.25" d="M104.4,512h199.6v-80h32v-64h32c0-62.5,44.8-114.6,104.1-125.8l-26.9-114.2h-109.2v80h-32v-80h-109.2l-90.4,384ZM304,272h32v96h-32v-96Z"/>
+                              <path fill="currentColor" d="M104.4,512l90.4-384h109.2v80h32v-80h109.2l26.9,114.2c7.7-1.5,15.7-2.2,23.9-2.2,2.9,0,5.7.1,8.5.3l-33.9-144.3H169.4l-97.9,416-7.5,32h272v-112h-32v80H104.4Z"/>
+                              <polygon fill="currentColor" points="336 288 336 272 304 272 304 368 336 368 336 288"/>
+                              <path fill="#ff0000" d="M416,368v48h-32v192h224v-192h-32v-48c-.44-104.64-159.57-104.61-160,0ZM496,320c26.5,0,48,21.5,48,48v48h-96v-48c0-26.5,21.5-48,48-48ZM576,448v128h-160v-128h160Z"/>
+                            </svg>`;
+                      function flagSvg(usedForMap) {
     if (!usedForMap) {
       return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
                 <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
@@ -444,7 +455,6 @@
   }
  
   //#endregion
-  
   
 
   // ============================================================
@@ -527,19 +537,121 @@
   const backdropEl = document.getElementById('sidebar-backdrop');
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+  const handle = document.getElementById('sidebar-sheet-handle');
+  const tabBar = document.getElementById('tab-bar');
+  const sideBarheader = document.getElementById('sidebar-header');
+
+  const COLLAPSED = () => sidebarEl.offsetHeight - 30
+  const EXPANDED = 0;
+
+  let dragging = false;
+  let startY = 0;
+  let startTranslate = 0;
   
-  function openSidebar(){
-    sidebarEl.classList.add('open');
-    backdropEl.classList.add('active');
-    hamburgerBtn.classList.add('hidden');
+  function getSnapPoints() {
+    const h = sidebarEl.offsetHeight;
+    return {EXPANDED: 0, MID: h * 0.5, COLLAPSED: h - 30 };
   }
-  function closeSidebar(){
-    sidebarEl.classList.remove('open');
-    backdropEl.classList.remove('active');
-    hamburgerBtn.classList.remove('hidden');
+
+  function setSheetPosition(pos) {
+      sidebarEl.style.transition = 'transform .2s ease';
+      sidebarEl.style.transform = `translateY(${pos}px)`;
+      const { EXPANDED } = getSnapPoints();
+      if (Math.abs(pos - EXPANDED) < 5) {
+          tabBar.style.display = '';
+          sideBarheader.style.display = '';
+     }
+      else {
+          tabBar.style.display = 'none';
+          sideBarheader.style.display = 'none';
+      }
   }
-  hamburgerBtn.addEventListener('click', openSidebar);
-  sidebarCloseBtn.addEventListener('click', closeSidebar);
+
+  // function setSheetPosition(pos) {
+  //   sidebarEl.style.transition = 'transform .2s ease';
+  //   sidebarEl.style.transform = `translateY(${pos}px)`;
+  // }  
+  requestAnimationFrame(() => {
+    if (window.innerWidth <= 820) {
+      const { COLLAPSED } = getSnapPoints();
+      setSheetPosition(COLLAPSED);
+    }
+  });
+
+
+  function getCurrentTranslateY() {
+    const style = window.getComputedStyle(sidebar);
+    const matrix = new DOMMatrix(style.transform);
+
+    return matrix.m42 || 0;
+  }
+
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    startY = e.clientY;
+    sidebarEl.style.transition = 'none';
+    const matrix = new DOMMatrix(getComputedStyle(sidebar).transform);
+    startTranslate = matrix.m42;
+    handle.setPointerCapture(e.pointerId);
+  });
+
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const { EXPANDED, COLLAPSED } = getSnapPoints();
+    const delta = e.clientY - startY;
+    let y = startTranslate + delta;
+    y = Math.max(EXPANDED, y);
+    y = Math.min(COLLAPSED, y);
+    sidebarEl.style.transform = `translateY(${y}px)`;
+  });  
+
+  handle.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging = false;
+    const { EXPANDED, MID, COLLAPSED } = getSnapPoints();
+    const current = new DOMMatrix(getComputedStyle(sidebarEl).transform).m42;
+    const targets = [EXPANDED, MID, COLLAPSED];
+    let nearest = targets[0];
+    for (const target of targets) {
+      if (
+        Math.abs(current - target) <
+        Math.abs(current - nearest)
+      ) {
+        nearest = target;
+      }
+    }
+    setSheetPosition(nearest);
+  });  
+
+  function updateSidebarLayout() {
+    if (window.innerWidth > 820) {
+      sidebarEl.style.transform = '';
+      sidebarEl.style.transition = '';
+      tabBar.style.display = '';
+      sideBarheader.style.display = '';
+    }
+    else {
+      const matrix = new DOMMatrix(getComputedStyle(sidebarEl).transform);
+      if (matrix.m42 === 0) {
+        const { MID } = getSnapPoints();
+        setSheetPosition(MID);
+      }
+    }
+  }
+  window.addEventListener('resize', updateSidebarLayout);
+  
+  // function openSidebar(){
+  //   sidebarEl.classList.add('open');
+  //   backdropEl.classList.add('active');
+  //   hamburgerBtn.classList.add('hidden');
+  // }
+  // function closeSidebar(){
+  //   sidebarEl.classList.remove('open');
+  //   backdropEl.classList.remove('active');
+  //   hamburgerBtn.classList.remove('hidden');
+  // }
+  // hamburgerBtn.addEventListener('click', openSidebar);
+  // sidebarCloseBtn.addEventListener('click', closeSidebar);
   //#endregion
 
 
@@ -557,7 +669,7 @@
   settingsModalBackdrop.addEventListener('click', (e) => {
           if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
         });
-  backdropEl.addEventListener('click', closeSidebar);
+  // backdropEl.addEventListener('click', closeSidebar);
   
   function getDefaultPoiColor(){
     return cachedDefaultPoiColor;
@@ -1827,21 +1939,41 @@
       btnGroup.appendChild(b);
     });
 
-    const avoidLabel = document.createElement('label');
-    avoidLabel.className = 'segment-avoid-highways';
-    avoidLabel.title = 'Autobahn auf diesem Abschnitt meiden';
-    const avoidInput = document.createElement('input');
-    avoidInput.type = 'checkbox';
-    avoidInput.checked = !!destinationWp.avoidHighways;
-    avoidInput.addEventListener('click', e => e.stopPropagation());
-    avoidInput.addEventListener('change', () => {
-      destinationWp.avoidHighways = avoidInput.checked;
-      maybeAutoRecalculateRoute();
-      saveAppStateDebounced();
+    // const avoidLabel = document.createElement('label');
+    // avoidLabel.className = 'segment-avoid-highways';
+    // avoidLabel.title = 'Autobahn auf diesem Abschnitt meiden';
+    // const avoidInput = document.createElement('input');
+    // avoidInput.type = 'checkbox';
+    // avoidInput.checked = !!destinationWp.avoidHighways;
+    // avoidInput.addEventListener('click', e => e.stopPropagation());
+    // avoidInput.addEventListener('change', () => {
+    //   destinationWp.avoidHighways = avoidInput.checked;
+    //   maybeAutoRecalculateRoute();
+    //   saveAppStateDebounced();
+    // });
+    // avoidLabel.appendChild(avoidInput);
+    // avoidLabel.appendChild(document.createTextNode('Autobahn meiden'));
+    // btnGroup.appendChild(avoidLabel);
+
+    const seperator = document.createElement('span');
+    seperator.className = 'segment-separator';
+    btnGroup.appendChild(seperator);
+
+    const b = document.createElement('button');
+    b.className = 'segment-avoid-highways-btn';
+    b.innerHTML = destinationWp.avoidHighways ? highwayLockedSVG : highwaySVG; 
+    b.classList.toggle('active', destinationWp.avoidHighways);
+    b.title = 'Autobahn auf diesem Abschnitt meiden';
+    b.addEventListener('click', () => {
+        destinationWp.avoidHighways = !destinationWp.avoidHighways;
+        b.innerHTML = destinationWp.avoidHighways ? highwayLockedSVG : highwaySVG; 
+        b.classList.toggle('active', destinationWp.avoidHighways);
+        saveAppStateDebounced();
+        calculateRoute();
     });
-    avoidLabel.appendChild(avoidInput);
-    avoidLabel.appendChild(document.createTextNode('Autobahn meiden'));
-    btnGroup.appendChild(avoidLabel);
+    btnGroup.appendChild(b);
+
+
 
     wrap.appendChild(btnGroup);
     return wrap;
@@ -6701,13 +6833,13 @@
         groupEl.addEventListener('dragover', (e) => { e.preventDefault(); groupEl.classList.add('drop-target-box'); });
         groupEl.addEventListener('dragleave', (e) => { if (!groupEl.contains(e.relatedTarget)) groupEl.classList.remove('drop-target-box'); });
         groupEl.addEventListener('drop', (e) => {
-        e.preventDefault();
-        groupEl.classList.remove('drop-target-box');
-        const routeId = e.dataTransfer.getData('text/x-route-id');
-        if (!routeId) return;
-        moveRouteToGroup(routeId, child.path);
-      });
-    }
+          e.preventDefault();
+          groupEl.classList.remove('drop-target-box');
+          const routeId = e.dataTransfer.getData('text/x-route-id');
+          if (!routeId) return;
+          moveRouteToGroup(routeId, child.path);
+        });
+      }
 
       const childWrap = document.createElement('div');
       childWrap.className = 'file-list' + (collapsed ? ' collapsed' : '');
