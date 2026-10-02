@@ -603,7 +603,14 @@
   function setSheetState(state) {
       sidebarEl.classList.remove('sheet-collapsed', 'sheet-mid', 'sheet-expanded');
       sidebarEl.classList.add(`sheet-${state}`);
-      if (tabBar) { tabBar.style.display = state === 'expanded' ? '' : 'none'; }
+      if (tabBar) { 
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        if ((activeTab) && (activeTab === 'planning')) {
+          tabBar.style.display = state === 'expanded' ? '' : 'none'; 
+        }
+        else
+          tabBar.style.display = ''; 
+      }
       if (sideBarheader) { sideBarheader.style.display = state === 'expanded' ? '' : 'none'; }
       if (planningInfo) { planningInfo.style.display = state === 'expanded' ? '' : 'none'; }
       if (routeOpt) { routeOpt.style.display = state === 'expanded' ? '' : 'none'; }
@@ -661,8 +668,8 @@
         // sidebarEl.classList.add('sheet-expanded'); 
       }
 
-      const tabBar = document.getElementById('tab-bar');
-      if (tabBar) { tabBar.style.display = nearest === expandedHeight ? '' : 'none'; }
+      // const tabBar = document.getElementById('tab-bar');
+      // if (tabBar) { tabBar.style.display = nearest === expandedHeight ? '' : 'none'; }
   });
 
   function updateSidebarLayout() {
