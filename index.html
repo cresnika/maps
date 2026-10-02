@@ -667,9 +667,6 @@
         setSheetState('expanded'); 
         // sidebarEl.classList.add('sheet-expanded'); 
       }
-
-      // const tabBar = document.getElementById('tab-bar');
-      // if (tabBar) { tabBar.style.display = nearest === expandedHeight ? '' : 'none'; }
   });
 
   function updateSidebarLayout() {
@@ -4381,6 +4378,7 @@
   const SETTINGS_STORE_NAME = 'settings';
   const POI_STORE_NAME  = 'pois';
   const DEFAULT_ROUTE_GROUP = 'ohne Gruppe';
+  let roadClosureLayer = L.layerGroup().addTo(map);
 
   btnClearWaypoints.addEventListener('click', async () => { 
     const ok = await confirmDialog('Möchtest du die aktuelle Planung wirklich löschen?');
@@ -4584,7 +4582,10 @@
       * ]
       */
       const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
-      const body = { coordinates: coordinates, preference: group.preference };
+      const body = { coordinates: coordinates, 
+                     preference: group.preference, 
+                     instructions: false
+                    };
       /* Globale Vermeidungen übernehmen. */
       const groupAvoidFeatures = [...avoidFeatures];
 
@@ -4601,6 +4602,7 @@
       }
 
       try {
+        // const resp = await apiFetch(`routeJSON?profile=${encodeURIComponent(profile)}`,
         const resp = await apiFetch(`route?profile=${encodeURIComponent(profile)}`,
           {
             method: 'POST',
@@ -4615,7 +4617,6 @@
             signal: signal
           }
         );
-
         /*
         * Während des Fetches könnte eine neue Berechnung
         * gestartet worden sein.
@@ -4685,7 +4686,7 @@
 
         if (feature.properties && Array.isArray(feature.properties.segments)) {
           collectedSegments = collectedSegments.concat(feature.properties.segments);
-        }
+        }        
       } 
       catch (e) {
 
@@ -4775,6 +4776,9 @@
     routeResultEl.totalDuration = totalDuration;
     routeResultEl.className = 'success';
     updateWaypointTooltips(collectedSegments);
+
+    // const closureBounds = L.latLngBounds(allCoords).pad(1.0);
+    // await loadRoadClosures(closureBounds);
 
     /*
     * Controller nur dann löschen, wenn er noch zu
