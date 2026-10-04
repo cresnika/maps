@@ -6612,7 +6612,20 @@
     routePreviewLayer.clearLayers();
     const previewLine = L.polyline(lineCoords, { color: '#22a6d8', weight: 5, opacity: 0.75, dashArray: '7 7', lineJoin: 'round' }).addTo(routePreviewLayer);
     route.waypoints.forEach((wp, i) => {
-      L.marker([wp.lat, wp.lng], { icon: waypointIcon(i) }).addTo(routePreviewLayer);
+      if (i === 0) {
+        L.marker([wp.lat, wp.lng], 
+                 { icon: locationIcon(true) }).addTo(routePreviewLayer);
+      } else {
+        if ((i+1) < route.waypoints.length) {
+          L.marker([wp.lat, wp.lng], 
+                  { icon: waypointIcon(i) }).addTo(routePreviewLayer);
+        }
+        else {
+          L.marker([wp.lat, wp.lng], 
+                  { icon: flagIcon(true)}).addTo(routePreviewLayer);
+        }
+
+      }
     });
     map.fitBounds(previewLine.getBounds(), { padding: [30, 30] });
   }
