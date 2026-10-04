@@ -1237,6 +1237,7 @@ body {
   .segment-avoid-highways-btn svg {
       width: 22px;
       height: 18px;
+      color: var(--text-dim);
   }
 
   .segment-avoid-highways-btn:hover {

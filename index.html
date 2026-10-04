@@ -1619,7 +1619,7 @@
         L.DomEvent.stop(e.originalEvent);
         const items = [
           { 
-            label: `Position des Wegpunktes ${wp.routeIndex} ändern`, action: async () => {
+            label: wp.routeIndex === 0 ? `Start an andere Position verschieben`: `Position des Wegpunktes ${wp.routeIndex} ändern`, action: async () => {
               await moveWaypointOrder(wp, waypoints.length - 1);
             } 
           },
@@ -2004,7 +2004,7 @@
   // Below the stricter zoom, only named (i.e. typically more major) roads are
   // considered, so a big overview click doesn't snap onto every minor track.
   const ROAD_SNAP_MAX_ZOOM = 18;
-  const ROAD_SNAP_STRICT_ZOOM = 16;
+  const ROAD_SNAP_STRICT_ZOOM = 7;
 
   //#endregion
 
@@ -4060,8 +4060,6 @@
       shareBtn.title = 'mit Benutzer teilen';
       shareBtn.addEventListener('click', (ev) => { 
         ev.stopPropagation();  
-        console.log(poi);
-        console.log([poi]);
         return;
         sharePoiWithUser([poi]);
       });
@@ -4487,7 +4485,6 @@
                     </div>`;
       }
       wp.marker.bindPopup(content, { offset: [0, -20], direction: 'top', sticky: true });
-
       if ((index > 0) && (index < waypoints.length-1)) {
         waypoints.forEach((wpitem, i) => {
           if (wpitem === wp) {
@@ -4583,8 +4580,9 @@
       */
       const coordinates = group.waypoints.map(wp => [wp.lng, wp.lat ]);
       const body = { coordinates: coordinates, 
-                     preference: group.preference, 
-                     instructions: false
+                     preference: group.preference,
+                     language: 'de'
+                    //  instructions: false
                     };
       /* Globale Vermeidungen übernehmen. */
       const groupAvoidFeatures = [...avoidFeatures];
