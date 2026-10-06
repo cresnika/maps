@@ -356,210 +356,16 @@
 <link href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js"></script>
 
-<!-- <script src="./poi.js"></script> -->
-
+<script src="./js/svgs.js"></script>
+<script src="./js/dialogs.js"></script>
+<script src="./js/settings.js"></script>
+<script src="./js/map.js"></script>
 
 <script>
 (function(){
   "use strict";
 
   const CLOUDFLARE_API_BASE = 'https://maps.a-cresnik.workers.dev/';
-
-  // ============================================================
-  // ---------- svg's ----------
-  //#region svg data
-  const deleteMarkerSvg = ` <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-                        <!-- Mauszeiger (kleiner, weiß) -->
-                        <path d="M2.25,2.25 L2.25,17.25 L6.75,13.125 L9.6,19.125 L11.775,18.15 L9,12.525 L14.25,12.525 Z"
-                              fill="#ffffff" stroke="#000000" stroke-width="1"/>
-                        <!-- Papierkorb-Badge unten rechts (größer) -->
-                        <g transform="translate(9,9) scale(0.035)">
-                          <path d="M232.2 68.8C236.9 56.3 248.8 48 262.2 48L377.8 48C391.1 48 403.1 56.3 407.8 68.8L424 112L520 112C533.3 112 544 122.7 544 136C544 149.3 533.3 160 520 160L120 160C106.7 160 96 149.3 96 136C96 122.7 106.7 112 120 112L216 112L232.2 68.8zM147.6 516.8L124.7 208L172.9 208L195.5 513.2C196.1 521.6 203.1 528 211.5 528L428.6 528C437 528 443.9 521.5 444.6 513.2L467.2 208L515.3 208L492.4 516.7C489.9 550.1 462.1 576 428.6 576L211.5 576C178 576 150.2 550.1 147.7 516.7z"
-                                fill="#ff0000" stroke="#ff0000" stroke-width="40"/>
-                        </g>
-                      </svg>`;
-  const deleteMarkerCursor = `url("data:image/svg+xml,${encodeURIComponent(deleteMarkerSvg)}") 4 4, auto`;
-  const trashSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                      <path fill="currentColor" d="M256.5 91.4C258.5 84.6 264.8 80 271.8 80L368.2 80C375.3 80 381.5 84.6 383.5 91.4L394.5 128L245.5 128L256.5 91.4zM212.1 128L112 128C103.2 128 96 135.2 96 144C96 152.8 103.2 160 112 160L528 160C536.8 160 544 152.8 544 144C544 135.2 536.8 128 528 128L427.9 128L414.2 82.2C408.1 61.9 389.4 48 368.2 48L271.8 48C250.6 48 231.9 61.9 225.8 82.2L212.1 128zM124.7 208L147.6 516.7C150.1 550.1 177.9 576 211.4 576L428.5 576C462 576 489.8 550.1 492.3 516.7L515.2 208L483.1 208L460.4 514.4C459.2 531.1 445.2 544 428.5 544L211.4 544C194.6 544 180.7 531.1 179.5 514.4L156.8 208L124.7 208z"/>
-                    </svg>`;
-  const saveSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
-                    <path fill="currentColor" d="M488 576L512 576L512 528L128 528L128 576L488 576zM303 441L320 458L337 441L473 305L490 288L456.1 254.1L439.1 271.1L344.1 366.1L344.1 64L296.1 64L296.1 366.1L201.1 271.1L184.1 254.1L150.2 288L167.2 305L303.2 441z"/>
-                  </svg>`;
-  const editSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
-                    <path fill="currentColor" d="M58.1 555.9L48 592C50.7 591.2 117.4 572.6 248 536L569.4 214.6L592 192C589.6 189.6 549.1 149.1 470.6 70.6L448 48L425.4 70.6L104 392L58.1 555.9zM252.7 486L154 387.3L347.4 193.9L446.1 292.6L252.7 486zM229.4 508L94.2 545.8L132 410.6L229.4 508zM546.7 192L468.6 270.1L369.9 171.4L448 93.3L546.7 192z"/>
-                  </svg>`;
-  const hourGlassSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                          <path fill="currentColor" d="M128 560C128 568.8 135.2 576 144 576L496 576C504.8 576 512 568.8 512 560C512 551.2 504.8 544 496 544L480 544L480 502.4C480 453 457.2 406.4 418.2 376.1L346 320L418.2 263.9C457.2 233.6 480 187 480 137.6L480 96L496 96C504.8 96 512 88.8 512 80C512 71.2 504.8 64 496 64L144 64C135.2 64 128 71.2 128 80C128 88.8 135.2 96 144 96L160 96L160 137.6C160 187 182.8 233.6 221.8 263.9L294 320L221.8 376.1C182.8 406.4 160 453.1 160 502.4L160 544L144 544C135.2 544 128 551.2 128 560zM192 544L192 502.4C192 462.9 210.2 425.6 241.4 401.4L320 340.3L398.6 401.4C429.8 425.6 448 462.9 448 502.4L448 544L192 544zM241.4 238.6C225.3 226.1 212.6 210 204.1 192L435.8 192C427.3 210 414.7 226.1 398.5 238.6L319.9 299.7L241.3 238.6zM194 160C192.7 152.7 192 145.2 192 137.6L192 96L448 96L448 137.6C448 145.2 447.3 152.7 446 160L194 160z"/>
-                        </svg>`;
-  const circleSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                      <path fill="currentColor" opacity=".4" d="M64 320C64 461.4 178.6 576 320 576C427.8 576 520 509.4 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.2C470.1 462 400.9 512 320 512C214 512 128 426 128 320C128 214 214 128 320 128C329.3 128 338.5 128.7 347.5 129.9C330 127.4 317.9 111.2 320.4 93.7C322.9 76.5 338.6 64.4 355.8 66.4C344.1 64.8 332.2 63.9 320 63.9C178.6 63.9 64 178.5 64 319.9z"/>
-                      <path fill="currentColor" d="M320.3 93.7C322.8 76.2 339 64.1 356.5 66.6C480.6 84.4 576 191 576 320C576 353.5 569.5 385.6 557.8 415.1C551.2 431.5 532.6 439.5 516.2 432.9C499.8 426.3 491.8 407.7 498.4 391.3C507.2 369.3 512.1 345.3 512.1 320C512.1 223.3 440.6 143.3 347.6 129.9C330.1 127.4 318 111.2 320.5 93.7z"/>
-                    </svg>`
-  const shareSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="svg-standard" viewBox="0 0 640 640">
-                      <path fill="currentColor" d="M512 160C512 124.7 483.3 96 448 96C412.7 96 384 124.7 384 160C384 165.6 384.7 171 386 176.1C388.6 186.3 393.7 195.5 400.6 203C400.9 203.4 401.2 203.7 401.6 204C413.3 216.3 429.7 223.9 448 223.9C483.3 223.9 512 195.2 512 159.9zM357.5 192C354 182 352 171.2 352 160C352 107 395 64 448 64C501 64 544 107 544 160C544 213 501 256 448 256C417.7 256 390.6 241.9 373 220L250.5 288C254 298 256 308.8 256 320C256 331.2 254.1 342 250.5 352L373 420C390.6 398 417.6 384 448 384C501 384 544 427 544 480C544 533 501 576 448 576C395 576 352 533 352 480C352 468.8 353.9 458 357.5 448L235 380C217.4 402 190.4 416 160 416C107 416 64 373 64 320C64 267 107 224 160 224C190.3 224 217.4 238.1 235 260L357.5 192zM206.4 275.9C194.7 263.6 178.3 256 160 256C124.7 256 96 284.7 96 320C96 355.3 124.7 384 160 384C178.3 384 194.7 376.3 206.4 364.1C213.1 357.1 218.2 348.5 221.1 339.1C221.4 338.1 221.7 337.2 221.9 336.2C223.2 331.1 223.9 325.6 223.9 320.1C223.9 314.6 223.2 309.1 221.9 304C219.3 293.8 214.2 284.6 207.3 277.1C207 276.7 206.7 276.4 206.3 276.1zM448 544C483.3 544 512 515.3 512 480C512 444.7 483.3 416 448 416C429.7 416 413.3 423.6 401.6 435.9C401.3 436.2 400.9 436.6 400.6 436.9C393.7 444.4 388.7 453.6 386 463.8C384.7 468.9 384 474.3 384 479.9C384 515.2 412.7 543.9 448 543.9z"/>
-                    </svg>`;
-  const pinSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                    <path fill="currentColor" opacity=".4" d="M208 208C208 269.9 258.1 320 320 320C381.9 320 432 269.9 432 208C432 146.1 381.9 96 320 96C258.1 96 208 146.1 208 208zM240 208C240 163.8 275.8 128 320 128L320 160C293.5 160 272 181.5 272 208L240 208z"/>
-                    <path fill="currentColor" d="M320 320C381.9 320 432 269.9 432 208C432 146.1 381.9 96 320 96C258.1 96 208 146.1 208 208C208 269.9 258.1 320 320 320zM464 208C464 282.1 408 343.2 336 351.1L336 576L304 576L304 351.1C232 343.2 176 282.1 176 208C176 128.5 240.5 64 320 64C399.5 64 464 128.5 464 208zM272 208L240 208C240 163.8 275.8 128 320 128L320 160C293.5 160 272 181.5 272 208z"/>
-                  </svg>`;
-  const highwaySVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                        <path fill="currentColor" opacity=".25" d="M104.4 512L194.8 128L304 128L304 208L336 208L336 128L445.2 128L535.6 512L336 512L336 432L304 432L304 512L104.4 512zM304 272L304 368L336 368L336 272L304 272z"/>
-                        <path fill="currentColor" d="M104.4 512L304 512L304 432L336 432L336 512L535.6 512L445.2 128L336 128L336 208L304 208L304 128L194.8 128L104.4 512zM169.4 96L470.6 96L568.5 512L576 544L64 544L71.5 512L169.4 96zM336 288L336 368L304 368L304 272L336 272L336 288z"/>
-                      </svg>`;
-  const highwayLockedSVG = `<svg id="Ebene_1" xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
-                              <path fill="currentColor" opacity="0.25" d="M104.4,512l90.4-384h109.2v80h32v-80h109.2l90.4,384h-199.6v-80h-32v80H104.4ZM304,272v96h32v-96h-32Z"/>
-                              <path fill="currentColor" d="M104.4,512h199.6v-80h32v80h199.6l-90.4-384h-109.2v80h-32v-80h-109.2l-90.4,384ZM169.4,96h301.2l97.9,416,7.5,32H64l7.5-32L169.4,96ZM336,288v80h-32v-96h32v16Z"/>
-                              <path fill="#ff0000" d="M491.41,517.4L121.1,147.09c-39.96,46.05-64.1,106.17-64.1,171.91,0,144.96,117.54,262.5,262.5,262.5,65.74,0,125.86-24.14,171.91-64.1ZM517.9,490.91c39.96-46.05,64.1-106.17,64.1-171.91,0-144.96-117.54-262.5-262.5-262.5-65.74,0-125.86,24.14-171.91,64.1l370.31,370.31ZM19.5,319C19.5,153.3,153.8,19,319.5,19s300,134.3,300,300-134.3,300-300,300S19.5,484.7,19.5,319Z"/>
-                            </svg>`;
-  function flagSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M144 88C144 74.7 133.3 64 120 64C106.7 64 96 74.7 96 88L96 552C96 565.3 106.7 576 120 576C133.3 576 144 565.3 144 552L144 452L224.3 431.9C265.4 421.6 308.9 426.4 346.8 445.3C391 467.4 442.3 470.1 488.5 452.7L523.2 439.7C535.7 435 544 423.1 544 409.7L544 130C544 107 519.8 92 499.2 102.3L489.6 107.1C443.3 130.3 388.8 130.3 342.5 107.1C307.4 89.5 267.1 85.1 229 94.6L144 116L144 88zM144 165.5L240.6 141.3C267.6 134.6 296.1 137.7 321 150.1C375.9 177.5 439.7 179.8 496 156.9L496 398.7L471.6 407.8C437.9 420.4 400.4 418.5 368.2 402.4C320 378.3 264.9 372.3 212.6 385.3L144 402.5L144 165.5z"/>
-              </svg>`;
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                      <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                      <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                    	<path d="M260.79,174.79c0-5.34-4.3-9.64-9.64-9.64s-9.64,4.3-9.64,9.64v186.43c0,5.34,4.3,9.64,9.64,9.64s9.64-4.3,9.64-9.64v-40.18l32.26-8.08c16.51-4.14,33.99-2.21,49.22,5.38,17.76,8.88,38.37,9.96,56.93,2.97l13.94-5.22c5.02-1.89,8.36-6.67,8.36-12.05v-112.38c0-9.24-9.72-15.27-18-11.13l-3.86,1.93c-18.6,9.32-40.5,9.32-59.1,0-14.1-7.07-30.29-8.84-45.6-5.02l-34.15,8.6v-11.25ZM260.79,205.92l38.81-9.72c10.85-2.69,22.3-1.45,32.3,3.54,22.06,11.01,47.69,11.93,70.31,2.73v97.15l-9.8,3.66c-13.54,5.06-28.61,4.3-41.54-2.17-19.37-9.68-41.5-12.09-62.52-6.87l-27.56,6.91v-95.22Z"/>
-              </svg>`;  
-    }
-  }
-  function locationSvg(usedForMap) {
-    if (!usedForMap) {
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-                <path fill="currentColor" d="M277.9 331.8L143.4 286.9L484.1 155.9L353.1 496.6L308.2 362.1C303.4 347.8 292.2 336.5 277.8 331.7zM381.9 555.5L541.9 139.5C546.4 127.7 543.6 114.3 534.7 105.4C525.8 96.5 512.4 93.6 500.6 98.2L84.6 258.2C71.9 263 63.7 275.2 64 288.7C64.3 302.2 73.1 314.1 85.9 318.3L262.7 377.2L321.6 554C325.9 566.8 337.7 575.6 351.2 575.9C364.7 576.2 376.9 568 381.8 555.4z"/>
-              </svg>`;  
-    }
-    else {
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 640 640" class="waypoint-svg">
-                    <path fill="currentColor" d="M144,252.6c0,34.5,11,72.2,28.5,110,17.4,37.6,40.8,74.4,64.4,106.9,23.6,32.4,47.2,60.3,65,80,7.1,7.9,13.3,14.5,18.1,19.6,4.8-5.1,11-11.7,18.1-19.6,35.4-39.3,94.7-111.8,129.4-187,17.5-37.8,28.5-75.4,28.5-110,0-95-78.5-172.6-176-172.6s-176,77.6-176,172.7Z"/>
-                    <path fill="#000" d="M320,80c97.5,0,176,77.5,176,172.6,0,34.5-11,72.2-28.5,110-34.7,75.1-94,147.6-129.4,187-7.1,7.9-13.3,14.5-18.1,19.6-4.8-5.1-11-11.7-18.1-19.6-17.7-19.7-41.4-47.6-65-80-23.6-32.5-47-69.3-64.4-106.9-17.5-37.8-28.5-75.4-28.5-110,0-95,78.5-172.6,176-172.6v-.1ZM331.2,580.6c41-43.1,180.8-199.3,180.8-328,0-104.2-86-188.6-192-188.6s-192,84.4-192,188.6c0,128.7,139.8,284.9,180.8,328,1.1,1.1,11.2,11.5,11.2,11.5,0,0,3-2.9,8.2-8.4.9-1,1.9-2,3-3.1Z"/>
-                  	<path d="M289.67,278.51l-50.43-16.84,127.76-49.12-49.12,127.76-16.84-50.43c-1.8-5.36-6-9.6-11.4-11.4l.04.04ZM328.66,362.39l60-155.99c1.69-4.42.64-9.45-2.7-12.79-3.34-3.34-8.36-4.42-12.79-2.7l-155.99,60c-4.76,1.8-7.84,6.37-7.72,11.44.11,5.06,3.41,9.52,8.21,11.1l66.3,22.09,22.09,66.3c1.61,4.8,6.04,8.1,11.1,8.21,5.06.11,9.64-2.96,11.47-7.69l.04.04Z"/>
-              </svg>`;  
-    }
-  }
-  function waypointSvg(index) {
-    return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="40" height="40" class="waypoint-svg">
-        <path fill="currentColor" d="M144 252.6C144 287.1 155 324.8 172.5 362.6C189.9 400.2 213.3 437 236.9 469.5C260.5 501.9 284.1 529.8 301.9 549.5C309 557.4 315.2 564 320 569.1C324.8 564 331 557.4 338.1 549.5C373.5 510.2 432.8 437.7 467.5 362.5C485 324.7 496 287.1 496 252.5C496 157.5 417.5 79.9 320 79.9C222.5 79.9 144 157.5 144 252.6z"/>
-        <path fill="#000" d="M320 80C417.5 80 496 157.5 496 252.6C496 287.1 485 324.8 467.5 362.6C432.8 437.7 373.5 510.2 338.1 549.6C331 557.5 324.8 564.1 320 569.2C315.2 564.1 309 557.5 301.9 549.6C284.2 529.9 260.5 502 236.9 469.6C213.3 437.1 189.9 400.3 172.5 362.7C155 324.9 144 287.3 144 252.7C144 157.7 222.5 80.1 320 80.1zM331.2 580.6C372.2 537.5 512 381.3 512 252.6C512 148.4 426 64 320 64C214 64 128 148.4 128 252.6C128 381.3 267.8 537.5 308.8 580.6C309.9 581.7 320 592.1 320 592.1C320 592.1 323 589.2 328.2 583.7C329.1 582.7 330.1 581.7 331.2 580.6z"/>
-        <text 
-          x="320"
-          y="300"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-size="250"
-          font-weight="700"
-          fill="#1b2420">
-          ${index}
-        </text>
-      </svg>
-    `;
-  }
- 
-  //#endregion
-  
-
-  // ============================================================
-  // ---------- Toast und Dialoge ----------
-  //#region Dialoge und Toast 
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  document.body.appendChild(toast);
-
-  let toastTimeout;
-
-  function showToast(message, duration = 2500) {
-    toast.textContent = message;
-    toast.classList.add('show');
-
-    clearTimeout(toastTimeout);
-
-    toastTimeout = setTimeout(() => {
-      toast.classList.remove('show');
-    }, duration);
-  }
-
-  function ConfirmOrderDialog(wp, maxIndex) {
-      return new Promise(resolve => {
-          const backdrop = document.getElementById('confirm-order-backdrop');
-          const textElem = document.getElementById('confirm-order-text');
-          const userInput = document.getElementById('waypoint-position');
-          const btnYes = document.getElementById('confirm-order-yes');
-          const btnNo = document.getElementById('confirm-order-no');
-
-          textElem.innerHTML = `An welche Position soll #${wp.routeIndex} (${wp.label}) verschoben werden?<br><br>0 = Start und ${maxIndex} = Ziel`;
-          userInput.value = '';
-          backdrop.classList.add('active');
-          userInput.focus();
-          userInput.addEventListener('keydown', (e) => { 
-            if (e.key === 'Enter') {
-              btnYes.click();
-            }
-            if (e.key === 'Escape') {
-              btnNo.click();
-            }
-          });
-          function close(result) {
-              backdrop.classList.remove('active');
-              btnYes.onclick = null;
-              btnNo.onclick = null;
-              resolve(result);
-          }
-          
-          btnNo.onclick = () => close(-1);
-          btnYes.onclick = () => {
-              const newIndex = Number(userInput.value.trim());
-              if (!Number.isFinite(newIndex) || newIndex > maxIndex) {
-                  showToast('Bitte eine gültige Position eingeben', 1000);
-                  return;
-              }
-              else {
-                close(newIndex);
-              }
-          };
-      });
-  }
-  async function moveWaypointOrder(wp, maxIndex) {
-    const newIndex = await ConfirmOrderDialog(wp, maxIndex);
-    if ((newIndex !== null) && (newIndex !== -1)) {
-      moveWaypointToIndex(wp, newIndex) ;
-    }
-  }
-  
-  function confirmDialog(text) {
-      return new Promise(resolve => {
-          const backdrop = document.getElementById('confirm-backdrop');
-          const textElem = document.getElementById('confirm-text');
-          const btnYes = document.getElementById('confirm-yes');
-          const btnNo = document.getElementById('confirm-no');
-
-          textElem.textContent = text;
-          backdrop.classList.add('active');
-
-          const cleanup = result => {
-            backdrop.classList.remove('active');
-            btnYes.onclick = null;
-            btnNo.onclick = null;
-            resolve(result);
-          };
-
-          btnYes.onclick = () => cleanup(true);
-          btnNo.onclick = () => cleanup(false);
-      });
-  }
-  
-  function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme',theme);
-    localStorage.setItem('theme', theme);
-  }
-  
-  document.documentElement.setAttribute(
-    'data-theme',
-    localStorage.getItem('theme') || 'light'
-  );
-  //#endregion
 
 
   // ============================================================
@@ -582,7 +388,32 @@
 
 
   // ============================================================
-  // ---------- Mobile drawer ----------
+  // ---------- Dialogs ----------
+  //#region Dialogs
+  async function moveWaypointOrder(wp, maxIndex) {
+      const newIndex = await ConfirmOrderDialog(wp, maxIndex);
+      if ((newIndex !== null) && (newIndex !== -1)) {
+          moveWaypointToIndex(wp, newIndex) ;
+      }
+  }
+  //#endregion
+
+
+  // ============================================================
+  // ---------- Settings ----------
+  //#region Settings
+  const settingsBtn = document.getElementById('settings-btn');
+  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
+  document.getElementById('settings-modal-close').addEventListener('click', () => {
+    settingsModalBackdrop.classList.remove('active')
+    saveAppStateDebounced(); 
+  });
+  //#endregion
+  
+
+  // ============================================================
+  // ---------- Sidebar / Mobile drawer ----------
   //#region Sidebar
   const sidebarEl = document.getElementById('sidebar');
   const backdropEl = document.getElementById('sidebar-backdrop');
@@ -693,44 +524,7 @@
   } else {
     setSheetState('collapsed');
   }
-  //#endregion
 
-
-  // ============================================================
-  // ---------- Settings modal ----------
-  //#region Settings modal
-  const settingsBtn = document.getElementById('settings-btn');
-  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
-  const settingsDefaultPoiColorInput = document.getElementById('settings-default-poi-color');
-  const DEFAULT_POI_COLOR_FALLBACK = '#3b82f6';
-  let cachedDefaultPoiColor = DEFAULT_POI_COLOR_FALLBACK;
-
-  settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
-  document.getElementById('settings-modal-close').addEventListener('click', () => settingsModalBackdrop.classList.remove('active'));
-  settingsModalBackdrop.addEventListener('click', (e) => {
-          if (e.target === settingsModalBackdrop) settingsModalBackdrop.classList.remove('active');
-        });
-  // backdropEl.addEventListener('click', closeSidebar);
-  
-  function getDefaultPoiColor(){
-    return cachedDefaultPoiColor;
-  }
-  async function defaultPoiColorChanged() {
-    cachedDefaultPoiColor = settingsDefaultPoiColorInput.value;
-    saveAppStateDebounced(); 
-  }
-  settingsDefaultPoiColorInput.addEventListener('change', () => { defaultPoiColorChanged(); })
-
-  document.getElementById('btn-theme').addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    setTheme(current === 'dark' ? 'light' : 'dark');
-  });
-
-  //#endregion
-
-
-  // ---------- Sidebar width resizing (desktop, mouse drag) ----------
-  //#region Sidebar
   const sidebarResizer = document.getElementById('sidebar-resizer');
   let isResizingSidebar = false;
 
@@ -763,127 +557,6 @@
   // ============================================================
   // ---------- Map setup ----------
   //#region map setup
-  const map = L.map('map', {
-      zoomControl: true,
-      maxZoom: 20,
-      preferCanvas: true
-  }).setView([47.2, 9.6], 9);
-  const calculatedRouteStyle = { color: '#22a6ff', weight: 5, opacity: 0.8, lineJoin: 'round' };
-  L.control.scale({
-      position: 'bottomright',   // 'topleft', 'topright', 'bottomleft', 'bottomright'
-      metric: true,               // km/m anzeigen
-      imperial: false,            // mi/ft NICHT anzeigen (falls nur metrisch gewünscht)
-      maxWidth: 100,               // maximale Breite der Scale-Bar in Pixel
-      updateWhenIdle: false        // Aktualisierung während des Zoomens/Pannens
-  }).addTo(map);
-
-  map.createPane('waypointPane');
-  map.getPane('waypointPane').style.zIndex = 650; // Standard-Marker-Pane liegt bei 600
-
-  // ---------- LEflet cluster ----------
-  function createClusterLayer(poi, options = {}) {   
-    const clusterGroup = L.markerClusterGroup({      
-      maxClusterRadius: 60,
-      disableClusteringAtZoom: 15,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-
-      iconCreateFunction: (cluster) => {
-        const count = cluster.getChildCount();
-        const size = count >= 50 ? 'large' : count >= 10 ? 'medium' : 'small';
-        const sizePx = size === 'large' ? 52 : size === 'medium' ? 42 : 34;
-
-        return L.divIcon({
-          html: `
-            <div class="poi-cluster poi-cluster-${size}">
-              <span class="poi-cluster-icon">${poi.labelicon.options.html}</span>
-              <span class="poi-cluster-count">${count}</span>
-            </div>`,
-          className: `poi-cluster-wrapper extern-poi-marker ${poi.mapicon.options.className}`, // NEU: Farb-Klasse jetzt am AEUSSEREN Wrapper
-          iconSize: L.point(sizePx, sizePx),
-        });
-      },
-      ...options,
-    });
-
-    // Rechtsklick auf eine Cluster-Bubble soll KEIN Kontextmenue
-    // oeffnen - normales Linksklick-Zoomverhalten bleibt unberuehrt.
-    clusterGroup.on('clustercontextmenu', (e) => {
-      L.DomEvent.preventDefault(e.originalEvent);
-      L.DomEvent.stopPropagation(e);
-    });
-
-    return clusterGroup;   // NEU: erst JETZT zurückgeben, nach dem Event-Binding
-  }
-
-  // Reliably suppress the browser's native right-click menu on the map,
-  // independent of Leaflet's own internal listener-presence check.
-  map.getContainer().addEventListener('contextmenu', (e) => e.preventDefault());
-
-  const key = 'Vr8csikavibrZIA07nBS';
-  const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {});
-  const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {});
-  const stadiaSmooth = L.tileLayer(`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png`,);
-  const stadiaOutdoors = L.maplibreGL({style: 'https://tiles.stadiamaps.com/styles/outdoors.json',});
-  const TerrainStyle = L.maplibreGL({style: 'styles/Terrain.json',});
-  const satelliteStyle = L.tileLayer(`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.png?key=${key}`,{ //style URL
-                                    tileSize: 512,
-                                    zoomOffset: -1,
-                                    minZoom: 1,
-                                    maxZoom: 20,
-                                    attribution: "\u003ca href=\"https://www.maptiler.com/copyright/\" target=\"_blank\"\u003e\u0026copy; MapTiler\u003c/a\u003e \u003ca href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\"\u003e\u0026copy; OpenStreetMap contributors\u003c/a\u003e",
-                                    crossOrigin: true
-                                  });
-
-  const baseLayers = {
-    // 'Alex´s Stil': motorcycleStyle,
-    'Terrain' : TerrainStyle,
-    'Satellit' : satelliteStyle,
-    'OpenStreetMap': osmStandard,
-    'Topographisch': openTopo,
-    'Stadia – Outdoor': stadiaOutdoors,
-    'Stadia – Hell / reduziert': stadiaSmooth
-  };
-  let actualStyle = null;
-
-  const layerControl = L.control.layers(baseLayers, null, {
-      collapsed: true,
-      position: 'bottomleft'
-  }).addTo(map);
-
-  layerControl.getContainer().style.zIndex = '2001';  
-
-  TerrainStyle.addTo(map);
-
-  map.on('baselayerchange', function (e) {
-      actualStyle = Object.keys(baseLayers).find(
-          name => baseLayers[name] === e.layer
-      );
-      saveAppStateDebounced();
-  });
-
-  async function snapToRoadIfZoomedOut(latlng){
-    const zoom = map.getZoom();
-    if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
-    const profile = document.getElementById('planning-route-profile').value;
-    const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
-    const count = preferNamed ? 8 : 1;
-    const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
-    try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
-        let chosen = data.waypoints[0];
-        if (preferNamed){
-          const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
-          if (named) chosen = named;
-        }
-        return L.latLng(chosen.location[1], chosen.location[0]);
-      }
-    } catch (e){ /* network error -- fall back to the exact clicked point */ }
-    return latlng;
-  }
-
   map.on('click', async (e) => {
     const ctrlPressed = !!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey));
     if (!pickingMode && !ctrlPressed) return;
@@ -905,6 +578,7 @@
     })
   }, 400));
 
+  
   // -- Cursor feedback while Ctrl/Shift is held --
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Control' || e.key === 'Meta') mapEl.classList.add('ctrl-active');
@@ -1999,12 +1673,6 @@
     btnTogglePick.textContent = pickingMode ? '📍 Klicke auf die Karte …' : '📍 Punkt auf Karte setzen';
   });
 
-  // Below this zoom level, clicked points are snapped to the nearest routable
-  // road/path -- at this zoom or closer, the exact clicked pixel is used.
-  // Below the stricter zoom, only named (i.e. typically more major) roads are
-  // considered, so a big overview click doesn't snap onto every minor track.
-  const ROAD_SNAP_MAX_ZOOM = 18;
-  const ROAD_SNAP_STRICT_ZOOM = 7;
 
   //#endregion
 
