@@ -3,6 +3,12 @@ toast.className = 'toast';
 document.body.appendChild(toast);
 
 let toastTimeout;
+const modalStack = [];
+
+window.addEventListener("popstate", () => {
+    const modal = modalStack.pop();
+    if (modal) { modal.classList.remove("active"); }
+});
 
 function showToast(message, duration = 2500) {
     toast.textContent = message;
@@ -10,9 +16,7 @@ function showToast(message, duration = 2500) {
 
     clearTimeout(toastTimeout);
 
-    toastTimeout = setTimeout(() => {
-            toast.classList.remove('show');
-        }, duration);
+    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration);
 }
 
 function ConfirmOrderDialog(wp, maxIndex) {
@@ -26,6 +30,10 @@ function ConfirmOrderDialog(wp, maxIndex) {
         textElem.innerHTML = `An welche Position soll #${wp.routeIndex} (${wp.label}) verschoben werden?<br><br>0 = Start und ${maxIndex} = Ziel`;
         userInput.value = '';
         backdrop.classList.add('active');
+
+        modalStack.push(backdrop);
+        history.pushState({ modal: true }, "");
+
         userInput.focus();
         userInput.addEventListener('keydown', (e) => { 
         if (e.key === 'Enter') {
@@ -39,6 +47,7 @@ function ConfirmOrderDialog(wp, maxIndex) {
             backdrop.classList.remove('active');
             btnYes.onclick = null;
             btnNo.onclick = null;
+            history.back();
             resolve(result);
         }
         
@@ -66,11 +75,15 @@ function confirmDialog(text) {
         textElem.textContent = text;
         backdrop.classList.add('active');
 
+        modalStack.push(backdrop);
+        history.pushState({ modal: true }, "");
+
         const cleanup = result => {
-        backdrop.classList.remove('active');
-        btnYes.onclick = null;
-        btnNo.onclick = null;
-        resolve(result);
+            backdrop.classList.remove('active');
+            btnYes.onclick = null;
+            btnNo.onclick = null;
+            history.back();
+            resolve(result);
         };
 
         btnYes.onclick = () => cleanup(true);
@@ -87,3 +100,23 @@ document.documentElement.setAttribute(
     'data-theme',
     localStorage.getItem('theme') || 'light'
 );
+
+function showSettingsDialog() {
+    return new Promise(resolve => {
+        const backdrop = document.getElementById('settings-modal-backdrop');
+
+        const btnClose = document.getElementById('settings-modal-close');
+
+        backdrop.classList.add('active');
+
+        modalStack.push(backdrop);
+        history.pushState({ modal: true }, "");
+
+        const cleanup = result => {
+            backdrop.classList.remove('active');
+            history.back();
+            resolve(result);
+        };
+        btnClose.onclick = () => cleanup(false);
+    });
+}

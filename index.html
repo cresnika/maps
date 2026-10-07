@@ -403,11 +403,9 @@
   // ---------- Settings ----------
   //#region Settings
   const settingsBtn = document.getElementById('settings-btn');
-  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
-  settingsBtn.addEventListener('click', () => settingsModalBackdrop.classList.add('active'));
-  document.getElementById('settings-modal-close').addEventListener('click', () => {
-    settingsModalBackdrop.classList.remove('active')
-    saveAppStateDebounced(); 
+  settingsBtn.addEventListener('click', async () => {
+        await showSettingsDialog();
+        saveAppStateDebounced();
   });
   //#endregion
   
@@ -3064,62 +3062,12 @@
           const marker = L.marker(pos).addTo(map);
           marker.bindPopup(() => buildPoiPopupContent(poi, marker));
 
-          //marker.isSearchMarker = true;
-
-          // marker.bindPopup(`
-          //   <div style="display:flex; flex-direction:column; gap:6px;">
-          //     <strong>${poi.name}</strong>
-          //     <button id="search-poi-start">Als Startpunkt</button>
-          //     <button id="search-poi-via">Als Via-Punkt</button>
-          //     <button id="search-poi-end">Als Zielpunkt</button>
-          //   </div>
-          // `);
-
-        // const items = [
-        //   { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'start', name) },
-        //   { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'via', name) },
-        //   { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'end', name) },
-        //   { label: 'Als POI speichern', action: () => openPoiModal(marker.getLatLng()) }
-        // ];
-        // showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
-
-          // marker.openPopup();
-          // marker.on('popupopen', () => {
-          //   document.getElementById('search-poi-start')?.addEventListener('click', async () => {
-          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'start', name);
-          //     map.removeLayer(marker);
-          //   });
-          //   document.getElementById('search-poi-via')?.addEventListener('click', async () => {
-          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'via', name)
-          //     map.removeLayer(marker);
-          //   });
-          //   document.getElementById('search-poi-end')?.addEventListener('click',async  () => {
-          //     insertWaypointAtRole(await snapToRoadIfZoomedOut(marker.getLatLng()), 'end', name)
-          //     map.removeLayer(marker);
-          //   });
-          // });
-
           map.flyTo(pos, Math.max(map.getZoom(), 14));
           searchResultsEl.innerHTML = '';
           waypointSearchInput.value = '';
         });
-
-
-        // item.addEventListener('click', async () => {
-        //   const raw = L.latLng(poi.lat, poi.lng);
-        //   addWaypoint(
-        //     await snapToRoadIfZoomedOut(raw),
-        //     poi.name
-        //   );
-        //   searchResultsEl.innerHTML = '';
-        //   waypointSearchInput.value = '';
-        // });
-
-
-
         searchResultsEl.appendChild(item);
       });
-      // return;
     }
 
     // Danach Online-Suche
@@ -3312,7 +3260,6 @@
             marker.remove();
           }
         }
-        // wenn nur poi marker aus suchfunktion, dann poi auf karte löschen
       });
       btnRow.appendChild(b);
     });
@@ -3963,16 +3910,121 @@
   const btnSearchPoi = document.getElementById('btn-search-poi');
   const poiSearchResultsEl = document.getElementById('poi-search-results');
 
+  // async function runSearch() {
+  //   const q = waypointSearchInput.value.trim();
+  //   if (!q) return;
+  //   const requestId = ++searchRequestId;
+  //   searchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
+  //   const qLower = q.toLowerCase();
+  //   const poiResults = [
+  //     ...pois,
+  //     ...sharedPois
+  //   ].filter(poi =>
+  //     poi.name.toLowerCase().includes(qLower) ||
+  //     poi.poi_group.toLowerCase().includes(qLower)
+  //   );
+
+  //   if (requestId !== searchRequestId) return;
+  //   searchResultsEl.innerHTML = '';
+
+  //   // Zuerst eigene POIs anzeigen
+  //   if (poiResults.length) {
+  //     poiResults.forEach(poi => {
+  //       const item = document.createElement('div');
+  //       item.className = 'search-result-item';
+  //       item.textContent = `${poi.name} (${poi.poi_group})`;
+
+  //       item.addEventListener('click', () => {
+  //         const pos = L.latLng(poi.lat, poi.lng);
+  //         const marker = L.marker(pos).addTo(map);
+  //         marker.bindPopup(() => buildPoiPopupContent(poi, marker));
+
+  //         map.flyTo(pos, Math.max(map.getZoom(), 14));
+  //         searchResultsEl.innerHTML = '';
+  //         waypointSearchInput.value = '';
+  //       });
+  //       searchResultsEl.appendChild(item);
+  //     });
+  //   }
+
+  //   // Danach Online-Suche
+  //   const results = await searchPlace(q);
+  //   if (requestId !== searchRequestId) return;
+  //   // searchResultsEl.innerHTML = '';
+  //   if ((!results.length) && (!poiResults)) {
+  //     searchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
+  //     return;
+  //   }
+
+  //   results.forEach(r => {
+  //     const item = document.createElement('div');
+  //     item.className = 'search-result-item';
+  //     item.textContent = r.display_name;
+
+  //     item.addEventListener('click', async () => {
+  //       const raw = L.latLng(
+  //         parseFloat(r.lat),
+  //         parseFloat(r.lon)
+  //       );
+
+  //       // const pos = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+  //       const pos = L.latLng(raw);
+  //       const marker = L.marker(pos).addTo(map);
+  //       marker.searchRes = r;
+  //       marker.bindPopup(() => buildPoiPopupContent(null, marker));
+  //       map.flyTo(pos, Math.max(map.getZoom(), 14));
+
+  //       searchResultsEl.innerHTML = '';
+  //       waypointSearchInput.value = '';
+  //     });
+  //     searchResultsEl.appendChild(item);
+  //   });
+  // }
+
   async function runPoiSearch(){
     const q = poiSearchInput.value.trim();
     if (!q) return;
     poiSearchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
-    const results = await searchPlace(q);
+    const requestId = ++searchRequestId;
+
+    const qLower = q.toLowerCase();
+    const poiResults = [
+      ...pois,
+      ...sharedPois
+    ].filter(poi =>
+      poi.name.toLowerCase().includes(qLower) ||
+      poi.poi_group.toLowerCase().includes(qLower)
+    );
+
+    if (requestId !== searchRequestId) return;
     poiSearchResultsEl.innerHTML = '';
-    if (!results.length){
-      poiSearchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
-      return;
+
+    // Zuerst eigene POIs anzeigen
+    if (poiResults.length) {
+      poiResults.forEach(poi => {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        item.textContent = `${poi.name} (${poi.poi_group})`;
+
+        item.addEventListener('click', () => {
+          const pos = L.latLng(poi.lat, poi.lng);
+          const marker = L.marker(pos).addTo(map);
+          marker.bindPopup(() => buildPoiPopupContent(poi, marker));
+
+          map.flyTo(pos, Math.max(map.getZoom(), 14));
+          poiSearchResultsEl.innerHTML = '';
+          poiSearchInput.value = '';
+        });
+        poiSearchResultsEl.appendChild(item);
+      });
     }
+
+    const results = await searchPlace(q);
+    // poiSearchResultsEl.innerHTML = '';
+    // if (!results.length){
+    //   poiSearchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
+    //   return;
+    // }
     results.forEach(r => {
       const item = document.createElement('div');
       item.className = 'search-result-item';
@@ -4746,8 +4798,6 @@
   inputFiles.addEventListener('change', (e) => { handleFileInputList(e.target.files, false); inputFiles.value = '';});
   inputFolder.addEventListener('change', (e) => { handleFileInputList(e.target.files, true); inputFolder.value = '';});
 
-
-
   // ---------- File input handling ----------
   function handleFileInputList(fileList, useRelativePath){
     const gpxFiles = [...fileList].filter(f => /\.gpx$/i.test(f.name));
@@ -4853,25 +4903,6 @@
     if (metaEl) metaEl.textContent = entry.distanceKm ? entry.distanceKm + ' km' : '…';
   }
 
-  //#endregion
-
-
-
-  // ---------- State ----------
-  // groups: Map<groupName, { files: Map<fileId, fileEntry>, collapsed: bool }>
-  // fileEntry: { id, name, color, layer, visible, distanceKm, groupEl, checkboxEl, rowEl }
-
-  function groupFor(name){
-      if (!tracksMap.has(name)) tracksMap.set(name, { files: new Map(), collapsed: false });
-      return tracksMap.get(name);
-  }
-
-  function totalFileCount() {
-    let n = 0;
-    tracksMap.forEach(g => n += g.files.size);
-    return n;
-  }
-
   function formatDuration(ms){
     const totalMin = Math.round(ms / 60000);
     const h = Math.floor(totalMin / 60);
@@ -4904,12 +4935,6 @@
     document.getElementById('summary-count').textContent = count + (count === 1 ? ' Track' : ' Tracks');
     document.getElementById('summary-distance').textContent = anyDist ? distSum.toFixed(1).replace('.', ',') + ' km' : '–';
     document.getElementById('summary-duration').textContent = anyDur ? formatDuration(durSum) : '–';
-  }
-
-  function updateTotal(){
-    const n = totalFileCount();
-    totalEl.textContent = n + (n === 1 ? ' Track geladen' : ' Tracks geladen');
-    emptyState.style.display = n === 0 ? 'block' : 'none';
   }
 
   function calculateGpxDurationMs(gpxText){
@@ -5556,6 +5581,8 @@
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Alex's Routenplaner" xmlns="http://www.topografix.com/GPX/1/1">\n  <trk>\n    <name>${escapeXml(baseName)}</name>\n    <trkseg>\n${trkpts}\n    </trkseg>\n  </trk>\n</gpx>\n`;
     return { xml, filename: baseName + '.gpx', points };
   }
+
+  //#endregion
 
   // ---------- Shared export / share helpers (Viewer tracks + saved routes + saved tracks) ----------
   function downloadGpxString(xml, filename){
