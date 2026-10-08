@@ -3061,6 +3061,10 @@
           const pos = L.latLng(poi.lat, poi.lng);
           const marker = L.marker(pos).addTo(map);
           marker.bindPopup(() => buildPoiPopupContent(poi, marker));
+          marker.on('popupopen', e => {
+              const closeBtn = e.popup.getElement().querySelector('.leaflet-popup-close-button');
+              if (closeBtn) {closeBtn.addEventListener('click', () => { marker.remove(); }, { once: true });}
+          });
 
           map.flyTo(pos, Math.max(map.getZoom(), 14));
           searchResultsEl.innerHTML = '';
@@ -3095,6 +3099,10 @@
         const marker = L.marker(pos).addTo(map);
         marker.searchRes = r;
         marker.bindPopup(() => buildPoiPopupContent(null, marker));
+        marker.on('popupopen', e => {
+            const closeBtn = e.popup.getElement().querySelector('.leaflet-popup-close-button');
+            if (closeBtn) {closeBtn.addEventListener('click', () => { marker.remove(); }, { once: true });}
+        });
         map.flyTo(pos, Math.max(map.getZoom(), 14));
 
         // addWaypoint(
@@ -3910,77 +3918,6 @@
   const btnSearchPoi = document.getElementById('btn-search-poi');
   const poiSearchResultsEl = document.getElementById('poi-search-results');
 
-  // async function runSearch() {
-  //   const q = waypointSearchInput.value.trim();
-  //   if (!q) return;
-  //   const requestId = ++searchRequestId;
-  //   searchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
-  //   const qLower = q.toLowerCase();
-  //   const poiResults = [
-  //     ...pois,
-  //     ...sharedPois
-  //   ].filter(poi =>
-  //     poi.name.toLowerCase().includes(qLower) ||
-  //     poi.poi_group.toLowerCase().includes(qLower)
-  //   );
-
-  //   if (requestId !== searchRequestId) return;
-  //   searchResultsEl.innerHTML = '';
-
-  //   // Zuerst eigene POIs anzeigen
-  //   if (poiResults.length) {
-  //     poiResults.forEach(poi => {
-  //       const item = document.createElement('div');
-  //       item.className = 'search-result-item';
-  //       item.textContent = `${poi.name} (${poi.poi_group})`;
-
-  //       item.addEventListener('click', () => {
-  //         const pos = L.latLng(poi.lat, poi.lng);
-  //         const marker = L.marker(pos).addTo(map);
-  //         marker.bindPopup(() => buildPoiPopupContent(poi, marker));
-
-  //         map.flyTo(pos, Math.max(map.getZoom(), 14));
-  //         searchResultsEl.innerHTML = '';
-  //         waypointSearchInput.value = '';
-  //       });
-  //       searchResultsEl.appendChild(item);
-  //     });
-  //   }
-
-  //   // Danach Online-Suche
-  //   const results = await searchPlace(q);
-  //   if (requestId !== searchRequestId) return;
-  //   // searchResultsEl.innerHTML = '';
-  //   if ((!results.length) && (!poiResults)) {
-  //     searchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
-  //     return;
-  //   }
-
-  //   results.forEach(r => {
-  //     const item = document.createElement('div');
-  //     item.className = 'search-result-item';
-  //     item.textContent = r.display_name;
-
-  //     item.addEventListener('click', async () => {
-  //       const raw = L.latLng(
-  //         parseFloat(r.lat),
-  //         parseFloat(r.lon)
-  //       );
-
-  //       // const pos = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
-  //       const pos = L.latLng(raw);
-  //       const marker = L.marker(pos).addTo(map);
-  //       marker.searchRes = r;
-  //       marker.bindPopup(() => buildPoiPopupContent(null, marker));
-  //       map.flyTo(pos, Math.max(map.getZoom(), 14));
-
-  //       searchResultsEl.innerHTML = '';
-  //       waypointSearchInput.value = '';
-  //     });
-  //     searchResultsEl.appendChild(item);
-  //   });
-  // }
-
   async function runPoiSearch(){
     const q = poiSearchInput.value.trim();
     if (!q) return;
@@ -4010,6 +3947,10 @@
           const pos = L.latLng(poi.lat, poi.lng);
           const marker = L.marker(pos).addTo(map);
           marker.bindPopup(() => buildPoiPopupContent(poi, marker));
+          marker.on('popupopen', e => {
+              const closeBtn = e.popup.getElement().querySelector('.leaflet-popup-close-button');
+              if (closeBtn) {closeBtn.addEventListener('click', () => { marker.remove(); }, { once: true });}
+          });
 
           map.flyTo(pos, Math.max(map.getZoom(), 14));
           poiSearchResultsEl.innerHTML = '';
