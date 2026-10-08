@@ -1230,18 +1230,36 @@
       id,
       lat: latlng.lat,
       lng: latlng.lng,
-
       // Bekannten POI-Namen behalten.
       // Bei einem freien Kartenpunkt zunächst Koordinaten anzeigen.
       label: hasKnownLabel ? label : (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5)),  
       marker, 
       segmentPreference: 'recommended',
       avoidHighways: false,
-
       // Merken, ob der Name bereits aus einem bekannten POI stammt.
       labelIsKnown: hasKnownLabel,
       routeIndex: null
     };
+
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+
+      const dist = distanceInMeter(pos.lat, pos.lng, wp.lat, wp.lng);
+      const newLabel = (dist > 100);
+      if (newLabel) { 
+        wp.labelIsKnown = false;
+      } else  
+        wp.labelIsKnown = true;
+      
+        wp.lat = pos.lat;
+      wp.lng = pos.lng;
+
+      if (!wp.labelIsKnown) { wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5); }
+      renderWaypointList();
+      if (!wp.labelIsKnown) { reverseGeocodeWaypoint(wp); }
+      maybeAutoRecalculateRoute();
+      saveAppStateDebounced();
+    });
 
     marker.on('mouseover', () => {
       if (mapEl.classList.contains('shift-active')) {
@@ -1251,36 +1269,7 @@
     marker.on('mouseout', () => {
       marker.getElement().style.cursor = '';
     });
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
 
-      const dist = distanceInMeter(pos.lat, pos.lng, wp.lat, wp.lng);
-      const newLabel = (dist > 100);
-      if (newLabel) {
-        wp.labelIsKnown = false;
-      }
-      else  
-        wp.labelIsKnown = true;
-      wp.lat = pos.lat;
-      wp.lng = pos.lng;
-
-      // Der bisherige POI-Name ist nach dem Verschieben
-      // nicht mehr zwangsläufig korrekt.
-      // wp.labelIsKnown = false;
-      if (!wp.labelIsKnown) {
-        wp.label = pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5);
-      }
-
-      renderWaypointList();
-
-      // Während das Reverse Geocoding läuft,
-      // vorübergehend Koordinaten anzeigen.
-      if (!wp.labelIsKnown) {
-        reverseGeocodeWaypoint(wp);
-      }
-      maybeAutoRecalculateRoute();
-      saveAppStateDebounced();
-    });
     marker.on('click', (e) => {
       if (e.originalEvent && e.originalEvent.shiftKey){
         e.originalEvent.stopPropagation();
@@ -1298,10 +1287,7 @@
         ];
         showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
     });
-    /*
-    * Nur für frei gesetzte Punkte Reverse Geocoding starten.
-    * Bekannte POIs behalten ihren vorhandenen Namen.
-    */
+
     if (!wp.labelIsKnown) {
       reverseGeocodeWaypoint(wp);
     }
