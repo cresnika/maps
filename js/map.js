@@ -29,8 +29,20 @@ const baseLayers = {'Terrain' : TerrainStyle,
 // road/path -- at this zoom or closer, the exact clicked pixel is used.
 // Below the stricter zoom, only named (i.e. typically more major) roads are
 // considered, so a big overview click doesn't snap onto every minor track.
-const ROAD_SNAP_MAX_ZOOM = 18;
+const ROAD_SNAP_MAX_ZOOM = 16;
 const ROAD_SNAP_STRICT_ZOOM = 7;
+
+const ROAD_SNAP_PIXEL_RADIUS = 60;   // so nah (in Bildschirmpixeln) muss eine sichtbare Straße am Klick liegen
+const ROAD_CLASS_PENALTY_PX = 3;     // grössere Strassen bei ähnlicher Distanz bevorzugen
+const ROAD_CLASS_RANK = {
+                          motorway: 0,
+                          trunk: 1,
+                          primary: 2,
+                          secondary: 3,
+                          tertiary: 4,
+                          minor: 5,
+                        };
+const ROAD_SOURCE_LAYERS = new Set(['transportation']);
 
 let actualStyle = null;
 
@@ -98,26 +110,93 @@ layerControl.getContainer().style.zIndex = '2001';
       saveAppStateDebounced();
   });
 
-  async function snapToRoadIfZoomedOut(latlng){
-    const zoom = map.getZoom();
-    if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
-    const profile = document.getElementById('planning-route-profile').value;
-    const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
-    const count = preferNamed ? 8 : 1;
-    const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
-    try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
-        let chosen = data.waypoints[0];
-        if (preferNamed){
-          const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
-          if (named) chosen = named;
+//   async function snapToRoadIfZoomedOut(latlng){
+//     const zoom = map.getZoom();
+//     if (zoom >= ROAD_SNAP_MAX_ZOOM) return latlng;
+//     const profile = document.getElementById('planning-route-profile').value;
+//     const preferNamed = zoom < ROAD_SNAP_STRICT_ZOOM;
+//     const count = preferNamed ? 8 : 1;
+//     const url = `https://router.project-osrm.org/nearest/v1/${profile}/${latlng.lng},${latlng.lat}?number=${count}`;
+//     try {
+//       const resp = await fetch(url);
+//       const data = await resp.json();
+//       if (data.code === 'Ok' && data.waypoints && data.waypoints.length){
+// console.table(data.waypoints);
+//         let chosen = data.waypoints[0];
+//         if (preferNamed){
+//           const named = data.waypoints.find(w => w.name && w.name.trim().length > 0);
+// console.log('choosen: ' + named);
+//           if (named) chosen = named;
+//         }
+//         return L.latLng(chosen.location[1], chosen.location[0]);
+//       }
+//     } catch (e){ /* network error -- fall back to the exact clicked point */ }
+//     return latlng;
+//   }
+
+
+function closestPointOnSegmentPx(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq === 0 ? 0 : ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return { x: a.x + t * dx, y: a.y + t * dy };
+}
+
+// Rückgabe: L.LatLng (gesnappt), null (keine passende Strasse in der Nähe)
+// oder undefined (MapLibre-Karte nicht verfügbar)
+function snapToVisibleRoad(latlng) {
+
+  const glMap = actualStyle && baseLayers[actualStyle] && baseLayers[actualStyle].getMaplibreMap && baseLayers[actualStyle].getMaplibreMap();
+  if (!glMap) return undefined;
+
+  const clickPx = glMap.project([latlng.lng, latlng.lat]);
+  const r = ROAD_SNAP_PIXEL_RADIUS;
+
+  const features = glMap.queryRenderedFeatures([
+    [clickPx.x - r, clickPx.y - r],
+    [clickPx.x + r, clickPx.y + r],
+  ]);
+
+  let best = null;
+
+  for (const f of features) {
+    if (!ROAD_SOURCE_LAYERS.has(f.sourceLayer)) continue;
+
+    const cls = f.properties && f.properties.class;
+    if (!(cls in ROAD_CLASS_RANK)) continue;
+
+    const lines =
+      f.geometry.type === 'LineString' ? [f.geometry.coordinates] :
+      f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [];
+
+    for (const line of lines) {
+      for (let i = 1; i < line.length; i++) {
+        const a = glMap.project(line[i - 1]);
+        const b = glMap.project(line[i]);
+        const c = closestPointOnSegmentPx(clickPx, a, b);
+        const dist = Math.hypot(c.x - clickPx.x, c.y - clickPx.y);
+
+        if (dist > r) continue;
+
+        const score = dist + ROAD_CLASS_RANK[cls] * ROAD_CLASS_PENALTY_PX;
+        if (!best || score < best.score) {
+          best = { score, point: c };
         }
-        return L.latLng(chosen.location[1], chosen.location[0]);
       }
-    } catch (e){ /* network error -- fall back to the exact clicked point */ }
-    return latlng;
+    }
   }
 
+  if (!best) return null;
 
+  const ll = glMap.unproject([best.point.x, best.point.y]);
+  return L.latLng(ll.lat, ll.lng);
+}
+
+async function snapToRoadIfZoomedOut(latlng) {
+  if (map.getZoom() >= ROAD_SNAP_MAX_ZOOM) return latlng;
+console.log('snap active');
+  const snapped = snapToVisibleRoad(latlng);
+  return snapped || latlng;   // nichts in der Nähe -> exakter Klickpunkt
+}

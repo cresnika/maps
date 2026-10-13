@@ -640,20 +640,26 @@
     }, 0);
   }
 
-  map.on('contextmenu', (e) => {
+  map.on('contextmenu', async (e) => {
     L.DomEvent.preventDefault(e.originalEvent);
+console.log('act zoom: ' + map.getZoom());
     if (contextMarker) {
         map.removeLayer(contextMarker);
     }
+    let markerpos = snapToVisibleRoad(e.latlng);
+    // markerpos = await snapToRoadIfZoomedOut(e.latlng);
+    if (!markerpos) 
+      markerpos = e.latlng;
+
     const items = [
-      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'start') },
-      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'via') },
-      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(await snapToRoadIfZoomedOut(e.latlng), 'end') },
-      { label: 'Als POI speichern', action: () => openPoiModal(e.latlng) }
+      { label: 'Als Startpunkt setzen', action: async () => insertWaypointAtRole(markerpos, 'start') },
+      { label: 'Als Via-Punkt hinzufügen', action: async () => insertWaypointAtRole(markerpos, 'via') },
+      { label: 'Als Zielpunkt setzen', action: async () => insertWaypointAtRole(markerpos, 'end') },
+      { label: 'Als POI speichern', action: () => openPoiModal(markerpos) }
     ];
     showCustomContextMenu(e.originalEvent.clientX, e.originalEvent.clientY, items);
     contextMarker = L.marker(
-      e.latlng,
+      markerpos,
       {
         draggable: false,
         icon: markerIcon()
@@ -1678,6 +1684,7 @@
 
       return res;
     } catch(error) {
+      console.log('Error fetching: ' + `${CLOUDFLARE_API_BASE}api/${path}`);
       console.log('apiFetch error: ' + error);
     }
   }
@@ -3095,32 +3102,6 @@
         //   await snapToRoadIfZoomedOut(raw),
         //   shortLabel(r.display_name)
         // );
-        searchResultsEl.innerHTML = '';
-        waypointSearchInput.value = '';
-      });
-      searchResultsEl.appendChild(item);
-    });
-  }
-
-  async function runSearch_old(){
-    const q = waypointSearchInput.value.trim();
-    if (!q) return;
-    const requestId = ++searchRequestId;
-    searchResultsEl.innerHTML = '<div class="search-result-item">Suche läuft …</div>';
-    const results = await searchPlace(q);
-    if (requestId !== searchRequestId) return; // a newer search has since been started
-    searchResultsEl.innerHTML = '';
-    if (!results.length){
-      searchResultsEl.innerHTML = '<div class="search-result-item">Nichts gefunden.</div>';
-      return;
-    }
-    results.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'search-result-item';
-      item.textContent = r.display_name;
-      item.addEventListener('click', async () => {
-        const raw = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
-        addWaypoint(await snapToRoadIfZoomedOut(raw), shortLabel(r.display_name));
         searchResultsEl.innerHTML = '';
         waypointSearchInput.value = '';
       });
